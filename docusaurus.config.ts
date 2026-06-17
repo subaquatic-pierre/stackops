@@ -6,23 +6,21 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
   title: "Stack Garden",
-  tagline: "My Stack Garden",
+  tagline: "Engineering Knowledge Base & Portfolio",
   favicon: "img/favicon.ico",
 
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
-  future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
-  },
-
+  // Set the production url of your site here
   url: "https://stackgarden.dev",
+  // Set the / path format for apex domains
   baseUrl: "/",
 
   // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
   organizationName: "subaquatic-pierre",
   projectName: "stack-garden",
+  trailingSlash: false,
 
   onBrokenLinks: "throw",
+  onBrokenMarkdownLinks: "warn",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
