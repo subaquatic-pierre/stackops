@@ -1,28 +1,25 @@
 # Website
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
-
 ## Installation
 
-```bash
-yarn
-```
+`npm start`
+Starts the development server.
 
-## Local Development
+`npm run build`
+Bundles your website into static files for production.
 
-```bash
-yarn start
-```
+`npm run serve`
+Serves the built website locally.
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+`npm run deploy`
+Publishes the website to GitHub pages.
 
-## Build
+We recommend that you begin by typing:
 
-```bash
-yarn build
-```
+`cd stack-garden`
+`npm start`
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+Happy building awesome websites!
 
 ## Deployment
 
