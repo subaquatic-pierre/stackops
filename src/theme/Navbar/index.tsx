@@ -23,7 +23,7 @@ export default function Navbar() {
 
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8">
-          <Link to="/docs/intro" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
+          <Link to="/docs/" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
             <BookOpen className="w-4 h-4" />
             <span>Technical Reference</span>
           </Link>
@@ -70,7 +70,7 @@ export default function Navbar() {
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-black/5 dark:border-white/[0.04] bg-white/95 dark:bg-surface-0/95 backdrop-blur-md absolute w-full left-0">
           <div className="px-6 py-4 flex flex-col gap-4">
-            <Link to="/docs/intro" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
+            <Link to="/docs/" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
               <BookOpen className="w-4 h-4" />
               <span>Technical Reference</span>
             </Link>

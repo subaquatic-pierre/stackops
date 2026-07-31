@@ -64,7 +64,7 @@ export default function NavbarContent(): ReactNode {
           {!mobileSidebar.disabled && <NavbarMobileSidebarToggle />}
           <NavbarLogo />
           <div className="hidden md:flex items-center gap-8">
-            <Link to="/docs/intro" className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors cursor-pointer hover:no-underline">
+            <Link to="/docs/" className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors cursor-pointer hover:no-underline">
               <BookOpen className="w-4 h-4" />
               <span>Technical Reference</span>
             </Link>

@@ -1,0 +1,48 @@
+---
+title: 'Find the Process Listening on a Port'
+description: 'Identify which process is bound to a specific TCP or UDP port on Linux.'
+tags: [linux, networking, troubleshooting, playbook]
+last_updated: '2026-07-31'
+---
+
+# Find the Process Listening on a Port
+
+## Objective
+
+Determine which process is listening on a specific network port.
+
+## Prerequisites
+
+- Shell access to the Linux host.
+- Permissions to inspect network sockets and process information (typically root for unprivileged processes).
+
+## Procedure
+
+1. Use `ss` to list sockets bound to the port:
+
+   ```bash
+   ss -tlnp | grep ':<port>'
+   ```
+
+2. If `ss` is unavailable, use `netstat`:
+
+   ```bash
+   netstat -tlnp | grep ':<port>'
+   ```
+
+3. Extract the process ID from the output and inspect the process:
+
+   ```bash
+   ps -fp <pid>
+   ```
+
+4. For UDP ports, replace `-t` with `-u`:
+
+   ```bash
+   ss -ulnp | grep ':<port>'
+   ```
+
+## Verification
+
+- Confirm the PID in the `ss` or `netstat` output matches the expected service.
+- Verify the service is functional using its native health check or by connecting to the port.

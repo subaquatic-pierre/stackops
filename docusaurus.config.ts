@@ -15,7 +15,7 @@ const tailwindPlugin = (context: any, options: any) => {
 
 const config: Config = {
   title: "StackOps",
-  tagline: "Software engineering through an operational lense",
+  tagline: "Software engineering through an operational lens",
   favicon: "img/icon.svg",
 
   url: "https://stackops.link",
@@ -41,7 +41,7 @@ const config: Config = {
     locales: ["en"],
   },
 
-  plugins: [tailwindPlugin],
+  plugins: [tailwindPlugin, "@easyops-cn/docusaurus-search-local"],
 
   presets: [
     [
@@ -113,7 +113,7 @@ const config: Config = {
           items: [
             {
               label: "Technical Reference",
-              to: "/docs/intro",
+              to: "/docs/",
             },
           ],
         },

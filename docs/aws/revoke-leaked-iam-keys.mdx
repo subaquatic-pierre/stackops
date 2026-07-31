@@ -1,0 +1,49 @@
+---
+title: 'Playbook: Revoke a Leaked AWS IAM Access Key'
+description: 'Disable and delete a compromised IAM access key using the AWS CLI.'
+tags: [aws, iam, security, incident-response, playbook]
+last_updated: '2026-07-31'
+---
+
+# Playbook: Revoke a Leaked AWS IAM Access Key
+
+## Objective
+
+Deactivate and remove an exposed IAM access key to prevent unauthorized API calls.
+
+## Prerequisites
+
+- AWS CLI installed and configured with credentials that have `iam:UpdateAccessKey` and `iam:DeleteAccessKey` permissions.
+- The access key ID of the compromised key.
+
+## Procedure
+
+1. List access keys for the affected user to confirm the key exists:
+
+   ```bash
+   aws iam list-access-keys --user-name <user-name>
+   ```
+
+2. Set the key status to `Inactive`:
+
+   ```bash
+   aws iam update-access-key \
+     --user-name <user-name> \
+     --access-key-id <access-key-id> \
+     --status Inactive
+   ```
+
+3. Review recent usage in CloudTrail for the access key ID to identify impacted resources.
+
+4. After confirming no critical dependency on the key, delete it:
+
+   ```bash
+   aws iam delete-access-key \
+     --user-name <user-name> \
+     --access-key-id <access-key-id>
+   ```
+
+## Verification
+
+- Re-run `aws iam list-access-keys --user-name <user-name>` and confirm the key is no longer listed.
+- Check CloudTrail for any further API calls using the old access key ID.

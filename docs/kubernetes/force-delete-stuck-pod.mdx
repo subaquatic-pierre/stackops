@@ -1,0 +1,49 @@
+---
+title: 'Playbook: Force Delete a Stuck Kubernetes Pod'
+description: 'Remove a pod that remains in Terminating state when graceful deletion fails.'
+tags: [kubernetes, k8s, pods, troubleshooting, playbook]
+last_updated: '2026-07-31'
+---
+
+# Playbook: Force Delete a Stuck Kubernetes Pod
+
+## Objective
+
+Remove a pod that is stuck in `Terminating` state when the standard deletion grace period does not complete.
+
+## Prerequisites
+
+- `kubectl` configured with access to the target cluster and namespace.
+- The pod name and namespace.
+
+## Procedure
+
+1. Identify the stuck pod:
+
+   ```bash
+   kubectl get pods -n <namespace>
+   ```
+
+2. Attempt a normal deletion with a short grace period:
+
+   ```bash
+   kubectl delete pod <pod-name> -n <namespace> --grace-period=0
+   ```
+
+3. If the pod remains, force delete it:
+
+   ```bash
+   kubectl delete pod <pod-name> -n <namespace> --grace-period=0 --force
+   ```
+
+4. If the pod is managed by a workload controller, scale the controller to zero and back to trigger reconciliation:
+
+   ```bash
+   kubectl scale deployment/<name> -n <namespace> --replicas=0
+   kubectl scale deployment/<name> -n <namespace> --replicas=<original-count>
+   ```
+
+## Verification
+
+- Run `kubectl get pods -n <namespace>` and confirm the pod is no longer listed.
+- Check the workload controller events to ensure a replacement pod is running correctly.

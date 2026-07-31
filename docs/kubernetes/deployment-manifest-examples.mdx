@@ -1,0 +1,73 @@
+---
+title: 'Kubernetes Deployment Manifest Examples'
+description: 'Reference Deployment manifests for common workload patterns.'
+tags: [kubernetes, k8s, reference, manifests, deployments]
+last_updated: '2026-07-31'
+---
+
+# Kubernetes Deployment Manifest Examples
+
+## Overview
+
+A Deployment manages a set of identical Pods and provides declarative updates. It is the default controller for stateless workloads in Kubernetes.
+
+## Key concepts
+
+- **ReplicaSet**: Created and managed by the Deployment to ensure the desired number of Pods are running.
+- **Rolling update**: The default strategy for updating Pods without downtime.
+- **Revision history**: Deployments retain previous ReplicaSets for rollback.
+- **Selector**: Labels used to match Pods owned by the Deployment.
+
+## Basic Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: app:1.0.0
+          ports:
+            - containerPort: 8080
+```
+
+## Deployment with resource limits
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: app:1.0.0
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+```
+
+## Common locations
+
+- Workload definitions: `deployments/`, `workloads/`, or `base/` in a Kustomize or Helm layout.
+- Production overrides: `overlays/production/` in a Kustomize repository.
+- Chart templates: `templates/deployment.yaml` in a Helm chart.
+
+## See also
+
+- [Playbook: Force Delete a Stuck Kubernetes Pod](./force-delete-stuck-pod.mdx)

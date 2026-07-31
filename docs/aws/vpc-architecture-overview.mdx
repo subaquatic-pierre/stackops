@@ -1,0 +1,45 @@
+---
+title: 'AWS VPC Architecture Overview'
+description: 'Common VPC patterns, subnet layouts, and routing decisions.'
+tags: [aws, vpc, networking, reference, architecture]
+last_updated: '2026-07-31'
+---
+
+# AWS VPC Architecture Overview
+
+## Overview
+
+A Virtual Private Cloud (VPC) is an isolated network within AWS. The way subnets, route tables, NAT gateways, and internet gateways are arranged determines how resources communicate internally and externally.
+
+## Key concepts
+
+- **CIDR block**: The IP address range assigned to the VPC. Common sizes are `/16` for the VPC and `/24` for subnets.
+- **Public subnet**: A subnet with a route to an internet gateway.
+- **Private subnet**: A subnet without a direct route to an internet gateway; outbound traffic typically flows through a NAT gateway.
+- **Route table**: Defines how traffic is directed within the VPC and to external destinations.
+- **NAT gateway**: Allows outbound internet access from private subnets while blocking inbound connections.
+
+## Common patterns
+
+| Pattern | Use case | Trade-off |
+|---|---|---|
+| Single public subnet | Simple workloads, prototypes | No isolation for compute |
+| Public + private subnets | Web applications with backend services | Higher cost due to NAT gateways |
+| Multi-AZ | Production resilience | More subnets and routes to manage |
+
+## Example layout
+
+```text
+VPC 10.0.0.0/16
+├── AZ-a
+│   ├── Public  10.0.1.0/24
+│   └── Private 10.0.2.0/24
+├── AZ-b
+│   ├── Public  10.0.3.0/24
+│   └── Private 10.0.4.0/24
+└── Shared services 10.0.5.0/24
+```
+
+## See also
+
+- [Playbook: Revoke a Leaked AWS IAM Access Key](./revoke-leaked-iam-keys.mdx)

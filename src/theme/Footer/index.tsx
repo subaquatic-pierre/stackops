@@ -12,7 +12,7 @@ export default function Footer() {
 
           {/* Links */}
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
-            <Link to="/docs/intro" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
+            <Link to="/docs/" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
               <BookOpen className="w-4 h-4" />
               <span>Technical Reference</span>
             </Link>
