@@ -67,10 +67,6 @@
 
 /* Custom CSS Variables are handled via Docusaurus config and Tailwind */
 
-.footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-
 @layer base {
   * {
     @apply border-border;
@@ -200,14 +196,23 @@
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
 /* ── Syntax colors ── */
-.c-prompt { color: #22c55e; }
-.c-cmd { color: #e2e8f0; }
-.c-flag { color: #60a5fa; }
-.c-str { color: #fbbf24; }
-.c-comment { color: #4b5563; }
-.c-success { color: #4ade80; }
-.c-label { color: #94a3b8; }
-.c-accent { color: #22c55e; }
+.c-prompt { color: #16a34a; }
+.c-cmd { color: #334155; }
+.c-flag { color: #3b82f6; }
+.c-str { color: #d97706; }
+.c-comment { color: #94a3b8; }
+.c-success { color: #16a34a; }
+.c-label { color: #475569; }
+.c-accent { color: #16a34a; }
+
+[data-theme='dark'] .c-prompt { color: #22c55e; }
+[data-theme='dark'] .c-cmd { color: #e2e8f0; }
+[data-theme='dark'] .c-flag { color: #60a5fa; }
+[data-theme='dark'] .c-str { color: #fbbf24; }
+[data-theme='dark'] .c-comment { color: #4b5563; }
+[data-theme='dark'] .c-success { color: #4ade80; }
+[data-theme='dark'] .c-label { color: #94a3b8; }
+[data-theme='dark'] .c-accent { color: #22c55e; }
 
 /* ── Concept pill ── */
 .concept-pill {

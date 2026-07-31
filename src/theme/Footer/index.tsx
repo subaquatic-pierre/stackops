@@ -6,7 +6,7 @@ import { BookOpen, FolderGit2 } from 'lucide-react';
 export default function Footer() {
   return (
     <footer className="border-t border-black/5 dark:border-white/[0.04] py-12 bg-white dark:bg-surface-0 mt-auto">
-      <div className="max-w-6xl mx-auto px-6">
+      <div className="container">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <Logo />
 

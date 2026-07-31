@@ -1,6 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ['class', '[data-theme="dark"]'],
+  // Disable Tailwind's own `container` utility so it doesn't clash with
+  // Infima's `.container` (used by the navbar/footer to match page content width).
+  corePlugins: {
+    container: false,
+  },
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",
     "./docs/**/*.{md,mdx}",
