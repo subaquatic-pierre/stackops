@@ -49,7 +49,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/stackopshq/stackops/tree/main/",
+          breadcrumbs: false,
         },
         blog: {
           path: './projects',
