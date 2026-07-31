@@ -3,6 +3,7 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 import { BookOpen, FolderGit2, Menu, X, Sun, Moon } from 'lucide-react';
 import { useColorMode } from '@docusaurus/theme-common';
+import { useNavbarMobileSidebar } from '@docusaurus/theme-common/internal';
 import Logo from '@theme/Logo';
 
 export default function Navbar() {
@@ -10,11 +11,21 @@ export default function Navbar() {
   const location = useLocation();
   const { colorMode, setColorMode } = useColorMode();
   const isDarkTheme = colorMode === 'dark';
+  const mobileSidebar = useNavbarMobileSidebar();
+  const isDocsPage = location.pathname.startsWith('/docs');
 
-  // Close mobile menu on route change
+  // Close mobile menus on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
+
+  const toggleMobile = () => {
+    if (isDocsPage) {
+      mobileSidebar.toggle();
+    } else {
+      setIsMobileMenuOpen((open) => !open);
+    }
+  };
 
   return (
     <nav className="navbar sticky top-0 z-50 backdrop-blur-md bg-white/70 dark:bg-surface-0/70 border-b border-black/5 dark:border-white/[0.04]">
@@ -58,16 +69,16 @@ export default function Navbar() {
           </button>
           <button
             className="p-2 -mr-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer bg-transparent border-0"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            onClick={toggleMobile}
             aria-label="Toggle navigation"
           >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileMenuOpen || mobileSidebar.shown ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
+      {/* Mobile Menu (non-docs pages only) */}
+      {!isDocsPage && isMobileMenuOpen && (
         <div className="md:hidden border-t border-black/5 dark:border-white/[0.04] bg-white/95 dark:bg-surface-0/95 backdrop-blur-md absolute w-full left-0">
           <div className="px-6 py-4 flex flex-col gap-4">
             <Link to="/docs/" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">

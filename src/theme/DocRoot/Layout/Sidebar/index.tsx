@@ -1,0 +1,68 @@
+import React, { useState, useCallback } from 'react';
+import { useLocation } from '@docusaurus/router';
+import { prefersReducedMotion, ThemeClassNames } from '@docusaurus/theme-common';
+import { useDocsSidebar } from '@docusaurus/plugin-content-docs/client';
+import DocSidebar from '@theme/DocSidebar';
+import ExpandButton from '@theme/DocRoot/Layout/Sidebar/ExpandButton';
+
+export default function DocRootLayoutSidebar({
+  sidebar,
+  hiddenSidebarContainer,
+  setHiddenSidebarContainer,
+}: {
+  sidebar: any;
+  hiddenSidebarContainer: boolean;
+  setHiddenSidebarContainer: React.Dispatch<React.SetStateAction<boolean>>;
+}): React.ReactElement | null {
+  const { pathname } = useLocation();
+  const docsSidebar = useDocsSidebar();
+  const [hiddenSidebar, setHiddenSidebar] = useState(false);
+
+  const toggleSidebar = useCallback(() => {
+    if (hiddenSidebar) {
+      setHiddenSidebar(false);
+    }
+    if (!hiddenSidebar && prefersReducedMotion()) {
+      setHiddenSidebar(true);
+    }
+    setHiddenSidebarContainer((value) => !value);
+  }, [hiddenSidebar, setHiddenSidebarContainer]);
+
+  if (!docsSidebar) {
+    return null;
+  }
+
+  return (
+    <aside
+      className={[
+        ThemeClassNames.docs.docSidebarContainer,
+        'hidden lg:block',
+        'flex-shrink-0',
+        'border-r border-black/5 dark:border-white/[0.04]',
+        'bg-white/80 dark:bg-surface-0/80 backdrop-blur-md',
+        'rounded-xl',
+        'transition-[width] duration-200 ease-in-out',
+        'overflow-hidden',
+        hiddenSidebarContainer ? 'w-[var(--doc-sidebar-hidden-width)]' : 'w-[var(--doc-sidebar-width)]',
+      ].join(' ')}
+      onTransitionEnd={(e) => {
+        if (
+          e.currentTarget.classList.contains(ThemeClassNames.docs.docSidebarContainer) &&
+          hiddenSidebarContainer
+        ) {
+          setHiddenSidebar(true);
+        }
+      }}
+    >
+      <div className="sticky top-[var(--ifm-navbar-height)] max-h-[calc(100vh-var(--ifm-navbar-height))] overflow-y-auto overflow-x-hidden pt-2 pb-6">
+        <DocSidebar
+          sidebar={sidebar}
+          path={pathname}
+          onCollapse={toggleSidebar}
+          isHidden={hiddenSidebar}
+        />
+        {hiddenSidebar && <ExpandButton toggleSidebar={toggleSidebar} />}
+      </div>
+    </aside>
+  );
+}
