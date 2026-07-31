@@ -2,10 +2,8 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    # branches:
-    #   - main
     tags:
-      - "v*"
+      - "*"
 
 permissions:
   contents: read
@@ -36,13 +34,13 @@ jobs:
         run: npm ci
 
       - name: Build Static Site
-        run: npm run deploy
+        run: npm run build
 
-      # - name: Upload Build Artifacts
-      #   uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     path: ./build
+      - name: Upload Build Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./build
 
-      # - name: Deploy to GitHub Pages
-      #   id: deployment
-      #   uses: actions/deploy-pages@v4
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
