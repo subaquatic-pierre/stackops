@@ -20,3 +20,8 @@ shadcn/ui will be used for rapid, accessible, and customizable UI component deve
 
 - **Location:** Any bespoke React components written by the developer (that are not direct shadcn/ui installations) will reside in `/src/components/shared/`.
 - **Composition:** Custom components should heavily compose shadcn/ui primitives and utilize Tailwind CSS for layout and styling.
+
+## 4. CSS Convention
+
+- **No BEM:** CSS should NOT use BEM (e.g., `__` naming conventions like `navbar__inner`). 
+- **Tailwind First:** We must use standard built-in Tailwind utility classes as much as possible for all styling instead of writing custom CSS rules.

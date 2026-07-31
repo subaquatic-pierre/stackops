@@ -1,30 +1,323 @@
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* You can override the default Infima variables here. */
-:root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
+    --radius: 0.5rem;
+    
+    /* Docusaurus theme variables overrides */
+    --ifm-color-primary: #22c55e;
+    --ifm-color-primary-dark: #1ea34b;
+    --ifm-color-primary-darker: #1c9b47;
+    --ifm-color-primary-darkest: #17803a;
+    --ifm-color-primary-light: #4ade80;
+    --ifm-color-primary-lighter: #63e293;
+    --ifm-color-primary-lightest: #8ae9ac;
+    --ifm-font-family-base: 'Inter', system-ui, sans-serif;
+    --ifm-font-family-monospace: 'JetBrains Mono', monospace;
+    --ifm-background-color: #ffffff;
+    --ifm-background-surface-color: #f8fafc;
+  }
+
+  [data-theme='dark'] {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    
+    --ifm-background-color: #09090b;
+    --ifm-background-surface-color: #16181d;
+  }
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* Custom CSS Variables are handled via Docusaurus config and Tailwind */
+
+.footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+/* ── Subtle grid ── */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* ── Gradient text ── */
+.text-gradient {
+  background: linear-gradient(135deg, #334155 0%, #0f172a 50%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme='dark'] .text-gradient {
+  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 50%, #e2e8f0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-accent {
+  background: linear-gradient(135deg, #22c55e 0%, #4ade80 50%, #86efac 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-blue {
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Hero glow orb ── */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+}
+
+/* ── Reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Card ── */
+.custom-card {
+  background: linear-gradient(180deg, rgba(0,0,0,0.01) 0%, rgba(0,0,0,0.03) 100%);
+  border: 1px solid rgba(0,0,0,0.05);
+  border-radius: 16px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+[data-theme='dark'] .custom-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.custom-card:hover {
+  border-color: rgba(59,130,246,0.2);
+  box-shadow: 0 8px 40px rgba(59,130,246,0.06);
+  transform: translateY(-2px);
+}
+
+/* ── Terminal ── */
+.terminal {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.1);
+}
+
+[data-theme='dark'] .terminal {
+  background: #0c0e12;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.02);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+[data-theme='dark'] .terminal-bar {
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Cursor blink ── */
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 16px;
+  background: #22c55e;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── Syntax colors ── */
+.c-prompt { color: #22c55e; }
+.c-cmd { color: #e2e8f0; }
+.c-flag { color: #60a5fa; }
+.c-str { color: #fbbf24; }
+.c-comment { color: #4b5563; }
+.c-success { color: #4ade80; }
+.c-label { color: #94a3b8; }
+.c-accent { color: #22c55e; }
+
+/* ── Concept pill ── */
+.concept-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.02);
+  color: #64748b;
+  transition: all 0.25s ease;
+}
+
+[data-theme='dark'] .concept-pill {
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  color: #94a3b8;
+}
+
+.concept-pill:hover {
+  border-color: rgba(59,130,246,0.2);
+  background: rgba(59,130,246,0.04);
+  color: #0f172a;
+}
+
+[data-theme='dark'] .concept-pill:hover {
+  color: #e2e8f0;
+}
+
+/* ── Section divider ── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+}
+
+/* ── CTA button ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  background: #22c55e;
+  color: #ffffff;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 0 0 rgba(34,197,94,0);
+}
+
+[data-theme='dark'] .btn-primary {
+  color: #09090b;
+}
+
+.btn-primary:hover {
+  background: #4ade80;
+  box-shadow: 0 0 30px rgba(34,197,94,0.15);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  background: rgba(0,0,0,0.02);
+  border: 1px solid rgba(0,0,0,0.08);
+  color: #334155;
+  transition: all 0.2s ease;
+}
+
+[data-theme='dark'] .btn-secondary {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+
+[data-theme='dark'] .btn-secondary:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* ── Floating code lines ── */
+.float-line {
+  position: absolute;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: rgba(0,0,0,0.06);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+[data-theme='dark'] .float-line {
+  color: rgba(255,255,255,0.04);
+}
+
+/* ── Feature icon ── */
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }

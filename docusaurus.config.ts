@@ -2,25 +2,35 @@ import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
+const tailwindPlugin = (context: any, options: any) => {
+  return {
+    name: "docusaurus-tailwindcss",
+    configurePostCss(postcssOptions: any) {
+      postcssOptions.plugins.push(require("tailwindcss"));
+      postcssOptions.plugins.push(require("autoprefixer"));
+      return postcssOptions;
+    },
+  };
+};
 
 const config: Config = {
-  title: "Stack Garden",
-  tagline: "Engineering Knowledge Base & Portfolio",
-  favicon: "img/favicon.ico",
+  title: "StackOps",
+  tagline: "Software engineering through an operational lense",
+  favicon: "img/icon.svg",
 
-  // Set the production url of your site here
-  url: "https://stackgarden.dev",
-  // Set the / path format for apex domains
+  url: "https://stackops.link",
   baseUrl: "/",
 
-  // GitHub pages deployment config.
-  organizationName: "subaquatic-pierre",
-  projectName: "stack-garden",
+  organizationName: "stackopshq",
+  projectName: "stackops",
   trailingSlash: false,
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+    },
+  },
 
   future: {
     v4: true,
@@ -31,28 +41,26 @@ const config: Config = {
     locales: ["en"],
   },
 
+  plugins: [tailwindPlugin],
+
   presets: [
     [
       "classic",
       {
         docs: {
           sidebarPath: "./sidebars.ts",
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
+          editUrl: "https://github.com/stackopshq/stackops/tree/main/",
         },
         blog: {
+          path: './projects',
+          routeBasePath: '/projects',
+          blogTitle: 'Projects',
+          blogDescription: 'A showcase of my projects',
           showReadingTime: true,
           feedOptions: {
             type: ["rss", "atom"],
             xslt: true,
           },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
-          // Useful options to enforce blogging best practices
           onInlineTags: "warn",
           onInlineAuthors: "warn",
           onUntruncatedBlogPosts: "warn",
@@ -65,29 +73,35 @@ const config: Config = {
   ],
 
   themeConfig: {
-    // Replace with your project's social card
     image: "img/docusaurus-social-card.jpg",
     colorMode: {
+      defaultMode: "dark",
+      disableSwitch: false,
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: "My Site",
+      title: "StackOps",
       logo: {
-        alt: "My Site Logo",
-        src: "img/logo.svg",
+        alt: "StackOps Logo",
+        src: "img/logo-light-theme.svg",
+        srcDark: "img/logo-dark-theme.svg",
       },
       items: [
         {
           type: "docSidebar",
           sidebarId: "tutorialSidebar",
           position: "left",
-          label: "Tutorial",
+          label: "Technical Reference",
         },
-        { to: "/blog", label: "Blog", position: "left" },
+        { 
+          to: "/projects", 
+          position: "left",
+          label: "Projects",
+        },
         {
-          href: "https://github.com/facebook/docusaurus",
-          label: "GitHub",
+          href: "https://github.com/subaquatic-pierre",
           position: "right",
+          label: "GitHub",
         },
       ],
     },
@@ -98,25 +112,8 @@ const config: Config = {
           title: "Docs",
           items: [
             {
-              label: "Tutorial",
+              label: "Technical Reference",
               to: "/docs/intro",
-            },
-          ],
-        },
-        {
-          title: "Community",
-          items: [
-            {
-              label: "Stack Overflow",
-              href: "https://stackoverflow.com/questions/tagged/docusaurus",
-            },
-            {
-              label: "Discord",
-              href: "https://discordapp.com/invite/docusaurus",
-            },
-            {
-              label: "X",
-              href: "https://x.com/docusaurus",
             },
           ],
         },
@@ -124,17 +121,17 @@ const config: Config = {
           title: "More",
           items: [
             {
-              label: "Blog",
-              to: "/blog",
+              label: "Projects",
+              to: "/projects",
             },
             {
               label: "GitHub",
-              href: "https://github.com/facebook/docusaurus",
+              href: "https://github.com/stackopshq",
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Stack Garden.`,
+      copyright: `Copyright © ${new Date().getFullYear()} StackOps.`,
     },
     prism: {
       theme: prismThemes.github,
