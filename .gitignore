@@ -22,3 +22,13 @@ yarn-error.log*
 .specify 
 .opencode
 specs
+
+# Build artifacts
+dist/
+
+# IDE / editor directories
+.vscode/
+.idea/
+
+# Generic cache
+.cache/

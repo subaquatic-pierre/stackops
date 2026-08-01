@@ -14,7 +14,7 @@ export default function Logo() {
           light: "/img/logo-light-theme.svg",
           dark: "/img/logo-dark-theme.svg",
         }}
-        width="160"
+        width="200"
         height="32"
       />
     </Link>

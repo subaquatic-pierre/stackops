@@ -1,0 +1,53 @@
+---
+title: 'Terraform Overview'
+description: 'High-level overview of Terraform plus common commands, state operations, and workspace reference tables.'
+tags: [terraform, iac, overview, reference]
+last_updated: '2026-07-31'
+---
+
+# Terraform Overview
+
+Terraform is an infrastructure-as-code tool for building, changing, and versioning cloud and on-premises resources safely and efficiently.
+
+## Core concepts
+
+- **Providers** — plugins that interact with cloud APIs (AWS, Azure, GCP, Kubernetes, etc.).
+- **Resources** — the infrastructure objects managed by Terraform (e.g., `aws_instance`, `kubernetes_deployment`).
+- **State** — a snapshot of managed resources stored in `terraform.tfstate`.
+- **Modules** — reusable, composable packages of Terraform configuration.
+- **Workspaces** — isolated state environments within the same configuration.
+
+## Common CLI commands
+
+| Command | Purpose |
+|---|---|
+| `terraform init` | Initialize the working directory and download providers. |
+| `terraform plan` | Preview changes before applying. |
+| `terraform apply` | Apply the planned changes. |
+| `terraform destroy` | Remove all resources defined in the configuration. |
+| `terraform validate` | Check configuration syntax and consistency. |
+| `terraform fmt` | Format configuration files to canonical style. |
+
+## State operations
+
+| Operation | Command |
+|---|---|
+| Show current state | `terraform show` |
+| List resources in state | `terraform state list` |
+| Move a resource in state | `terraform state mv <source> <destination>` |
+| Remove a resource from state | `terraform state rm <address>` |
+| Pull remote state | `terraform state pull` |
+
+## Workspace commands
+
+- `terraform workspace list` — show available workspaces.
+- `terraform workspace new <name>` — create a new workspace.
+- `terraform workspace select <name>` — switch to an existing workspace.
+- `terraform workspace delete <name>` — remove a workspace.
+
+## Best practices
+
+- Store remote state in a shared backend with locking (S3, Terraform Cloud, etc.).
+- Keep modules small, focused, and versioned.
+- Run `terraform plan` in CI before every `apply`.
+- Use variable validation and output descriptions.

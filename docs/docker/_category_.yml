@@ -1,0 +1,6 @@
+label: Docker
+link:
+  type: generated-index
+  title: Docker
+  description: Container operations, image management, and orchestration patterns.
+  slug: docker

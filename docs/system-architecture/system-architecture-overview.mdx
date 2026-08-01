@@ -1,0 +1,56 @@
+---
+title: 'System Architecture Overview'
+description: 'High-level overview of system architecture plus common patterns, quality attributes, and a decision record template.'
+tags: [architecture, patterns, overview, reference]
+last_updated: '2026-07-31'
+---
+
+# System Architecture Overview
+
+System architecture defines the structure of a software system, the relationships among its components, and the principles guiding its design and evolution.
+
+## Core concepts
+
+- **Components** — deployable units that encapsulate behavior (services, databases, queues).
+- **Interfaces** — contracts that define how components interact.
+- **Quality attributes** — non-functional requirements such as availability, scalability, and security.
+- **Constraints** — limitations imposed by technology, budget, regulation, or organizational boundaries.
+- **Trade-offs** — deliberate choices between competing quality attributes.
+
+## Common architecture patterns
+
+| Pattern | Use case | Trade-off |
+|---|---|---|
+| Layered (n-tier) | Enterprise applications | Can become rigid at scale. |
+| Microservices | Independent team ownership | Adds operational complexity. |
+| Event-driven | Asynchronous workflows | Requires robust observability. |
+| Serverless | Variable or infrequent workloads | Cold starts and vendor lock-in. |
+| Circuit breaker | Resilient external calls | Adds latency and tuning overhead. |
+
+## Key quality attributes
+
+| Attribute | Concern |
+|---|---|
+| Availability | Uptime and fault tolerance. |
+| Scalability | Handling growth in load or data. |
+| Maintainability | Ease of change and testing. |
+| Security | Protection against threats. |
+| Observability | Ability to diagnose behavior in production. |
+| Performance | Response time and throughput. |
+
+## Architecture Decision Record (ADR) template
+
+Use the following structure when documenting significant decisions:
+
+1. **Title** — short name and date.
+2. **Context** — forces and constraints that require a decision.
+3. **Decision** — the chosen option.
+4. **Consequences** — positive and negative outcomes.
+5. **Status** — proposed, accepted, deprecated, or superseded.
+
+## Best practices
+
+- Design for failure rather than assuming perfect conditions.
+- Prefer simplicity until complexity is justified by measured need.
+- Document decisions with ADRs so future teams understand intent.
+- Validate architecture with prototypes, load tests, and chaos experiments.

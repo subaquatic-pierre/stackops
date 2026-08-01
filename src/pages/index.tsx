@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
+import { Search, Command } from 'lucide-react';
+import HomepageSearchModal from '../components/shared/HomepageSearchModal';
 
 const termLines = [
   { t: '<span class="c-comment"># docs/kubernetes/deployment-template.yaml</span>', d: 0 },
@@ -110,64 +112,100 @@ function RevealOnScroll() {
 }
 
 export default function Home() {
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
-    <Layout
-      title="Technical Reference Manual"
-      description="Software engineering through an operational lens.">
-      <div className="bg-white dark:bg-surface-0 text-slate-900 dark:text-white antialiased bg-grid min-h-screen font-sans transition-colors duration-200">
-        <RevealOnScroll />
+    <>
+      <HomepageSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        triggerRef={searchTriggerRef}
+      />
+      <Layout
+        title="Technical Reference Manual"
+        description="Software engineering through an operational lens.">
+        <div className="bg-white dark:bg-surface-0 text-slate-900 dark:text-white antialiased bg-grid min-h-screen font-sans transition-colors duration-200">
+          <RevealOnScroll />
 
-        {/* HERO SECTION */}
-        <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-16 pb-20">
-          <div className="orb w-[500px] h-[500px] bg-accent/[0.07] -top-60 left-1/4"></div>
-          <div className="orb w-[400px] h-[400px] bg-brand/[0.05] top-1/3 -right-20"></div>
+          {/* HERO SECTION */}
+          <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-16 pb-20">
+            <div className="orb w-[500px] h-[500px] bg-accent/[0.07] -top-60 left-1/4"></div>
+            <div className="orb w-[400px] h-[400px] bg-brand/[0.05] top-1/3 -right-20"></div>
 
-          <div className="float-line" style={{ top: '18%', left: '5%', transform: 'rotate(-2deg)' }}>docs/linux/find-large-files.mdx</div>
-          <div className="float-line" style={{ top: '30%', right: '8%', transform: 'rotate(1.5deg)' }}>projects/stack-garden.mdx</div>
-          <div className="float-line" style={{ top: '65%', left: '12%', transform: 'rotate(-1deg)' }}>docs/aws/revoke-iam-keys.mdx</div>
-          <div className="float-line" style={{ top: '75%', right: '15%', transform: 'rotate(2deg)' }}>docs/kubernetes/force-delete-pod.mdx</div>
-          <div className="float-line" style={{ top: '45%', left: '80%', transform: 'rotate(-0.5deg)' }}>docs/terraform/provider-aws.mdx</div>
+            <div className="float-line" style={{ top: '18%', left: '5%', transform: 'rotate(-2deg)' }}>docs/linux/find-large-files.mdx</div>
+            <div className="float-line" style={{ top: '30%', right: '8%', transform: 'rotate(1.5deg)' }}>projects/stack-garden.mdx</div>
+            <div className="float-line" style={{ top: '65%', left: '12%', transform: 'rotate(-1deg)' }}>docs/aws/revoke-iam-keys.mdx</div>
+            <div className="float-line" style={{ top: '75%', right: '15%', transform: 'rotate(2deg)' }}>docs/kubernetes/force-delete-pod.mdx</div>
+            <div className="float-line" style={{ top: '45%', left: '80%', transform: 'rotate(-0.5deg)' }}>docs/terraform/provider-aws.mdx</div>
 
-          <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mt-12">
-            <div className="reveal inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-black/5 dark:border-white/[0.06] bg-black/5 dark:bg-white/[0.02] text-[12px] font-medium text-slate-600 dark:text-slate-400 tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-              TECHNICAL REFERENCE MANUAL
+            <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mt-12">
+              <div className="reveal inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-black/5 dark:border-white/[0.06] bg-black/5 dark:bg-white/[0.02] text-[12px] font-medium text-slate-600 dark:text-slate-400 tracking-wide">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+                TECHNICAL REFERENCE MANUAL
+              </div>
+
+              <h1 className="reveal text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-[1.06] tracking-[-0.03em] mb-6" style={{ transitionDelay: '0.08s' }}>
+                <span className="text-gradient">Software engineering through</span><br />
+                <span className="text-gradient-accent">an operational lens.</span>
+              </h1>
+
+              <p className="reveal text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed font-light" style={{ transitionDelay: '0.16s' }}>
+                A hybrid digital cookbook and encyclopedia for infrastructure, operations, and development. Built for high-speed retrieval, featuring actionable playbooks, architecture references, and core engineering concepts.
+              </p>
+
+              <div className="reveal max-w-xl mx-auto mb-8" style={{ transitionDelay: '0.2s' }}>
+                <button
+                  ref={searchTriggerRef}
+                  type="button"
+                  onClick={() => setIsSearchOpen(true)}
+                  className="w-full flex items-center gap-3 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-surface-2 px-4 py-3 text-left shadow-sm hover:border-brand/30 dark:hover:border-brand/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"
+                  aria-label="Open search"
+                >
+                  <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+                  <span className="flex-1 text-slate-500">Search knowledge base…</span>
+                  <span className="hidden sm:flex items-center gap-1 rounded border border-black/5 dark:border-white/10 px-1.5 py-0.5 text-xs text-slate-500">
+                    <Command className="h-3 w-3" /> K
+                  </span>
+                </button>
+              </div>
+
+              <div className="reveal flex flex-col sm:flex-row items-center justify-center gap-4 mb-16" style={{ transitionDelay: '0.24s' }}>
+                <Link to="/docs/" className="btn-primary cursor-pointer hover:text-white dark:hover:text-[#09090b] hover:no-underline">
+                  Explore Reference Manual
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+                </Link>
+                <Link to="/projects" className="btn-secondary cursor-pointer hover:text-slate-900 dark:hover:text-white hover:no-underline text-slate-700 dark:text-slate-200">
+                  View Projects
+                </Link>
+              </div>
+
+              <Terminal />
             </div>
-
-            <h1 className="reveal text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-[1.06] tracking-[-0.03em] mb-6" style={{ transitionDelay: '0.08s' }}>
-              <span className="text-gradient">Software engineering through</span><br />
-              <span className="text-gradient-accent">an operational lens.</span>
-            </h1>
-
-            <p className="reveal text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed font-light" style={{ transitionDelay: '0.16s' }}>
-              A hybrid digital cookbook and encyclopedia for infrastructure, operations, and development. Built for high-speed retrieval, featuring actionable playbooks, architecture references, and core engineering concepts.
-            </p>
-
-            <div className="reveal flex flex-col sm:flex-row items-center justify-center gap-4 mb-16" style={{ transitionDelay: '0.24s' }}>
-              <Link to="/docs/" className="btn-primary cursor-pointer hover:text-white dark:hover:text-[#09090b] hover:no-underline">
-                Explore Reference Manual
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-              </Link>
-              <Link to="/projects" className="btn-secondary cursor-pointer hover:text-slate-900 dark:hover:text-white hover:no-underline text-slate-700 dark:text-slate-200">
-                View Projects
-              </Link>
-            </div>
-
-            <Terminal />
-          </div>
-        </section>
+          </section>
         
         {/* CONCEPTS STRIP */}
         <section id="concepts" className="relative py-20 border-y border-black/5 dark:border-white/[0.04]">
           <div className="max-w-5xl mx-auto px-6">
             <p className="reveal text-center text-[11px] uppercase tracking-[0.2em] text-slate-500 font-medium mb-10">Core Technologies & Domains</p>
             <div className="reveal flex flex-wrap justify-center gap-3" style={{ transitionDelay: '0.1s' }}>
-              <span className="concept-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg> Linux & Systems</span>
-              <span className="concept-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> AWS Cloud</span>
-              <span className="concept-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> Kubernetes</span>
-              <span className="concept-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg> Terraform</span>
-              <span className="concept-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> Docker</span>
-              <span className="concept-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg> System Architecture</span>
+              <Link to="/docs/linux" className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg> Linux & Systems</Link>
+              <Link to="/docs/aws" className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> AWS Cloud</Link>
+              <Link to="/docs/kubernetes" className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> Kubernetes</Link>
+              <Link to="/docs/terraform" className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg> Terraform</Link>
+              <Link to="/docs/docker" className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> Docker</Link>
+              <Link to="/docs/system-architecture" className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg> System Architecture</Link>
             </div>
           </div>
         </section>
@@ -233,5 +271,6 @@ export default function Home() {
 
       </div>
     </Layout>
+    </>
   );
 }

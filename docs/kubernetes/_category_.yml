@@ -1,0 +1,6 @@
+label: Kubernetes
+link:
+  type: generated-index
+  title: Kubernetes
+  description: Cluster operations, manifests, and troubleshooting workflows.
+  slug: kubernetes
