@@ -88,21 +88,21 @@ export default function DocCategoryMobileDrawer({
       <div
         className={clsx(
           'fixed top-0 left-0 z-[200] h-screen w-[300px]',
-          'bg-surface-0 border-r border-white/[0.06]',
+          'bg-white dark:bg-surface-0 border-r border-black/5 dark:border-white/[0.06]',
           'flex flex-col',
           transitionClass,
           open ? 'translate-x-0' : '-translate-x-full',
         )}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 h-16 border-b border-white/[0.06] bg-surface-0 shrink-0">
-          <span className="text-sm font-semibold text-slate-300">
+        <div className="flex items-center justify-between px-4 h-16 border-b border-black/5 dark:border-white/[0.06] bg-white dark:bg-surface-0 shrink-0">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             Categories
           </span>
           <button
             type="button"
             aria-label="Close category navigation"
             onClick={closeDrawer}
-            className="flex items-center justify-center h-12 w-12 -mr-2 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors">
+            className="flex items-center justify-center h-12 w-12 -mr-2 rounded-md text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
