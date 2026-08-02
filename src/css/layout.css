@@ -46,6 +46,7 @@ article,
 [class*="codeBlockContainer"] {
   overflow-x: auto !important;
   -webkit-overflow-scrolling: touch;
+  margin-bottom: 1.5rem;
 }
 
 [class*="codeBlockContainer"] pre,
