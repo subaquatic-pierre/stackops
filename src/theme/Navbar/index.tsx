@@ -5,7 +5,6 @@ import { BookOpen, FolderGit2, Menu, X, Sun, Moon } from "lucide-react";
 import { useColorMode } from "@docusaurus/theme-common";
 import Logo from "@theme/Logo";
 import ThemedImage from "@theme/ThemedImage";
-import SearchBar from "@theme/SearchBar";
 import NavbarSearch from "@theme/Navbar/Search";
 import { Button } from "../../components/ui/button";
 import { useSharedBodyScrollLock } from "@site/src/components/shared/bodyScrollLock";
@@ -108,9 +107,7 @@ export default function Navbar() {
               <FolderGit2 className="w-4 h-4" />
               <span>Journal</span>
             </Link>
-            <NavbarSearch>
-              <SearchBar />
-            </NavbarSearch>
+            <NavbarSearch>{undefined}</NavbarSearch>
             <div className="flex items-center gap-1">
               <Link
                 href="https://github.com/subaquatic-pierre"
@@ -162,9 +159,7 @@ export default function Navbar() {
                 <Moon className="w-4 h-4" />
               )}
             </Button>
-            <NavbarSearch>
-              <SearchBar />
-            </NavbarSearch>
+            <NavbarSearch>{undefined}</NavbarSearch>
             <Button
               variant="ghost"
               size="icon-md"

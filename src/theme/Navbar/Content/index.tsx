@@ -12,7 +12,6 @@ import {
 } from "@docusaurus/theme-common/internal";
 import NavbarItem, { type Props as NavbarItemConfig } from "@theme/NavbarItem";
 import NavbarColorModeToggle from "@theme/Navbar/ColorModeToggle";
-import SearchBar from "@theme/SearchBar";
 import NavbarMobileSidebarToggle from "@theme/Navbar/MobileSidebar/Toggle";
 import NavbarLogo from "@theme/Navbar/Logo";
 import NavbarSearch from "@theme/Navbar/Search";
@@ -133,9 +132,7 @@ export default function NavbarContent(): ReactNode {
       {/* On doc pages: hamburger on the right side for site navigation */}
       {isDocPage && !mobileSidebar.disabled && <NavbarMobileSidebarToggle />}
       {!searchBarItem && (
-        <NavbarSearch>
-          <SearchBar />
-        </NavbarSearch>
+        <NavbarSearch>{undefined}</NavbarSearch>
       )}
     </>
   );

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import { Search, Command } from 'lucide-react';
-import HomepageSearchModal from '../components/shared/HomepageSearchModal';
+import SearchModal from '../components/shared/SearchModal';
 import { buttonVariants } from '../components/ui/button';
 
 const termLines = [
@@ -116,20 +116,9 @@ export default function Home() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setIsSearchOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   return (
     <>
-      <HomepageSearchModal
+      <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         triggerRef={searchTriggerRef}
