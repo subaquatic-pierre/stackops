@@ -16,6 +16,21 @@ export default function Navbar() {
   const { colorMode, setColorMode } = useColorMode();
   const isDarkTheme = colorMode === "dark";
   const isDocsPage = location.pathname.startsWith("/docs");
+  const isEngineeringPage = location.pathname.startsWith("/engineering");
+
+  const linkClass = (active: boolean) =>
+    `flex items-center gap-2 text-sm font-medium transition-colors cursor-pointer hover:no-underline ${
+      active
+        ? "text-accent"
+        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+    }`;
+
+  const mobileLinkClass = (active: boolean) =>
+    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer hover:no-underline ${
+      active
+        ? "text-accent bg-accent/8"
+        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5"
+    }`;
 
   // Lock body scroll when mobile site-nav is open
   useSharedBodyScrollLock(isMobileMenuOpen);
@@ -50,6 +65,11 @@ export default function Navbar() {
 
   const handleCategoryDrawerOpen = (e: React.MouseEvent) => {
     e.preventDefault();
+    // Only open drawer on mobile viewports
+    if (typeof window !== 'undefined' && window.innerWidth >= 996) {
+      window.location.href = '/';
+      return;
+    }
     document.dispatchEvent(
       new CustomEvent("stackops:open-category-drawer"),
     );
@@ -86,14 +106,14 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-8">
             <Link
               to="/docs/"
-              className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline"
+              className={linkClass(isDocsPage)}
             >
               <BookOpen className="w-4 h-4" />
               <span>Technical Reference</span>
             </Link>
             <Link
               to="/engineering"
-              className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline"
+              className={linkClass(isEngineeringPage)}
             >
               <FolderGit2 className="w-4 h-4" />
               <span>Journal</span>
@@ -114,7 +134,6 @@ export default function Navbar() {
                   <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
                   <path d="M9 18c-4.51 2-5-2-7-2" />
                 </svg>
-                <span>GitHub</span>
               </Link>
               <Button variant="icon" size="icon-md" onClick={() => setColorMode(isDarkTheme ? "light" : "dark")} aria-label="Toggle dark mode">
                 {isDarkTheme ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -161,11 +180,11 @@ export default function Navbar() {
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 px-5 py-4">
-          <Link to="/docs/" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer hover:no-underline">
+          <Link to="/docs/" className={mobileLinkClass(isDocsPage)}>
             <BookOpen className="w-4 h-4" />
             <span>Technical Reference</span>
           </Link>
-          <Link to="/engineering" className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer hover:no-underline">
+          <Link to="/engineering" className={mobileLinkClass(isEngineeringPage)}>
             <FolderGit2 className="w-4 h-4" />
             <span>Journal</span>
           </Link>

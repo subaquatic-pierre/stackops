@@ -1,0 +1,57 @@
+/* ── Body-scroll lock (used when mobile nav panels are open) ── */
+html.scroll-locked body {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+html {
+  overflow-x: hidden !important;
+}
+
+/* ── Prevent elements from overflowing the page ── */
+article,
+.markdown,
+.theme-doc-markdown {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.markdown img,
+.theme-doc-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown table,
+.theme-doc-markdown table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.markdown iframe,
+.theme-doc-markdown iframe {
+  max-width: 100%;
+}
+
+.markdown *,
+.theme-doc-markdown * {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Docusaurus code-block containers */
+[class*="codeBlockContainer"] {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+[class*="codeBlockContainer"] pre,
+[class*="codeBlockContainer"] code {
+  overflow-x: auto !important;
+  white-space: pre !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}

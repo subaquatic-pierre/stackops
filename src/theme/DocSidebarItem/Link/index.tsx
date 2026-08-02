@@ -39,13 +39,13 @@ export default function DocSidebarItemLink({
       <Link
         className={clsx(
           'flex items-center gap-1.5 py-2.5 px-3 rounded-md',
-          'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
-          'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
           'transition-colors',
           'menu__link',
           {
             'menu__link--active': isActive,
             'text-accent font-medium bg-accent/8': isActive,
+            'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white': !isActive,
+            'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]': !isActive,
           },
         )}
         autoAddBaseUrl={autoAddBaseUrl}

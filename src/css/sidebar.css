@@ -1,0 +1,69 @@
+/* ── Docs layout ── */
+:root {
+  --ifm-container-width: 1600px;
+  --ifm-container-width-xl: 1600px;
+  --doc-sidebar-width: 280px;
+  --doc-sidebar-hidden-width: 30px;
+}
+
+/* ── Sidebar menu styling ── */
+.theme-doc-sidebar-container > div {
+  padding-top: 0 !important;
+  height: auto !important;
+}
+
+.theme-doc-sidebar-menu .menu__list-item {
+  list-style: none;
+}
+
+.theme-doc-sidebar-menu .menu__list-item .menu__link {
+  color: var(--ifm-font-color-secondary);
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.theme-doc-sidebar-menu .menu__list-item .menu__link:hover {
+  color: var(--ifm-font-color-base);
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] .theme-doc-sidebar-menu .menu__list-item .menu__link:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.theme-doc-sidebar-menu .menu__list-item .menu__link--active {
+  color: var(--ifm-color-primary);
+  background-color: rgba(34, 197, 94, 0.08);
+  font-weight: 500;
+}
+
+.theme-doc-sidebar-menu .theme-doc-sidebar-item-category .menu__link--active {
+  color: var(--ifm-color-primary);
+  background-color: rgba(34, 197, 94, 0.08);
+}
+
+/* Category labels */
+.theme-doc-sidebar-menu .theme-doc-sidebar-item-category .menu__link {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--ifm-font-color-base);
+}
+
+/* Subitem labels */
+.theme-doc-sidebar-menu .theme-doc-sidebar-item-link .menu__link {
+  font-weight: 400;
+  font-size: 0.8125rem;
+}
+
+/* Divider between category and subitems */
+.theme-doc-sidebar-item-category > .menu__list {
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  margin-left: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0;
+}
+
+[data-theme="dark"] .theme-doc-sidebar-item-category > .menu__list {
+  border-left-color: rgba(255, 255, 255, 0.06);
+}
