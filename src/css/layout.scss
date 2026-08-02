@@ -1,3 +1,15 @@
+/* ── Container width ── */
+:root {
+  --ifm-container-width: 1600px;
+  --ifm-container-width-xl: 1600px;
+  --doc-sidebar-width: 280px;
+  --doc-sidebar-hidden-width: 30px;
+}
+
+.container {
+  max-width: 1400px !important;
+}
+
 /* ── Body-scroll lock (used when mobile nav panels are open) ── */
 html.scroll-locked body {
   overflow: hidden;
@@ -18,25 +30,26 @@ article,
   overflow-x: hidden;
 }
 
-.markdown,
-.theme-doc-markdown {
-  img {
-    max-width: 100%;
-    height: auto;
-  }
+.markdown img,
+.theme-doc-markdown img {
+  max-width: 100%;
+  height: auto;
+}
 
-  table {
-    display: block;
-    overflow-x: auto;
-    max-width: 100%;
-  }
+.markdown table,
+.theme-doc-markdown table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
 
-  iframe {
-    max-width: 100%;
-  }
+.markdown iframe,
+.theme-doc-markdown iframe {
+  max-width: 100%;
+}
 
-  * {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-  }
+.markdown *,
+.theme-doc-markdown * {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }

@@ -61,10 +61,11 @@ const config: Config = {
           breadcrumbs: false,
         },
         blog: {
-          path: './projects',
-          routeBasePath: '/engineering',
-          blogTitle: 'Journal',
-          blogDescription: 'Archive of engineering projects, labs, and journal entries.',
+          path: "./projects",
+          routeBasePath: "/engineering",
+          blogTitle: "Journal",
+          blogDescription:
+            "Archive of engineering projects, labs, and journal entries.",
           showReadingTime: true,
           feedOptions: {
             type: ["rss", "atom"],
@@ -109,8 +110,8 @@ const config: Config = {
           position: "left",
           label: "Technical Reference",
         },
-        { 
-          to: "/engineering", 
+        {
+          to: "/engineering",
           position: "left",
           label: "Journal",
         },
