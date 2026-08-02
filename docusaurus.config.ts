@@ -53,9 +53,9 @@ const config: Config = {
         },
         blog: {
           path: './projects',
-          routeBasePath: '/projects',
-          blogTitle: 'Projects',
-          blogDescription: 'A showcase of my projects',
+          routeBasePath: '/engineering',
+          blogTitle: 'Engineering',
+          blogDescription: 'Archive of engineering projects, labs, and blog posts.',
           showReadingTime: true,
           feedOptions: {
             type: ["rss", "atom"],
@@ -94,9 +94,9 @@ const config: Config = {
           label: "Technical Reference",
         },
         { 
-          to: "/projects", 
+          to: "/engineering", 
           position: "left",
-          label: "Projects",
+          label: "Engineering",
         },
         {
           href: "https://github.com/subaquatic-pierre",
@@ -121,8 +121,8 @@ const config: Config = {
           title: "More",
           items: [
             {
-              label: "Projects",
-              to: "/projects",
+              label: "Engineering",
+              to: "/engineering",
             },
             {
               label: "GitHub",

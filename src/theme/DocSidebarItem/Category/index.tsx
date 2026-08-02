@@ -176,10 +176,10 @@ function DocSidebarItemCategoryCollapsible({
       )}>
       <div
         className={clsx(
-          'flex items-center justify-between',
+          'flex items-center justify-between pr-2',
           'menu__list-item-collapsible',
           {
-            'menu__list-item-collapsible--active': isCurrentPage,
+            'menu__list-item-collapsible--active': isActive,
           },
         )}>
         <Link

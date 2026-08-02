@@ -6,11 +6,9 @@
 
 ---
 
-**Context Reference:** Initialized and architected in session `-s ses_049030b82fferzYnuwwKZeXtoO`.
-
 ## Introduction
 
-**StackOps** is a hybrid digital cookbook and encyclopedia for infrastructure, operations, and development. Built for high-speed retrieval, it replaces complex nested hierarchies with a highly-opinionated flat structure, relying heavily on metadata tags and full-text search. 
+**StackOps** is a hybrid digital cookbook and encyclopedia for infrastructure, operations, and development. Built for high-speed retrieval, it replaces complex nested hierarchies with a highly-opinionated flat structure, relying heavily on metadata tags and full-text search.
 
 Whether you are executing an under-pressure incident response playbook or reviewing a deep-dive on system architectures, StackOps is designed to get you the exact information you need, instantly.
 
@@ -34,11 +32,14 @@ Whether you are executing an under-pressure incident response playbook or review
 ## 🚀 Local Development
 
 ### Prerequisites
+
 - Node.js (v20.0 or newer recommended)
 - npm
 
 ### Installation
+
 Clone the repository and install the dependencies:
+
 ```bash
 git clone https://github.com/subaquatic-pierre/stack-garden.git
 cd stack-garden
@@ -46,21 +47,29 @@ npm install
 ```
 
 ### Starting the Dev Server
+
 To start the local development server with hot-reloading:
+
 ```bash
 npm start
 ```
+
 The site will be available at `http://localhost:3000/`.
 
 ### Building for Production
+
 To bundle the website into static files for production:
+
 ```bash
 npm run build
 ```
+
 This generates the optimized site in the `build/` directory. You can test the production build locally using `npm run serve`.
 
 ### Troubleshooting Cache
+
 If you encounter layout or styling issues after checking out new branches or modifying core `docusaurus.config.ts` paths, clear the bundler cache:
+
 ```bash
 npm run clear
 ```
@@ -79,7 +88,7 @@ The project deviates from a standard Docusaurus setup to enforce our flat archit
 │   ├── kubernetes/      # Flat directory for K8s-related MDX files
 │   └── linux/           # Flat directory for Linux-related MDX files
 ├── projects/            # Project Showcase (Replaces default '/blog')
-├── src/                 
+├── src/
 │   ├── components/      # Custom React & shadcn/ui components
 │   ├── css/             # Tailwind & Custom CSS (custom.css)
 │   ├── pages/           # Landing page (index.tsx)
@@ -92,21 +101,25 @@ The project deviates from a standard Docusaurus setup to enforce our flat archit
 ## 📝 Writing Content
 
 ### Adding to the Technical Reference (`/docs`)
+
 1. Create an `.mdx` file directly inside the relevant domain folder (e.g., `docs/postgres/create-user.mdx`). **Do not create nested subfolders.**
 2. Ensure you include detailed front-matter tags for discovery:
+
 ```yaml
 ---
-title: 'How to Create a New User in PostgreSQL'
+title: "How to Create a New User in PostgreSQL"
 tags: [postgres, sql, user-management, actionable]
 ---
 ```
 
 ### Adding to the Project Showcase (`/projects`)
+
 1. Create an `.mdx` file in the `projects/` directory.
 2. Use standard Docusaurus blog front-matter (date, authors, tags).
+
 ```yaml
 ---
-title: 'StackOps Platform'
+title: "StackOps Platform"
 date: 2026-07-31
 tags: [react, tailwind, docusaurus]
 ---
@@ -115,4 +128,5 @@ tags: [react, tailwind, docusaurus]
 ---
 
 ## License
+
 &copy; 2026 StackOps. All rights reserved.

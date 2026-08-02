@@ -38,11 +38,10 @@ export default function DocRootLayoutSidebar({
         ThemeClassNames.docs.docSidebarContainer,
         'hidden lg:block',
         'flex-shrink-0',
-        'border-r border-black/5 dark:border-white/[0.04]',
-        'bg-white/80 dark:bg-surface-0/80 backdrop-blur-md',
-        'rounded-xl',
         'transition-[width] duration-200 ease-in-out',
-        'overflow-hidden',
+        'sticky top-0',
+        'max-h-screen',
+        'flex flex-col',
         hiddenSidebarContainer ? 'w-[var(--doc-sidebar-hidden-width)]' : 'w-[var(--doc-sidebar-width)]',
       ].join(' ')}
       onTransitionEnd={(e) => {
@@ -54,14 +53,16 @@ export default function DocRootLayoutSidebar({
         }
       }}
     >
-      <div className="sticky top-[var(--ifm-navbar-height)] max-h-[calc(100vh-var(--ifm-navbar-height))] overflow-y-auto overflow-x-hidden pt-2 pb-6">
-        <DocSidebar
-          sidebar={sidebar}
-          path={pathname}
-          onCollapse={toggleSidebar}
-          isHidden={hiddenSidebar}
-        />
-        {hiddenSidebar && <ExpandButton toggleSidebar={toggleSidebar} />}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl">
+        <div className="pt-2 pb-6">
+          <DocSidebar
+            sidebar={sidebar}
+            path={pathname}
+            onCollapse={toggleSidebar}
+            isHidden={hiddenSidebar}
+          />
+          {hiddenSidebar && <ExpandButton toggleSidebar={toggleSidebar} />}
+        </div>
       </div>
     </aside>
   );

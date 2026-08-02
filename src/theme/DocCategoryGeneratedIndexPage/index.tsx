@@ -45,7 +45,9 @@ function DocCategoryGeneratedIndexPageContent({
           {categoryGeneratedIndex.title}
         </Heading>
         {categoryGeneratedIndex.description && (
-          <p>{categoryGeneratedIndex.description}</p>
+          <p className="text-lg text-slate-500 dark:text-slate-400 max-w-2xl mt-2">
+            {categoryGeneratedIndex.description}
+          </p>
         )}
       </header>
       <article className="margin-top--lg">

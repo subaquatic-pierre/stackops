@@ -239,7 +239,7 @@ export default function HomepageSearchModal({
                         <p className="truncate font-medium text-slate-900 dark:text-slate-100">
                           {result.document.s || result.document.t}
                         </p>
-                        {result.document.b.length > 0 && (
+                        {result.document.b?.length > 0 && (
                           <p className="truncate text-xs text-slate-500">
                             {result.document.b.join(" / ")}
                           </p>
