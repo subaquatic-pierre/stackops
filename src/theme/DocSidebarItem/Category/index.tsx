@@ -190,9 +190,9 @@ function DocSidebarItemCategoryCollapsible({
               'menu__link--sublist': collapsible,
               'menu__link--sublist-caret': !href && collapsible,
               'menu__link--active': isActive,
-              'text-accent font-medium bg-accent/8': isActive,
-              'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white': !isActive,
-              'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]': !isActive,
+              'text-accent font-medium bg-accent/8': isCurrentPage,
+              'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white': !isCurrentPage,
+              'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]': !isCurrentPage,
             },
           )}
           onClick={handleItemClick}

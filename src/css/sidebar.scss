@@ -1,0 +1,35 @@
+/* ── Docs layout ── */
+:root {
+  --ifm-container-width: 1600px;
+  --ifm-container-width-xl: 1600px;
+  --doc-sidebar-width: 280px;
+  --doc-sidebar-hidden-width: 30px;
+}
+
+/* ── Sidebar menu styling ── */
+.theme-doc-sidebar-container > div {
+  padding-top: 0 !important;
+  height: auto !important;
+}
+
+.theme-doc-sidebar-menu .menu__list-item {
+  list-style: none;
+}
+
+.theme-doc-sidebar-menu .menu__list-item .menu__link {
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+/* Divider between category and subitems */
+.theme-doc-sidebar-item-category > .menu__list {
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  margin-left: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0;
+}
+
+[data-theme="dark"] .theme-doc-sidebar-item-category > .menu__list {
+  border-left-color: rgba(255, 255, 255, 0.06);
+}

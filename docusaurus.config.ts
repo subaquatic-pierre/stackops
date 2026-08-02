@@ -42,6 +42,7 @@ const config: Config = {
   },
 
   plugins: [
+    "docusaurus-plugin-sass",
     tailwindPlugin,
     [
       "@easyops-cn/docusaurus-search-local",
@@ -75,12 +76,12 @@ const config: Config = {
         },
         theme: {
           customCss: [
-            "./src/css/custom.css",
-            "./src/css/brand.css",
-            "./src/css/markdown.css",
-            "./src/css/sidebar.css",
-            "./src/css/search.css",
-            "./src/css/layout.css",
+            "./src/css/custom.scss",
+            "./src/css/brand.scss",
+            "./src/css/markdown.scss",
+            "./src/css/sidebar.scss",
+            "./src/css/search.scss",
+            "./src/css/layout.scss",
           ],
         },
       } satisfies Preset.Options,
