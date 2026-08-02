@@ -1,20 +1,11 @@
-import React, {version, type ReactNode} from 'react';
+import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
-import {useNavbarSecondaryMenu} from '@docusaurus/theme-common/internal';
-import {ThemeClassNames} from '@docusaurus/theme-common';
+import {
+  useNavbarMobileSidebar,
+  useNavbarSecondaryMenu,
+} from '@docusaurus/theme-common/internal';
+import {prefersReducedMotion, ThemeClassNames} from '@docusaurus/theme-common';
 import type {Props} from '@theme/Navbar/MobileSidebar/Layout';
-
-// TODO Docusaurus v4: remove temporary inert workaround
-//  See https://github.com/facebook/react/issues/17157
-//  See https://github.com/radix-ui/themes/pull/509
-function inertProps(inert: boolean) {
-  const isBeforeReact19 = parseInt(version!.split('.')[0]!, 10) < 19;
-  if (isBeforeReact19) {
-    // TODO Docusaurus v4: remove temporary inert workaround
-    return {inert: inert ? '' : undefined} as unknown as {inert: boolean};
-  }
-  return {inert};
-}
 
 function NavbarMobileSidebarPanel({
   children,
@@ -27,12 +18,16 @@ function NavbarMobileSidebarPanel({
     <div
       className={clsx(
         ThemeClassNames.layout.navbar.mobileSidebar.panel,
-        'navbar-sidebar__item menu',
+        'w-1/2 h-full overflow-y-auto overflow-x-hidden',
       )}
-      {...inertProps(inert)}>
+      inert={inert}>
       {children}
     </div>
   );
+}
+
+function useMotionSafeTransition(): string {
+  return prefersReducedMotion() ? '' : 'transition-transform duration-200 ease-in-out';
 }
 
 export default function NavbarMobileSidebarLayout({
@@ -40,18 +35,27 @@ export default function NavbarMobileSidebarLayout({
   primaryMenu,
   secondaryMenu,
 }: Props): ReactNode {
+  const {shown} = useNavbarMobileSidebar();
   const {shown: secondaryMenuShown} = useNavbarSecondaryMenu();
+  const transitionClass = useMotionSafeTransition();
+
   return (
     <div
       className={clsx(
         ThemeClassNames.layout.navbar.mobileSidebar.container,
-        'navbar-sidebar',
+        'fixed top-0 left-0 z-[200] h-screen w-[300px]',
+        'bg-surface-0 border-r border-white/[0.06]',
+        'flex flex-col',
+        transitionClass,
+        shown ? 'translate-x-0' : '-translate-x-full',
       )}>
       {header}
       <div
-        className={clsx('navbar-sidebar__items', {
-          'navbar-sidebar__items--show-secondary': secondaryMenuShown,
-        })}>
+        className={clsx(
+          'flex flex-1 w-[200%]',
+          transitionClass,
+          secondaryMenuShown ? '-translate-x-1/2' : 'translate-x-0',
+        )}>
         <NavbarMobileSidebarPanel inert={secondaryMenuShown}>
           {primaryMenu}
         </NavbarMobileSidebarPanel>

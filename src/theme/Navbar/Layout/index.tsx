@@ -1,6 +1,10 @@
 import React, {type ComponentProps, type ReactNode} from 'react';
 import clsx from 'clsx';
-import {ThemeClassNames, useThemeConfig} from '@docusaurus/theme-common';
+import {
+  ThemeClassNames,
+  prefersReducedMotion,
+  useThemeConfig,
+} from '@docusaurus/theme-common';
 import {
   useHideableNavbar,
   useNavbarMobileSidebar,
@@ -11,12 +15,23 @@ import type {Props} from '@theme/Navbar/Layout';
 
 import styles from './styles.module.css';
 
-function NavbarBackdrop(props: ComponentProps<'div'>) {
+function NavbarBackdrop({
+  visible,
+  ...props
+}: ComponentProps<'div'> & {visible: boolean}) {
+  const transitionClass = prefersReducedMotion()
+    ? ''
+    : 'transition-opacity duration-200 ease-in-out';
   return (
     <div
       role="presentation"
       {...props}
-      className={clsx('navbar-sidebar__backdrop', props.className)}
+      className={clsx(
+        'fixed inset-0 z-[199] bg-black/60',
+        transitionClass,
+        visible ? 'opacity-100' : 'opacity-0',
+        props.className,
+      )}
     />
   );
 }
@@ -46,11 +61,15 @@ export default function NavbarLayout({children}: Props): ReactNode {
         {
           'navbar--dark': style === 'dark',
           'navbar--primary': style === 'primary',
-          'navbar-sidebar--show': mobileSidebar.shown,
         },
       )}>
       {children}
-      <NavbarBackdrop onClick={mobileSidebar.toggle} />
+      {mobileSidebar.shouldRender && (
+        <NavbarBackdrop
+          visible={mobileSidebar.shown}
+          onClick={mobileSidebar.toggle}
+        />
+      )}
       <NavbarMobileSidebar />
     </nav>
   );

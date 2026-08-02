@@ -192,7 +192,7 @@ function DocSidebarItemCategoryCollapsible({
               'menu__link--sublist': collapsible,
               'menu__link--sublist-caret': !href && collapsible,
               'menu__link--active': isActive,
-              'text-green-600 dark:text-green-400 font-medium bg-green-500/5': isActive,
+              'text-accent font-medium bg-accent/8': isActive,
             },
           )}
           onClick={handleItemClick}

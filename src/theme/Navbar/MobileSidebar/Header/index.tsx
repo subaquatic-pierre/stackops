@@ -15,19 +15,21 @@ function CloseButton() {
         message: 'Close navigation bar',
         description: 'The ARIA label for close button of mobile sidebar',
       })}
-      className="clean-btn navbar-sidebar__close"
+      className="flex items-center justify-center h-12 w-12 -mr-2 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
       onClick={() => mobileSidebar.toggle()}>
-      <IconClose color="var(--ifm-color-emphasis-600)" />
+      <IconClose className="w-6 h-6" />
     </button>
   );
 }
 
 export default function NavbarMobileSidebarHeader(): ReactNode {
   return (
-    <div className="navbar-sidebar__brand">
+    <div className="flex items-center justify-between px-4 h-16 border-b border-white/[0.06] bg-surface-0 shrink-0">
       <NavbarLogo />
-      <NavbarColorModeToggle className="margin-right--md" />
-      <CloseButton />
+      <div className="flex items-center gap-1">
+        <NavbarColorModeToggle />
+        <CloseButton />
+      </div>
     </div>
   );
 }

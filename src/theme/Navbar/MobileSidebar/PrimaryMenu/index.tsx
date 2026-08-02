@@ -11,19 +11,17 @@ function useNavbarItems() {
 // The primary menu displays the navbar items
 export default function NavbarMobilePrimaryMenu(): ReactNode {
   const mobileSidebar = useNavbarMobileSidebar();
-
-  // TODO how can the order be defined for mobile?
-  // Should we allow providing a different list of items?
   const items = useNavbarItems();
 
   return (
-    <ul className="menu__list">
+    <ul className="flex flex-col py-2">
       {items.map((item, i) => (
         <NavbarItem
           mobile
           {...item}
           onClick={() => mobileSidebar.toggle()}
           key={i}
+          className="flex items-center px-4 min-h-12 text-sm text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors [&.menu__link--active]:text-accent [&.menu__link--active]:bg-accent/8"
         />
       ))}
     </ul>
