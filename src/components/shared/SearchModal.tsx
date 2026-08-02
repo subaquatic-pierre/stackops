@@ -195,7 +195,7 @@ export default function SearchModal({
       {/* Spacer — pushes the modal down below the navbar on desktop */}
       <div className="hidden sm:block flex-shrink-0 h-[12vh] min-h-[80px]" />
 
-      <div className="mx-auto w-full max-w-3xl sm:max-w-[640px] flex flex-col flex-1 sm:flex-none sm:max-h-[70vh] overflow-hidden sm:rounded-2xl sm:border sm:border-white/10 bg-white dark:bg-surface-2 sm:shadow-2xl max-sm:rounded-none max-sm:border-0 max-sm:h-full">
+      <div className="mx-auto sm:w-[60%] max-w-3xl sm:max-w-[640px] flex flex-col flex-1 sm:flex-none sm:max-h-[70vh] overflow-hidden sm:rounded-2xl sm:border sm:border-white/10 bg-white dark:bg-surface-2 sm:shadow-2xl max-sm:rounded-none max-sm:border-0 max-sm:h-full">
         {/* ── Header / Input ── */}
         <div className="flex items-center gap-3 border-b border-black/5 dark:border-white/[0.06] px-4 py-3">
           <Search

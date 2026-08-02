@@ -107,8 +107,8 @@ export default function Navbar() {
               <FolderGit2 className="w-4 h-4" />
               <span>Journal</span>
             </Link>
-            <NavbarSearch>{undefined}</NavbarSearch>
             <div className="flex items-center gap-1">
+              <NavbarSearch>{undefined}</NavbarSearch>
               <Link
                 href="https://github.com/subaquatic-pierre"
                 target="_blank"
@@ -159,7 +159,7 @@ export default function Navbar() {
                 <Moon className="w-4 h-4" />
               )}
             </Button>
-            <NavbarSearch>{undefined}</NavbarSearch>
+            {/* <NavbarSearch>{undefined}</NavbarSearch> */}
             <Button
               variant="ghost"
               size="icon-md"
