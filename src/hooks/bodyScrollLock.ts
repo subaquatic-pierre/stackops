@@ -1,4 +1,4 @@
-import {useEffect, useRef} from 'react';
+import { useEffect, useRef } from "react";
 
 // Each call gets a unique ID, tracked in a Set.
 // Body scroll is locked while the set is non-empty.
@@ -6,12 +6,12 @@ const locks = new Set<string>();
 let nextId = 0;
 
 function applyBodyScroll() {
-  if (typeof document === 'undefined') return;
+  if (typeof document === "undefined") return;
   const el = document.documentElement;
   if (locks.size > 0) {
-    el.classList.add('scroll-locked');
+    el.classList.add("scroll-locked");
   } else {
-    el.classList.remove('scroll-locked');
+    el.classList.remove("scroll-locked");
   }
 }
 

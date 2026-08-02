@@ -7,7 +7,7 @@ import Logo from "@theme/Logo";
 import ThemedImage from "@theme/ThemedImage";
 import NavbarSearch from "@theme/Navbar/Search";
 import { Button } from "../../components/ui/button";
-import { useSharedBodyScrollLock } from "@site/src/components/shared/bodyScrollLock";
+import { useSharedBodyScrollLock } from "@site/src/hooks/bodyScrollLock";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

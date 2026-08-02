@@ -1,9 +1,9 @@
-import React, {type ReactNode} from 'react';
-import {useNavbarMobileSidebar} from '@docusaurus/theme-common/internal';
-import {translate} from '@docusaurus/Translate';
-import NavbarColorModeToggle from '@theme/Navbar/ColorModeToggle';
-import IconClose from '@theme/Icon/Close';
-import NavbarLogo from '@theme/Navbar/Logo';
+import React, { type ReactNode } from "react";
+import { useNavbarMobileSidebar } from "@docusaurus/theme-common/internal";
+import { translate } from "@docusaurus/Translate";
+import NavbarColorModeToggle from "@theme/Navbar/ColorModeToggle";
+import IconClose from "@theme/Icon/Close";
+import NavbarLogo from "@theme/Navbar/Logo";
 
 function CloseButton() {
   const mobileSidebar = useNavbarMobileSidebar();
@@ -11,12 +11,13 @@ function CloseButton() {
     <button
       type="button"
       aria-label={translate({
-        id: 'theme.docs.sidebar.closeSidebarButtonAriaLabel',
-        message: 'Close navigation bar',
-        description: 'The ARIA label for close button of mobile sidebar',
+        id: "theme.docs.sidebar.closeSidebarButtonAriaLabel",
+        message: "Close navigation bar",
+        description: "The ARIA label for close button of mobile sidebar",
       })}
       className="flex items-center justify-center h-12 w-12 -mr-2 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
-      onClick={() => mobileSidebar.toggle()}>
+      onClick={() => mobileSidebar.toggle()}
+    >
       <IconClose className="w-6 h-6" />
     </button>
   );

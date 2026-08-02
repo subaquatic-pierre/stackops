@@ -1,17 +1,22 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import { useHistory } from "@docusaurus/router";
 import Link from "@docusaurus/Link";
 import { fetchIndexesByWorker, searchByWorker } from "@theme/searchByWorker";
 import type { SearchResult } from "@theme/searchByWorker";
-import { Search, X, Command, FileText, Hash, Loader2, CornerDownLeft, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Search,
+  X,
+  Command,
+  FileText,
+  Hash,
+  Loader2,
+  CornerDownLeft,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import { cn } from "../../lib/utils";
-import { useSharedBodyScrollLock } from "./bodyScrollLock";
+import { useSharedBodyScrollLock } from "../../hooks/bodyScrollLock";
 
 const SEARCH_LIMIT = 8;
 
@@ -112,7 +117,9 @@ export default function SearchModal({
   // ── Scroll selected item into view ──
   useEffect(() => {
     if (results.length === 0) return;
-    const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
+    const el = listRef.current?.children[selectedIndex] as
+      | HTMLElement
+      | undefined;
     el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex, results.length]);
 
@@ -191,7 +198,10 @@ export default function SearchModal({
       <div className="mx-auto w-full max-w-3xl sm:max-w-[640px] flex flex-col flex-1 sm:flex-none sm:max-h-[70vh] overflow-hidden sm:rounded-2xl sm:border sm:border-white/10 bg-white dark:bg-surface-2 sm:shadow-2xl max-sm:rounded-none max-sm:border-0 max-sm:h-full">
         {/* ── Header / Input ── */}
         <div className="flex items-center gap-3 border-b border-black/5 dark:border-white/[0.06] px-4 py-3">
-          <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+          <Search
+            className="h-5 w-5 shrink-0 text-slate-400"
+            aria-hidden="true"
+          />
           <input
             ref={inputRef}
             type="search"
@@ -284,9 +294,7 @@ export default function SearchModal({
                         <div
                           className={cn(
                             "mt-0.5 flex-shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs",
-                            isSelected
-                              ? "text-brand"
-                              : "text-slate-400",
+                            isSelected ? "text-brand" : "text-slate-400",
                           )}
                         >
                           {result.document.s ? (
@@ -351,7 +359,9 @@ export default function SearchModal({
                 <span>select</span>
               </span>
               <span className="flex items-center gap-1">
-                <span className="text-[10px] font-mono leading-none px-1 py-0.5 rounded border border-current/20">esc</span>
+                <span className="text-[10px] font-mono leading-none px-1 py-0.5 rounded border border-current/20">
+                  esc
+                </span>
                 <span>close</span>
               </span>
             </div>
