@@ -1,9 +1,15 @@
-import React, {type ReactNode, useCallback, useState} from 'react';
-import clsx from 'clsx';
-import {Search} from 'lucide-react';
-import SearchModal from '@site/src/components/shared/SearchModal';
+import React, { type ReactNode, useCallback, useState } from "react";
+import clsx from "clsx";
+import { Search } from "lucide-react";
+import SearchModal from "@site/src/components/shared/SearchModal";
 
-export default function NavbarSearch({className, children: _children}: {className?: string; children?: ReactNode}): ReactNode {
+export default function NavbarSearch({
+  className,
+  children: _children,
+}: {
+  className?: string;
+  children?: ReactNode;
+}): ReactNode {
   const [isOpen, setIsOpen] = useState(false);
 
   const open = useCallback(() => setIsOpen(true), []);
@@ -12,13 +18,13 @@ export default function NavbarSearch({className, children: _children}: {classNam
   // Global Ctrl+K / Cmd+K shortcut
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsOpen(true);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
@@ -39,7 +45,7 @@ export default function NavbarSearch({className, children: _children}: {classNam
       <SearchModal
         isOpen={isOpen}
         onClose={close}
-        variant="navbar"
+        // variant="navbar"
       />
     </>
   );
