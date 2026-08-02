@@ -41,10 +41,18 @@ function BlogTagsPostsPageContent({
   return (
     <BlogLayout sidebar={sidebar}>
       {tag.unlisted && <Unlisted />}
-      <header className="margin-bottom--xl">
-        <Heading as="h1">{title}</Heading>
-        {tag.description && <p>{tag.description}</p>}
-        <Link href={tag.allTagsPath}>
+      <header className="mb-10">
+        <Heading as="h1" className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
+          {title}
+        </Heading>
+        {tag.description && (
+          <p className="text-lg text-slate-500 dark:text-slate-400 max-w-2xl mb-4">
+            {tag.description}
+          </p>
+        )}
+        <Link
+          href={tag.allTagsPath}
+          className="text-sm font-medium text-brand dark:text-brand-light hover:text-brand-dim dark:hover:text-brand transition-colors">
           <Translate
             id="theme.tags.tagsPageLink"
             description="The label of the link targeting the tag list page">

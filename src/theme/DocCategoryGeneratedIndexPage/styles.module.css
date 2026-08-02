@@ -2,13 +2,8 @@
   max-width: 100%;
 }
 
-.title {
-  --ifm-h1-font-size: 2.5rem;
-  margin-bottom: 1rem;
-}
-
 .list {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
 }
 
 @media (min-width: 997px) {

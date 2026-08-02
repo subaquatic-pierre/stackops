@@ -161,10 +161,10 @@ export default function HomepageSearchModal({
       role="dialog"
       aria-modal="true"
       aria-label="Search documentation"
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[12vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 pt-[12vh] max-sm:p-0 max-sm:pt-0"
       onClick={handleOverlayClick}
     >
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-white dark:bg-surface-2 shadow-2xl">
+      <div className="w-full max-w-2xl mx-4 sm:mx-0 overflow-hidden rounded-2xl border border-white/10 bg-white dark:bg-surface-2 shadow-2xl max-sm:rounded-none max-sm:border-0 max-sm:h-full max-sm:flex max-sm:flex-col">
         {/* Header / Input */}
         <div className="flex items-center gap-3 border-b border-black/5 dark:border-white/[0.06] px-4 py-3">
           <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
@@ -193,7 +193,7 @@ export default function HomepageSearchModal({
         </div>
 
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto px-2 py-2">
+        <div className="max-h-[60vh] max-sm:max-h-none max-sm:flex-1 overflow-y-auto px-2 py-2">
           {loading && results.length === 0 && (
             <div className="flex items-center justify-center gap-2 py-10 text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -255,11 +255,12 @@ export default function HomepageSearchModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-black/5 dark:border-white/[0.06] px-4 py-2.5 text-xs text-slate-500">
-          <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3">
             <span>↑↓ navigate</span>
             <span>↵ select</span>
             <span>esc close</span>
           </div>
+          <span className="sm:hidden text-slate-400">Type to search</span>
           {query.trim() && (
             <Link
               to={`/search?q=${encodeURIComponent(query.trim())}`}

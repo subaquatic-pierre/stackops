@@ -3,6 +3,7 @@ import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import { Search, Command } from 'lucide-react';
 import HomepageSearchModal from '../components/shared/HomepageSearchModal';
+import { buttonVariants } from '../components/ui/button';
 
 const termLines = [
   { t: '<span class="c-comment"># docs/kubernetes/deployment-template.yaml</span>', d: 0 },
@@ -182,12 +183,12 @@ export default function Home() {
               </div>
 
               <div className="reveal flex flex-col sm:flex-row items-center justify-center gap-4 mb-16" style={{ transitionDelay: '0.24s' }}>
-                <Link to="/docs/" className="btn-primary cursor-pointer hover:text-white dark:hover:text-[#09090b] hover:no-underline">
+                <Link to="/docs/" className={buttonVariants({ variant: "primary", size: "lg" })}>
                   Explore Reference Manual
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
                 </Link>
-                <Link to="/engineering" className="btn-secondary cursor-pointer hover:text-slate-900 dark:hover:text-white hover:no-underline text-slate-700 dark:text-slate-200">
-                  View Engineering
+                <Link to="/engineering" className={buttonVariants({ variant: "secondary", size: "lg" })}>
+                  View Journal
                 </Link>
               </div>
 

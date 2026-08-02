@@ -41,7 +41,15 @@ const config: Config = {
     locales: ["en"],
   },
 
-  plugins: [tailwindPlugin, "@easyops-cn/docusaurus-search-local"],
+  plugins: [
+    tailwindPlugin,
+    [
+      "@easyops-cn/docusaurus-search-local",
+      {
+        searchBarShortcut: false,
+      },
+    ],
+  ],
 
   presets: [
     [
@@ -54,8 +62,8 @@ const config: Config = {
         blog: {
           path: './projects',
           routeBasePath: '/engineering',
-          blogTitle: 'Engineering',
-          blogDescription: 'Archive of engineering projects, labs, and blog posts.',
+          blogTitle: 'Journal',
+          blogDescription: 'Archive of engineering projects, labs, and journal entries.',
           showReadingTime: true,
           feedOptions: {
             type: ["rss", "atom"],
@@ -96,7 +104,7 @@ const config: Config = {
         { 
           to: "/engineering", 
           position: "left",
-          label: "Engineering",
+          label: "Journal",
         },
         {
           href: "https://github.com/subaquatic-pierre",
@@ -121,7 +129,7 @@ const config: Config = {
           title: "More",
           items: [
             {
-              label: "Engineering",
+              label: "Journal",
               to: "/engineering",
             },
             {

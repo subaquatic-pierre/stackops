@@ -18,7 +18,7 @@ export default function Footer() {
             </Link>
             <Link to="/engineering" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
               <FolderGit2 className="w-4 h-4" />
-              <span>Engineering</span>
+              <span>Journal</span>
             </Link>
             <Link href="https://github.com/subaquatic-pierre" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer hover:no-underline">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

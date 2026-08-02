@@ -40,17 +40,17 @@ function DocCategoryGeneratedIndexPageContent({
       <DocVersionBanner />
       <DocBreadcrumbs />
       <DocVersionBadge />
-      <header>
-        <Heading as="h1" className={styles.title}>
+      <header className="mb-8">
+        <Heading as="h1" className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
           {categoryGeneratedIndex.title}
         </Heading>
         {categoryGeneratedIndex.description && (
-          <p className="text-lg text-slate-500 dark:text-slate-400 max-w-2xl mt-2">
+          <p className="text-lg text-slate-500 dark:text-slate-400 max-w-2xl">
             {categoryGeneratedIndex.description}
           </p>
         )}
       </header>
-      <article className="margin-top--lg">
+      <article>
         <DocCardList items={category.items} className={styles.list} />
       </article>
     </div>

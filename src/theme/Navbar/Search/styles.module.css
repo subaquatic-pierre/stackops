@@ -1,20 +1,4 @@
 /*
-Workaround to avoid rendering empty search container
-See https://github.com/facebook/docusaurus/pull/9385
+Navbar search container styling is now handled via Tailwind classes
+in the component and via global CSS selectors in custom.css.
 */
-.navbarSearchContainer:empty {
-  display: none;
-}
-
-@media (max-width: 996px) {
-  .navbarSearchContainer {
-    position: absolute;
-    right: var(--ifm-navbar-padding-horizontal);
-  }
-}
-
-@media (min-width: 997px) {
-  .navbarSearchContainer {
-    padding: 0 var(--ifm-navbar-item-padding-horizontal);
-  }
-}
