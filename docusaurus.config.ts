@@ -62,7 +62,7 @@ const config: Config = {
         },
         blog: {
           path: "./journal",
-          routeBasePath: "/engineering",
+          routeBasePath: "/journal",
           blogTitle: "Journal",
           blogDescription:
             "A running log of engineering projects, labs, and journal entries.",
@@ -111,7 +111,7 @@ const config: Config = {
           label: "Technical Reference",
         },
         {
-          to: "/engineering",
+          to: "/journal",
           position: "left",
           label: "Journal",
         },
@@ -139,7 +139,7 @@ const config: Config = {
           items: [
             {
               label: "Journal",
-              to: "/engineering",
+              to: "/journal",
             },
             {
               label: "GitHub",

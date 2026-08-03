@@ -1,15 +1,19 @@
 ---
 title: "Multi-Strategy Deploy Pipeline"
 date: 2026-08-03
-# authors:
-#   - pierre
+authors:
+  - pierre
 tags: [bash, docker, kubernetes, systemd, deployment, shell, devops]
 image: /img/journal-placeholder.png
+category: project-showcase
+featured: true
+description: >
+  A reusable modular Bash deployment pipeline that builds Docker images, rolls
+  out to Kubernetes for staging, and updates bare-metal VMs via SSH + systemd
+  for production. Swap out the hostnames and image names and it works for any
+  project.
+repo: "https://github.com/subaquatic-pierre/kube-devops"
 ---
-
-_A reusable modular Bash deployment pipeline that builds Docker images, rolls out to Kubernetes for staging, and updates bare-metal VMs via SSH + systemd for production. Swap out the hostnames and image names and it works for any project._
-
-> **Reference repo:** [github.com/subaquatic-pierre/kube-devops](https://github.com/subaquatic-pierre/kube-devops) — contains a working instance of this pipeline wired up for a real project, including live hostnames, service definitions, and Kubernetes manifests.
 
 {/* truncate */}
 

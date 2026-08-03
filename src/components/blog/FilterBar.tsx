@@ -1,44 +1,29 @@
 import React, { useState } from "react";
-import { useHistory, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import { Search, X } from "lucide-react";
 
 interface FilterBarProps {
+  selectedCategory: string | null;
+  onCategoryChange: (category: string | null) => void;
   onSearchChange: (query: string) => void;
 }
 
 export default function FilterBar({
+  selectedCategory,
+  onCategoryChange,
   onSearchChange,
 }: FilterBarProps): React.ReactNode {
-  const history = useHistory();
-  const location = useLocation();
-
-  const params = new URLSearchParams(location.search);
-  const selectedCategory: string | null = params.get("category") ?? null;
-
   const [searchQuery, setSearchQuery] = useState("");
-
-  const setCategory = (category: string | null) => {
-    const next = new URLSearchParams(location.search);
-    if (category) {
-      next.set("category", category);
-    } else {
-      next.delete("category");
-    }
-    history.replace({ search: next.toString() || undefined });
-  };
-
-  const clearFilters = () => {
-    const next = new URLSearchParams(location.search);
-    next.delete("category");
-    history.replace({ search: next.toString() || undefined });
-    setSearchQuery("");
-    onSearchChange("");
-  };
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     onSearchChange(value);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    onSearchChange("");
+    onCategoryChange(null);
   };
 
   const categories = [
@@ -79,7 +64,7 @@ export default function FilterBar({
             <button
               key={cat.label}
               type="button"
-              onClick={() => setCategory(cat.value)}
+              onClick={() => onCategoryChange(cat.value)}
               className={clsx(
                 "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                 selectedCategory === cat.value

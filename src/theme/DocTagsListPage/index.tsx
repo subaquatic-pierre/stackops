@@ -54,9 +54,7 @@ function DocTagsListPageContent({
   const letters = Object.keys(grouped).sort();
 
   return (
-    <HtmlClassNameProvider
-      className={ThemeClassNames.page.docsTagsListPage}
-    >
+    <HtmlClassNameProvider className={ThemeClassNames.page.docsTagsListPage}>
       <div className="container max-w-4xl mx-auto px-6 py-12">
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-10">
           {title}

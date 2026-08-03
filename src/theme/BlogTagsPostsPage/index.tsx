@@ -12,6 +12,7 @@ import {
 } from "@docusaurus/theme-common";
 import { useBlogTagsPostsPageTitle } from "@docusaurus/theme-common/internal";
 import Link from "@docusaurus/Link";
+import BlogLayout from "@theme/BlogLayout";
 import SearchMetadata from "@theme/SearchMetadata";
 import Unlisted from "@theme/ContentVisibility/Unlisted";
 import Heading from "@theme/Heading";
@@ -128,14 +129,16 @@ function BlogTagsPostsPageContent({ tag, items }: Props): ReactNode {
 
 export default function BlogTagsPostsPage(props: Props): ReactNode {
   return (
-    <HtmlClassNameProvider
-      className={clsx(
-        ThemeClassNames.wrapper.blogPages,
-        ThemeClassNames.page.blogTagPostListPage,
-      )}
-    >
-      <BlogTagsPostsPageMetadata {...props} />
-      <BlogTagsPostsPageContent {...props} />
-    </HtmlClassNameProvider>
+    <BlogLayout>
+      <HtmlClassNameProvider
+        className={clsx(
+          ThemeClassNames.wrapper.blogPages,
+          ThemeClassNames.page.blogTagPostListPage,
+        )}
+      >
+        <BlogTagsPostsPageMetadata {...props} />
+        <BlogTagsPostsPageContent {...props} />
+      </HtmlClassNameProvider>
+    </BlogLayout>
   );
 }

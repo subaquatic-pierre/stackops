@@ -134,7 +134,7 @@ export default function HeroSection({
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
-            to="/engineering"
+            to="/journal"
             className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
             View Journal

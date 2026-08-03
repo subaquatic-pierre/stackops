@@ -66,9 +66,7 @@ function DocTagDocListPageContent({
   title,
 }: Props & { title: string }): ReactNode {
   return (
-    <HtmlClassNameProvider
-      className={ThemeClassNames.page.docsTagDocListPage}
-    >
+    <HtmlClassNameProvider className={ThemeClassNames.page.docsTagDocListPage}>
       <div className="container max-w-4xl mx-auto px-6 py-12">
         {tag.unlisted && <Unlisted />}
 
@@ -97,7 +95,10 @@ function DocTagDocListPageContent({
               {tag.count} {tag.count === 1 ? "doc" : "docs"}
             </span>
           </div>
-          <Heading as="h1" className="!mb-0 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <Heading
+            as="h1"
+            className="!mb-0 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white"
+          >
             {title}
           </Heading>
           {tag.description && (

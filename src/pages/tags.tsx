@@ -11,8 +11,8 @@ export default function TagsPage(): ReactNode {
     new URLSearchParams(location.search).get("tag")?.trim() ?? "";
 
   const dest = tag
-    ? `/engineering/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`
-    : "/engineering/tags/";
+    ? `/journal/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`
+    : "/journal/tags/";
 
   useEffect(() => {
     window.location.replace(dest);

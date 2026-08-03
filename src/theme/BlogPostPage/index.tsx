@@ -18,7 +18,8 @@ import BlogPostPageMetadata from "@theme/BlogPostPage/Metadata";
 import BlogPostPageStructuredData from "@theme/BlogPostPage/StructuredData";
 import ContentVisibility from "@theme/ContentVisibility";
 import { Calendar, Clock } from "lucide-react";
-import Link from "@docusaurus/Link";
+import { SiGithub } from "@icons-pack/react-simple-icons";
+import TagPill from "@site/src/components/shared/TagPill";
 import BackLink from "@site/src/components/blog/BackLink";
 import type { Props } from "@theme/BlogPostPage";
 import "@site/src/css/blog.scss";
@@ -47,6 +48,7 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
   const { nextItem, prevItem, frontMatter } = metadata;
 
   const image = frontMatter.image as string | undefined;
+  const repo = frontMatter.repo as string | undefined;
   const tags = frontMatter.tags as
     | (string | { label?: string; permalink?: string })[]
     | undefined;
@@ -86,10 +88,16 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
           {frontMatter.title as string}
         </h1>
 
-        {frontMatter.description && (
-          <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
-            {frontMatter.description as string}
-          </p>
+        {repo && (
+          <a
+            href={repo}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent dark:hover:text-accent transition-colors no-underline"
+          >
+            <SiGithub className="h-3.5 w-3.5" />
+            {repo.replace("https://github.com/", "")}
+          </a>
         )}
 
         {/* Metadata row */}
@@ -124,17 +132,16 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
             {tags.map((tag) => {
               const label = typeof tag === "string" ? tag : tag.label || "";
               const permalink =
-                typeof tag === "object" && "permalink" in tag
+                (typeof tag === "object" && "permalink" in tag
                   ? (tag as { permalink?: string }).permalink
-                  : `/engineering/tags/${encodeURIComponent(label.toLowerCase().replace(/\s+/g, "-"))}`;
+                  : `/journal/tags/${encodeURIComponent(label.toLowerCase().replace(/\s+/g, "-"))}`)
+                || "#";
               return (
-                <Link
+                <TagPill
                   key={label}
-                  to={permalink || "#"}
-                  className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline"
-                >
-                  {label}
-                </Link>
+                  label={label}
+                  permalink={permalink}
+                />
               );
             })}
           </div>

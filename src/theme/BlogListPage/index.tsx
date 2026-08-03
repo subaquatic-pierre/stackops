@@ -4,7 +4,6 @@
  */
 import React, { type ReactNode, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
-import { useLocation } from "react-router-dom";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import {
   PageMetadata,
@@ -54,24 +53,6 @@ function mapPostToRowCard(item: Props["items"][number]) {
   const image = fm?.image as string | undefined;
   const permalink = (meta?.permalink as string) || "#";
   const date = (meta?.date || fm?.date) as string | undefined;
-  const authors = fm?.authors as
-    | ({ name?: string } | string)[]
-    | { name?: string }
-    | string
-    | undefined;
-
-  // Extract first author name
-  let authorName: string | undefined;
-  if (Array.isArray(authors) && authors.length > 0) {
-    const first = authors[0];
-    authorName = typeof first === "string" ? first : first?.name;
-  } else if (
-    typeof authors === "object" &&
-    authors !== null &&
-    "name" in authors
-  ) {
-    authorName = (authors as { name?: string }).name;
-  }
 
   return {
     title,
@@ -80,7 +61,6 @@ function mapPostToRowCard(item: Props["items"][number]) {
     image,
     href: permalink,
     date,
-    author: authorName,
   };
 }
 
@@ -88,14 +68,8 @@ function BlogListPageContent(props: Props): ReactNode {
   const { metadata, items } = props;
   const isFirstPage = metadata.page === 1;
 
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Read category filter from URL
-  const selectedCategory: string | null = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get("category") ?? null;
-  }, [location.search]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Apply filters to items (category + search)
   const filteredItems = useMemo(() => {
@@ -125,6 +99,10 @@ function BlogListPageContent(props: Props): ReactNode {
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
+  }, []);
+
+  const handleCategoryChange = useCallback((category: string | null) => {
+    setSelectedCategory(category);
   }, []);
 
   // Separate featured items from regular items
@@ -169,17 +147,22 @@ function BlogListPageContent(props: Props): ReactNode {
   return (
     <BlogLayout>
       {/* Filter bar with search */}
-      <FilterBar onSearchChange={handleSearchChange} />
+      <FilterBar
+        selectedCategory={selectedCategory}
+        onCategoryChange={handleCategoryChange}
+        onSearchChange={handleSearchChange}
+      />
 
-      {/* Category return control when filtered */}
+      {/* Category return control */}
       {selectedCategory && (
         <div className="mb-4 -mt-6">
-          <a
-            href="/engineering"
+          <button
+            type="button"
+            onClick={() => setSelectedCategory(null)}
             className="text-sm text-accent hover:text-accent-light transition-colors"
           >
             ← View all categories
-          </a>
+          </button>
         </div>
       )}
 
@@ -213,7 +196,6 @@ function BlogListPageContent(props: Props): ReactNode {
                   href={post.href}
                   image={post.image || "/img/placeholder-journal.svg"}
                   date={post.date}
-                  author={post.author}
                 />
               );
             })}
@@ -242,8 +224,7 @@ function BlogListPageContent(props: Props): ReactNode {
                   href={post.href}
                   image={post.image}
                   date={post.date}
-                  author={post.author}
-                  tagBasePath="/engineering/tags/"
+                  tagBasePath="/journal/tags/"
                 />
               );
             })}

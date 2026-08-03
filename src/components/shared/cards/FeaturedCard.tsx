@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Link from "@docusaurus/Link";
 import { cn } from "../../../lib/utils";
+import TagPill from "../TagPill";
 
 export interface FeaturedCardProps {
   title: string;
@@ -99,14 +100,12 @@ export default function FeaturedCard({
         {tags && tags.length > 0 && (
           <div className="mt-auto flex flex-wrap gap-1.5 pt-4">
             {tags.map((tag) => (
-              <Link
+              <TagPill
                 key={tag}
-                to={`/engineering/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
-                onClick={(e) => e.stopPropagation()}
-                className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors no-underline hover:no-underline"
-              >
-                {tag}
-              </Link>
+                label={tag}
+                permalink={`/journal/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
+                stopPropagation
+              />
             ))}
           </div>
         )}

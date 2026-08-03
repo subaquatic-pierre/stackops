@@ -15,7 +15,7 @@ export default function Navbar() {
   const { colorMode, setColorMode } = useColorMode();
   const isDarkTheme = colorMode === "dark";
   const isDocsPage = location.pathname.startsWith("/docs");
-  const isEngineeringPage = location.pathname.startsWith("/engineering");
+  const isJournalPage = location.pathname.startsWith("/journal");
 
   const linkClass = (active: boolean) =>
     `flex items-center gap-2 text-sm font-medium transition-colors cursor-pointer hover:no-underline ${
@@ -103,7 +103,7 @@ export default function Navbar() {
               <BookOpen className="w-4 h-4" />
               <span>Technical Reference</span>
             </Link>
-            <Link to="/engineering" className={linkClass(isEngineeringPage)}>
+            <Link to="/journal" className={linkClass(isJournalPage)}>
               <FolderGit2 className="w-4 h-4" />
               <span>Journal</span>
             </Link>
@@ -213,8 +213,8 @@ export default function Navbar() {
             <span>Technical Reference</span>
           </Link>
           <Link
-            to="/engineering"
-            className={mobileLinkClass(isEngineeringPage)}
+            to="/journal"
+            className={mobileLinkClass(isJournalPage)}
           >
             <FolderGit2 className="w-4 h-4" />
             <span>Journal</span>
