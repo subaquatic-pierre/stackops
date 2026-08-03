@@ -47,7 +47,7 @@ export default function HeroSection({
   onSearchOpen,
 }: HeroSectionProps) {
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden md:pt-16 pt-10 pb-20">
+    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden md:pt-16 pt-16 pb-20">
       {/* Ambient orbs */}
       <div className="orb w-[500px] h-[500px] bg-accent/[0.07] -top-60 left-1/4" />
       <div className="orb w-[400px] h-[400px] bg-brand/[0.05] top-1/3 -right-20" />

@@ -1,0 +1,242 @@
+- overview
+- config:
+  -- config location ~/.config/opencode
+  -- example
+
+```
+  {
+  "$schema": "https://opencode.ai/config.json",
+  // "model": "ollama/llama3.1:8b",
+  "model": "google/gemini-2.5-pro",
+  "default_agent": "nexus",
+  "agent": {
+    "build": { "disable": true },
+    "plan": { "disable": true },
+  },
+  "provider": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://api.deepseek.com",
+        "apiKey": "sk-",
+      },
+      "models": {
+        "deepseek-v4-flash": {
+          "name": "DeepSeek v4 Flash",
+        },
+        "deepseek-v4-pro": {
+          "name": "DeepSeek v4 Pro",
+        },
+      },
+    },
+    "moonshot": {
+      "name": "Kimi (Moonshot AI)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://api.moonshot.ai/v1",
+        "apiKey": "",
+      },
+      "models": {
+        "kimi-k3": {
+          "name": "Kimi K3",
+        },
+        "kimi-k2.7-code": {
+          "name": "Kimi K2.7 Code",
+        },
+        "kimi-k2.6": {
+          "name": "Kimi K2.6",
+        },
+        "kimi-k2.5": {
+          "name": "Kimi K2.5",
+        },
+      },
+    },
+    "google": {
+      "options": {
+        "apiKey": "",
+      },
+    },
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+      },
+      "models": {
+        "llama3.1:8b": {
+          "name": "Llama 3.1 8B",
+          "limit": { "context": 131072, "output": 8192 },
+        },
+        "qwen2.5-coder:14b": {
+          "name": "Qwen 2.5 Coder 14B",
+          "limit": { "context": 32768, "output": 8192 },
+        },
+        "qwen2.5-coder:7b": {
+          "name": "Qwen 2.5 Coder 7B",
+          "limit": { "context": 32768, "output": 8192 },
+        },
+        "deepseek-r1:32b": {
+          "name": "DeepSeek R1 32B",
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 8192 },
+        },
+      },
+    },
+  },
+}
+```
+
+-- agents directory: ~/.config/opencode/agents
+--- differnt types of agents/models/providers
+-- example:
+
+```
+---
+name: Builder
+description: Senior software engineer for building, reviewing, and shipping production-quality code across the full stack.
+mode: primary
+model: deepseek/deepseek-v4-pro
+permission:
+  edit: allow
+  bash: allow
+---
+
+You are **Nexus**, a senior software engineer. You design, build, review, and ship production-quality code across any language or framework in the project.
+
+- Read the codebase thoroughly before writing code — understand existing patterns, naming, and conventions.
+- Prefer editing existing files over creating new ones. Mimic the code style of the files you touch.
+- Run tests, typechecks, and linters after making changes. Fix any failures before concluding.
+- If a task is large, break it into steps and verify each step before moving on.
+- Write concise commit messages that match the project's style when asked to commit.
+- When unsure about architecture or approach, ask clarifying questions rather than guessing.
+- Think like a senior engineer: consider maintainability, edge cases, performance, security, and testing.
+```
+
+-- skills: ~/.config/opencode/skills
+--- how to add skills with MDX
+
+- docker setup
+- good for isolated workspace / security
+- dockerfile example:
+
+```
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    git \
+    unzip \
+    gnupg \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    python3 \
+    python3-pip \
+    python3-venv \
+    jq \
+    vim \
+    nano \
+    htop \
+    dnsutils \
+    iputils-ping \
+    netcat-openbsd \
+    ssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Node 22
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Create oc user
+RUN groupadd --gid 1001 oc \
+    && useradd \
+        --uid 1000 \
+        --gid 1001 \
+        --create-home \
+        --home-dir /home/oc \
+        --shell /bin/bash \
+        oc
+
+
+# Install OpenCode globally
+RUN npm install -g opencode-ai
+
+
+# Prepare directories as root
+RUN mkdir -p \
+    /home/oc/.config/opencode \
+    /home/oc/.local/share/opencode \
+    /home/oc/.local/state \
+    /workspace \
+    && chown -R oc:oc /home/oc /workspace
+
+
+# Install Rust as oc
+USER oc
+
+ENV HOME=/home/oc
+ENV CARGO_HOME=/home/oc/.cargo
+ENV RUSTUP_HOME=/home/oc/.rustup
+ENV PATH="/home/oc/.cargo/bin:${PATH}"
+
+# RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+#     sh -s -- -y
+WORKDIR /workspace
+RUN chmod g+s /workspace
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+```
+
+- run script
+
+```
+#!/usr/bin/env bash
+
+set -e
+
+IMAGE_NAME="opencode-powerful:latest"
+SCRIPT_DIR="$HOME/.config/opencode"
+
+# 1. Sanity check to make sure the Dockerfile exists next to this script
+if [ ! -f "$SCRIPT_DIR/Dockerfile" ]; then
+	echo "❌ Error: Dockerfile not found at $SCRIPT_DIR/Dockerfile"
+	exit 1
+fi
+
+# 2. Build or update the image layer using the same directory as the Dockerfile
+if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+	echo "⚙️ Building powerful Debian OpenCode image ..."
+	docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
+fi
+
+# 3. Secure internal storage path structures on the host system
+mkdir -p "$HOME/.config/opencode"
+mkdir -p "$HOME/.local/share/opencode"
+
+echo "🚀 Launching isolated powerful OpenCode sandbox..."
+echo "📂 Target Workspace: $PWD"
+
+docker run -it --rm \
+	--name "opencode_$(basename "$PWD")" \
+	--network host \
+	--workdir /workspace \
+	--user oc \
+	-v "$PWD":/workspace \
+	-v "$HOME/.config/opencode":/home/oc/.config/opencode \
+	-v "$HOME/.local/share/opencode":/home/oc/.local/share/opencode \
+	-v "$HOME/.local/state":/home/oc/.local/state \
+	opencode-powerful:latest \
+	"$@"
+```

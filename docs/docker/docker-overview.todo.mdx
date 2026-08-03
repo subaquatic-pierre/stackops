@@ -1,0 +1,67 @@
+---
+title: "Docker Overview"
+description: "High-level overview of Docker plus container lifecycle, image management, and Compose reference tables."
+tags: [docker, containers, overview, reference]
+last_updated: "2026-07-31"
+---
+
+# TODO:
+
+- Change all commands to code block to make copyable
+- show common flags for each command
+- include network commands
+- inlcude common minifcation techniques for images
+
+# Docker Overview
+
+Docker packages applications into portable containers that run consistently across development, staging, and production environments.
+
+## Core concepts
+
+- **Image** — a read-only template containing application code, libraries, and dependencies.
+- **Container** — a runnable instance of an image.
+- **Dockerfile** — a script of instructions for building an image.
+- **Volume** — persistent storage mounted into a container.
+- **Network** — communication channel between containers.
+
+## Container lifecycle commands
+
+| Command                             | Purpose                                     |
+| ----------------------------------- | ------------------------------------------- |
+| `docker run <image>`                | Create and start a container from an image. |
+| `docker start <container>`          | Start an existing stopped container.        |
+| `docker stop <container>`           | Gracefully stop a running container.        |
+| `docker rm <container>`             | Remove a stopped container.                 |
+| `docker ps`                         | List running containers.                    |
+| `docker logs <container>`           | View container logs.                        |
+| `docker exec -it <container> <cmd>` | Run a command inside a running container.   |
+
+## Image management commands
+
+| Command                    | Purpose                            |
+| -------------------------- | ---------------------------------- |
+| `docker build -t <name> .` | Build an image from a Dockerfile.  |
+| `docker pull <image>`      | Download an image from a registry. |
+| `docker push <image>`      | Upload an image to a registry.     |
+| `docker images`            | List local images.                 |
+| `docker rmi <image>`       | Remove a local image.              |
+
+## Common Compose file keys
+
+| Key           | Purpose                             |
+| ------------- | ----------------------------------- |
+| `services`    | Define application containers.      |
+| `image`       | Base image for a service.           |
+| `build`       | Build context or Dockerfile path.   |
+| `ports`       | Map host ports to container ports.  |
+| `volumes`     | Mount host paths or named volumes.  |
+| `environment` | Set environment variables.          |
+| `depends_on`  | Control service startup order.      |
+| `networks`    | Attach services to custom networks. |
+
+## Best practices
+
+- Use multi-stage builds to keep production images small.
+- Run containers as non-root users when possible.
+- Pin base image versions instead of using `latest`.
+- Store sensitive data in secrets, not environment variables.

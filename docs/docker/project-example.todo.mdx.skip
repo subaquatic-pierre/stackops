@@ -1,0 +1,5 @@
+- comon project example with exampler Dockerfile.prod, Dockerfile.dev etc.
+- show folder strcutre for {project}/www and {project}/api
+- docker compose example with 2 apps www and api
+- docker file examples for multi app workspace
+- rust/axum, python/fastapi, typescript/nextjs, typescript-node/express dockerfile examples

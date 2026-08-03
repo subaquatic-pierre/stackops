@@ -1,22 +1,21 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Swizzled DocCategoryGeneratedIndexPage — renders category items as a grid of GridCard components.
  */
-
-import React, {type ReactNode} from 'react';
-import {PageMetadata} from '@docusaurus/theme-common';
-import {useCurrentSidebarCategory} from '@docusaurus/plugin-content-docs/client';
-import useBaseUrl from '@docusaurus/useBaseUrl';
-import DocCardList from '@theme/DocCardList';
-import DocVersionBanner from '@theme/DocVersionBanner';
-import DocVersionBadge from '@theme/DocVersionBadge';
-import DocBreadcrumbs from '@theme/DocBreadcrumbs';
-import Heading from '@theme/Heading';
-import type {Props} from '@theme/DocCategoryGeneratedIndexPage';
-
-import styles from './styles.module.css';
+import React, { type ReactNode } from "react";
+import { PageMetadata } from "@docusaurus/theme-common";
+import {
+  useCurrentSidebarCategory,
+  useDocById,
+  filterDocCardListItems,
+} from "@docusaurus/plugin-content-docs/client";
+import useBaseUrl from "@docusaurus/useBaseUrl";
+import DocVersionBanner from "@theme/DocVersionBanner";
+import DocVersionBadge from "@theme/DocVersionBadge";
+import DocBreadcrumbs from "@theme/DocBreadcrumbs";
+import Heading from "@theme/Heading";
+import { GridCard } from "@site/src/components/shared/cards";
+import { FileText, Folder } from "lucide-react";
+import type { Props } from "@theme/DocCategoryGeneratedIndexPage";
 
 function DocCategoryGeneratedIndexPageMetadata({
   categoryGeneratedIndex,
@@ -35,13 +34,19 @@ function DocCategoryGeneratedIndexPageContent({
   categoryGeneratedIndex,
 }: Props): ReactNode {
   const category = useCurrentSidebarCategory();
+  const filteredItems = filterDocCardListItems(category.items);
+
   return (
-    <div className={`doc-category-index ${styles.generatedIndexPage}`}>
+    <div className="doc-category-index">
       <DocVersionBanner />
       <DocBreadcrumbs />
       <DocVersionBadge />
+
       <header className="mb-8">
-        <Heading as="h1" className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
+        <Heading
+          as="h1"
+          className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3"
+        >
           {categoryGeneratedIndex.title}
         </Heading>
         {categoryGeneratedIndex.description && (
@@ -50,14 +55,56 @@ function DocCategoryGeneratedIndexPageContent({
           </p>
         )}
       </header>
-      <article>
-        <DocCardList items={category.items} className={styles.list} />
-      </article>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredItems.map((item, idx) => (
+          <CategoryCard key={idx} item={item} />
+        ))}
+      </div>
     </div>
   );
 }
 
-export default function DocCategoryGeneratedIndexPage(props: Props): ReactNode {
+function CategoryCard({
+  item,
+}: {
+  item: ReturnType<typeof filterDocCardListItems>[number];
+}) {
+  // Only link and category items have href/label/docId
+  const isCategory = item.type === "category";
+  const isLink = item.type === "link";
+  const docId = (item as { docId?: string }).docId;
+  const doc = docId ? useDocById(docId) : undefined;
+
+  // HTML items (type === 'html') have no href/label — skip rendering
+  if (!isCategory && !isLink) {
+    return null;
+  }
+
+  const title = (item as { label?: string }).label || "/";
+  const description =
+    (item as { description?: string }).description || doc?.description;
+  const href = (item as { href?: string }).href || "#";
+
+  return (
+    <GridCard
+      title={title}
+      description={description}
+      href={href}
+      icon={
+        isCategory ? (
+          <Folder className="h-5 w-5" />
+        ) : (
+          <FileText className="h-5 w-5" />
+        )
+      }
+    />
+  );
+}
+
+export default function DocCategoryGeneratedIndexPage(
+  props: Props,
+): ReactNode {
   return (
     <>
       <DocCategoryGeneratedIndexPageMetadata {...props} />
