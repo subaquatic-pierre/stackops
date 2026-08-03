@@ -6,7 +6,7 @@
 }
 
 .container {
-  max-width: 1400px !important;
+  max-width: 1600px !important;
 }
 
 /* ── Body-scroll lock (used when mobile nav panels are open) ── */
@@ -21,12 +21,19 @@ html {
   overflow-x: hidden;
 }
 
-/* ── Prevent elements from overflowing the page ── */
+/* ── Prevent content from expanding the page ──
+   CSS flex children default to min-width:auto / min-height:auto.
+   When any flex child contains unbreakable content (long code lines),
+   it silently expands past its container, ignoring max-width at every level.
+   min-width:0 on the entire content chain forces containment so that
+   overflow-x:auto scrollbars engage on code blocks and tables.
+   Chain: container.flex → .row → .col → article → .theme-doc-markdown */
+.container.flex > :not(aside),
+.container.flex .row,
+.container.flex .row > *,
 article,
-.markdown,
-.theme-doc-markdown {
-  max-width: 100vw;
-  overflow-x: hidden;
+.theme-doc-markdown.markdown {
+  min-width: 0;
 }
 
 .markdown img,

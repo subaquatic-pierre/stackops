@@ -89,20 +89,6 @@
   }
 }
 
-.theme-doc-markdown.markdown pre,
-.theme-doc-markdown.markdown .theme-code-block {
-  margin-bottom: 1.5rem;
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-.theme-doc-markdown.markdown .theme-code-block pre,
-div {
-  margin-bottom: 0;
-  // min-width: 0;
-  max-width: 100% !important;
-}
-
 /* ── Landing / list / tag / search page spacing ── */
 .doc-category-index,
 .blog-list-page,
@@ -165,6 +151,7 @@ div {
     }
   }
 }
+
 .docs-tags-list-page header h1 {
   font-size: 2rem;
   margin-bottom: 1.5rem;
