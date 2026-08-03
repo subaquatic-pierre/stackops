@@ -2,8 +2,9 @@
  * Swizzled BlogListPage — renders featured entries (FeaturedCard) on page 1,
  * followed by categorized sections (Project Showcase, Articles, Playbooks) with RowCards.
  */
-import React, { type ReactNode } from "react";
+import React, { type ReactNode, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
+import { useLocation } from "react-router-dom";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import {
   PageMetadata,
@@ -15,13 +16,13 @@ import BlogListPaginator from "@theme/BlogListPaginator";
 import SearchMetadata from "@theme/SearchMetadata";
 import BlogListPageStructuredData from "@theme/BlogListPage/StructuredData";
 import { FeaturedCard, RowCard } from "@site/src/components/shared/cards";
+import FilterBar from "@site/src/components/blog/FilterBar";
 import type { Props } from "@theme/BlogListPage";
 
 // Category display order and labels
 const CATEGORY_CONFIG: Record<string, { label: string; order: number }> = {
-  "project-showcase": { label: "Project Showcase", order: 1 },
+  "project-showcase": { label: "Projects", order: 1 },
   article: { label: "Articles", order: 2 },
-  playbook: { label: "Playbooks", order: 3 },
 };
 
 function BlogListPageMetadata(props: Props): ReactNode {
@@ -41,26 +42,34 @@ function BlogListPageMetadata(props: Props): ReactNode {
 }
 
 function mapPostToRowCard(item: Props["items"][number]) {
-  const fm = (item.content as { frontMatter?: Record<string, unknown> }).frontMatter;
-  const meta = (item.content as { metadata?: Record<string, unknown> }).metadata;
+  const fm = (item.content as { frontMatter?: Record<string, unknown> })
+    .frontMatter;
+  const meta = (item.content as { metadata?: Record<string, unknown> })
+    .metadata;
 
   const title = (fm?.title as string) || (meta?.title as string) || "Untitled";
   const description =
     (fm?.description as string) || (meta?.description as string);
   const tags = fm?.tags as string[] | undefined;
   const image = fm?.image as string | undefined;
-  const permalink = meta?.permalink as string || "#";
+  const permalink = (meta?.permalink as string) || "#";
   const date = (meta?.date || fm?.date) as string | undefined;
   const authors = fm?.authors as
-    | ({ name?: string } | string)[] | { name?: string }
-    | string | undefined;
+    | ({ name?: string } | string)[]
+    | { name?: string }
+    | string
+    | undefined;
 
   // Extract first author name
   let authorName: string | undefined;
   if (Array.isArray(authors) && authors.length > 0) {
     const first = authors[0];
     authorName = typeof first === "string" ? first : first?.name;
-  } else if (typeof authors === "object" && authors !== null && "name" in authors) {
+  } else if (
+    typeof authors === "object" &&
+    authors !== null &&
+    "name" in authors
+  ) {
     authorName = (authors as { name?: string }).name;
   }
 
@@ -76,15 +85,55 @@ function mapPostToRowCard(item: Props["items"][number]) {
 }
 
 function BlogListPageContent(props: Props): ReactNode {
-  const { metadata, items, sidebar } = props;
+  const { metadata, items } = props;
   const isFirstPage = metadata.page === 1;
 
-  // Separate featured items from regular items (mutable arrays)
+  const location = useLocation();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Read category filter from URL
+  const selectedCategory: string | null = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("category") ?? null;
+  }, [location.search]);
+
+  // Apply filters to items (category + search)
+  const filteredItems = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return items.filter((item) => {
+      const fm = (item.content as { frontMatter?: Record<string, unknown> })
+        .frontMatter;
+      const itemCategory = (fm?.category as string) || "article";
+
+      // Text search (title + description)
+      if (query) {
+        const title = ((fm?.title as string) || "").toLowerCase();
+        const desc = ((fm?.description as string) || "").toLowerCase();
+        if (!title.includes(query) && !desc.includes(query)) return false;
+      }
+
+      // Category filter
+      if (selectedCategory !== null && itemCategory !== selectedCategory) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [items, selectedCategory, searchQuery]);
+
+  const hasActiveFilters = selectedCategory !== null || searchQuery !== "";
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  // Separate featured items from regular items
   const featuredItems: Array<Props["items"][number]> = [];
   const regularItems: Array<Props["items"][number]> = [];
-  for (const item of items) {
-    const fm = (item.content as { frontMatter?: Record<string, unknown> }).frontMatter;
-    if (isFirstPage && fm?.featured === true) {
+  for (const item of filteredItems) {
+    const fm = (item.content as { frontMatter?: Record<string, unknown> })
+      .frontMatter;
+    if (isFirstPage && fm?.featured === true && !hasActiveFilters) {
       featuredItems.push(item);
     } else {
       regularItems.push(item);
@@ -95,7 +144,8 @@ function BlogListPageContent(props: Props): ReactNode {
   const byCategory: Record<string, Array<Props["items"][number]>> = {};
   const uncategorized: Array<Props["items"][number]> = [];
   for (const item of regularItems) {
-    const fm = (item.content as { frontMatter?: Record<string, unknown> }).frontMatter;
+    const fm = (item.content as { frontMatter?: Record<string, unknown> })
+      .frontMatter;
     const category = (fm?.category as string) || "article";
     if (CATEGORY_CONFIG[category]) {
       if (!byCategory[category]) byCategory[category] = [];
@@ -104,7 +154,6 @@ function BlogListPageContent(props: Props): ReactNode {
       uncategorized.push(item);
     }
   }
-  // Merge uncategorized into articles
   if (uncategorized.length > 0) {
     if (!byCategory["article"]) byCategory["article"] = [];
     byCategory["article"].push(...uncategorized);
@@ -118,8 +167,35 @@ function BlogListPageContent(props: Props): ReactNode {
   });
 
   return (
-    <BlogLayout sidebar={sidebar}>
-      {/* Featured section — page 1 only */}
+    <BlogLayout>
+      {/* Filter bar with search */}
+      <FilterBar onSearchChange={handleSearchChange} />
+
+      {/* Category return control when filtered */}
+      {selectedCategory && (
+        <div className="mb-4 -mt-6">
+          <a
+            href="/engineering"
+            className="text-sm text-accent hover:text-accent-light transition-colors"
+          >
+            ← View all categories
+          </a>
+        </div>
+      )}
+
+      {/* Empty state (T007) */}
+      {filteredItems.length === 0 && (
+        <div className="py-16 text-center">
+          <p className="text-lg text-slate-500 dark:text-slate-400 mb-2">
+            No entries match your filters.
+          </p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">
+            Try adjusting your search or category filter.
+          </p>
+        </div>
+      )}
+
+      {/* Featured section — page 1 only, no filters active */}
       {isFirstPage && featuredItems.length > 0 && (
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
@@ -148,9 +224,12 @@ function BlogListPageContent(props: Props): ReactNode {
       {/* Categorized sections */}
       {sortedCategories.map(([category, catItems]) => (
         <section key={category} className="mb-10">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-            {CATEGORY_CONFIG[category]?.label || category}
-          </h2>
+          {/* Skip heading for default "article" category */}
+          {category !== "article" && (
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
+              {CATEGORY_CONFIG[category]?.label || category}
+            </h2>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {catItems.map((item, idx) => {
               const post = mapPostToRowCard(item);
@@ -164,6 +243,7 @@ function BlogListPageContent(props: Props): ReactNode {
                   image={post.image}
                   date={post.date}
                   author={post.author}
+                  tagBasePath="/engineering/tags/"
                 />
               );
             })}
@@ -171,11 +251,13 @@ function BlogListPageContent(props: Props): ReactNode {
         </section>
       ))}
 
-      {regularItems.length === 0 && featuredItems.length === 0 && (
-        <p className="py-12 text-center text-slate-500 dark:text-slate-400">
-          No journal entries yet.
-        </p>
-      )}
+      {regularItems.length === 0 &&
+        featuredItems.length === 0 &&
+        filteredItems.length > 0 && (
+          <p className="py-12 text-center text-slate-500 dark:text-slate-400">
+            No journal entries yet.
+          </p>
+        )}
 
       <BlogListPaginator metadata={metadata} />
     </BlogLayout>

@@ -9,6 +9,7 @@ export interface GridCardProps {
   href: string;
   icon?: React.ReactNode;
   className?: string;
+  tagBasePath?: string;
 }
 
 export default function GridCard({
@@ -18,6 +19,7 @@ export default function GridCard({
   href,
   icon,
   className,
+  tagBasePath = "/docs/tags/",
 }: GridCardProps) {
   return (
     <Link
@@ -57,7 +59,7 @@ export default function GridCard({
           {tags.map((tag) => (
               <a
                 key={tag}
-                href={`/docs/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
+                href={`${tagBasePath}${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
                 onClick={(e) => e.stopPropagation()}
                 className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline"
               >

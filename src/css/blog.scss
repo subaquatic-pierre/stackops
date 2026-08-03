@@ -1,0 +1,72 @@
+/* Blog detail page — block element spacing overrides */
+/* Ensures consistent vertical spacing between all content blocks */
+
+/* Link styling — matches Docusaurus .markdown link style */
+.blog-post-content a {
+  color: var(--ifm-color-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--ifm-color-primary);
+  text-underline-offset: 2px;
+}
+
+.blog-post-content a:hover {
+  color: var(--ifm-color-primary-darker);
+  text-decoration-thickness: 2px;
+}
+
+.blog-post-content h1,
+.blog-post-content h2,
+.blog-post-content h3,
+.blog-post-content h4,
+.blog-post-content h5,
+.blog-post-content h6 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.blog-post-content h1:first-child,
+.blog-post-content h2:first-child,
+.blog-post-content h3:first-child {
+  margin-top: 0;
+}
+
+.blog-post-content p {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+}
+
+.blog-post-content pre {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.blog-post-content ul,
+.blog-post-content ol {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+}
+
+.blog-post-content li {
+  margin-bottom: 0.25rem;
+}
+
+.blog-post-content table {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.blog-post-content blockquote {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.blog-post-content img {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.blog-post-content hr {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}

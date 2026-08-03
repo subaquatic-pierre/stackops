@@ -1,0 +1,362 @@
+---
+title: "Terraform Labs"
+date: 2026-08-03
+# authors:
+#   - pierre
+tags: [terraform, aws, kubernetes, sre, gitops, ci-cd, serverless, iac]
+image: /img/journal-placeholder.png
+---
+
+_A collection of Terraform labs covering EC2, EKS, GitOps, SRE, static sites, serverless, and CI/CD on AWS. Pick a directory, `terraform init`, and go._
+
+> **Repo:** [github.com/subaquatic-pierre/terraform-labs](https://github.com/subaquatic-pierre/terraform-labs)
+
+{/* truncate */}
+
+---
+
+## Quick index
+
+| Directory          | What it builds                                                            |
+| ------------------ | ------------------------------------------------------------------------- |
+| `basic-webserver/` | VPC + EC2 + Security Groups — bare-bones web hosting                      |
+| `eks/`             | EKS cluster with managed node groups, ALB controller, autoscaler, metrics |
+| `gitops/`          | ArgoCD + Sealed Secrets — declarative cluster management                  |
+| `sre/`             | Grafana LGTM stack (Loki, Mimir, Alloy) — observability for Kubernetes    |
+| `static-website/`  | S3 + CloudFront + ACM + Route53 — static site with SSL and CDN            |
+| `serverless-api/`  | API Gateway + Lambda — REST API with Python handlers                      |
+| `aws-ecs-ci-cd/`   | ECS Fargate + CodePipeline — full-stack CI/CD (Django + React)            |
+| `pwa-ci-cd/`       | S3 + CloudFront + GitHub Actions — PWA deployment pipeline                |
+
+---
+
+## `basic-webserver/`
+
+Provisions a VPC, security groups, SSH key pair, and EC2 instances with user-data bootstrap.
+
+```
+basic-webserver/
+├── vpc.tf          # VPC, subnets, route table, internet gateway
+├── sg.tf           # Security groups (HTTP + SSH)
+├── ec2.tf          # EC2 instance + key pair
+├── main.tf         # Provider + backend config
+├── variables.tf
+└── output.tf
+```
+
+```bash
+cd basic-webserver/
+terraform init
+terraform plan
+terraform apply
+# SSH in:
+ssh -i ~/.ssh/aws_key.pem ec2-user@$(terraform output -raw public_ip)
+```
+
+---
+
+## `eks/`
+
+Production EKS cluster with managed node groups, IRSA, RBAC, and core add-ons.
+
+```
+eks/
+├── eks.tf          # EKS cluster + control plane
+├── nodes.tf        # Managed node groups
+├── vpc.tf          # Multi-AZ VPC with private/public subnets
+├── role.tf         # IAM roles for service accounts (IRSA)
+├── trust.tf        # OIDC trust relationship
+├── rbac.tf         # RBAC mappings (IAM users → k8s roles)
+├── users.tf        # IAM users for cluster access
+├── autoscaler.tf   # Cluster Autoscaler (Helm)
+├── lbc.tf          # AWS Load Balancer Controller (Helm)
+├── metrics.tf      # Metrics Server (Helm)
+├── apps/           # Example k8s manifests (HPA demo, Next.js static)
+├── policies/       # IAM policy documents
+├── main.tf         # Provider + state backend
+├── providers.tf    # Provider aliases (aws + kubernetes + helm)
+├── variables.tf
+├── output.tf
+└── version.tf
+```
+
+```bash
+cd eks/
+terraform init
+terraform plan
+terraform apply
+
+# Grab kubeconfig
+aws eks update-kubeconfig --name $(terraform output -raw cluster_name)
+
+# Trigger HPA scaling test
+kubectl apply -f apps/app-hpa/
+kubectl port-forward -n example svc/myapp 8080:8080
+curl http://localhost:8080/api/cpu?index=44
+
+# Deploy a Next.js static build to S3 + CloudFront
+aws s3 sync out/ s3://$(terraform output -raw bucket_name) --delete
+aws cloudfront create-invalidation \
+  --distribution-id $(terraform output -raw cloudfront_id) \
+  --paths "/*"
+```
+
+**TODO (from README):**
+
+- Add L4 LoadBalancer with Nginx Ingress
+- Install cert-manager for cluster-wide SSL
+
+---
+
+## `gitops/`
+
+Bootstraps ArgoCD and Sealed Secrets onto a Kubernetes cluster. Manages Docker registry pull secrets encrypted for Git.
+
+```
+gitops/
+├── argocd.tf       # ArgoCD via Helm
+├── ns.tf           # Project namespaces
+├── secrets.tf      # Sealed Secrets controller + encrypted docker-registry secret
+├── secrets.md      # How-to for creating sealed secrets
+├── providers.tf
+├── variables.tf
+├── apps/           # Example ArgoCD Application manifests
+├── gitops-example/ # Reference project structure
+└── Makefile
+```
+
+```bash
+# Install Sealed Secrets (prerequisite)
+helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+helm repo update
+helm install sealed-secrets sealed-secrets/sealed-secrets \
+  --namespace sealed-secrets --create-namespace
+
+# Encrypt a docker config secret
+kubectl create secret generic regcred \
+  --from-file=.dockerconfigjson=$HOME/.docker/config.json \
+  --type=kubernetes.io/dockerconfigjson \
+  --namespace=project \
+  --dry-run=client -o yaml > local-regcred.secret.yaml
+
+kubeseal --format yaml < local-regcred.secret.yaml > docker-regcred.yaml \
+  --controller-namespace sealed-secrets \
+  --controller-name sealed-secrets
+
+# Deploy gitops stack
+cd gitops/
+terraform init
+terraform apply
+```
+
+---
+
+## `sre/`
+
+Full Grafana LGTM observability stack: Loki (logs), Mimir (metrics), Grafana (dashboards), Alloy (collection), plus Metrics Server and kube-state-metrics. Designed to run locally on Minikube or on a real cluster via S3 storage.
+
+```
+sre/
+├── grafana.tf      # Grafana (Helm)
+├── loki.tf         # Loki log aggregation (Helm)
+├── mimir.tf        # Mimir metrics storage (Helm)
+├── alloy.tf        # Grafana Alloy telemetry collector (Helm)
+├── metrics_server.tf    # Metrics Server (Helm)
+├── state_metrics.tf     # kube-state-metrics (Helm)
+├── s3.tf           # S3 buckets for Loki + Mimir storage (AWS only)
+├── secrets.tf      # S3 credentials for Loki/Mimir
+├── ns.tf           # monitoring namespace
+├── node_init.tf    # Node label bootstrap
+├── values/         # Helm value overrides
+├── providers.tf
+├── variables.tf
+├── version.tf
+├── locals.tf
+└── Makefile
+```
+
+```bash
+# Local dev: start Minikube (4 nodes, CSI storage, Flannel CNI)
+minikube start \
+  --nodes=4 \
+  --cni=flannel \
+  --addons=volumesnapshots,csi-hostpath-driver \
+  --extra-config=apiserver.storage-roles=true
+
+# Enable CSI storage driver as default
+minikube addons enable volumesnapshots
+minikube addons enable csi-hostpath-driver
+minikube addons disable storage-provisioner
+minikube addons disable default-storageclass
+kubectl patch storageclass csi-hostpath-sc \
+  -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+# Deploy
+cd sre/
+terraform init
+terraform apply
+
+# Port-forward UIs
+make port-forward
+# Grafana  → http://localhost:5000
+# Alloy UI → http://localhost:5001
+# Mimir UI → http://localhost:5002
+
+# Update Helm values in-place
+helm upgrade loki grafana/loki \
+  --namespace monitoring \
+  --reuse-values \
+  --set loki.storage.s3.insecure=true
+```
+
+---
+
+## `static-website/`
+
+S3 bucket for static hosting, CloudFront CDN with ACM SSL certificate, Route53 DNS alias records. Includes deployment scripts.
+
+```
+static-website/
+├── s3.tf           # Origin bucket with static website config
+├── cloudfront.tf   # CDN distribution + cache behaviors
+├── acm.tf          # SSL certificate (us-east-1 required)
+├── dns.tf          # Route53 alias records → CloudFront
+├── providers.tf
+├── variables.tf
+├── output.tf
+├── version.tf
+├── apps/           # Static site content
+├── scripts/        # Sync + invalidation helpers
+└── Makefile
+```
+
+```bash
+cd static-website/
+terraform init
+terraform apply
+# Site will be live at the domain configured in variables.tf
+```
+
+---
+
+## `serverless-api/`
+
+API Gateway REST API backed by Python Lambda functions. Skeleton handlers at `lambda/handlers/http_methods.py` — fill in your logic.
+
+```
+serverless-api/
+├── main.tf         # API Gateway + Lambda + IAM + integrations
+├── variables.tf
+├── outputs.tf
+├── api/            # OpenAPI / gateway config
+├── assets/         # Cloud architecture diagram
+└── lambda/
+    └── handlers/
+        └── http_methods.py   # Skeleton handlers (list, get, post, put, delete)
+```
+
+**Endpoints:**
+
+| Route                 | Method | Handler               |
+| --------------------- | ------ | --------------------- |
+| `/resource`           | GET    | `http_methods.list`   |
+| `/resource`           | POST   | `http_methods.post`   |
+| `/resource/{post_id}` | GET    | `http_methods.get`    |
+| `/resource/{post_id}` | PUT    | `http_methods.put`    |
+| `/resource/{post_id}` | DELETE | `http_methods.delete` |
+
+```bash
+cd serverless-api/
+cp terraform.tfvars.example terraform.tfvars   # fill in your values
+terraform plan -out plan
+terraform apply
+```
+
+---
+
+## `aws-ecs-ci-cd/`
+
+Full-stack CI/CD infrastructure: Django GraphQL API on ECS Fargate, React frontend on S3/CloudFront, independent CodePipelines triggered from separate GitHub repos.
+
+```
+aws-ecs-ci-cd/
+├── main.tf              # All resources (ECS, VPC, CodePipeline, S3, CloudFront, Route53)
+├── variables.tf
+├── terraform.tfvars.example
+├── api/                 # Backend ECS task def + service config
+├── frontend/            # Frontend S3 + CloudFront config
+├── pipelines/           # CodePipeline + buildspec definitions
+└── readme/              # Screenshots + how-to guides
+```
+
+**Prerequisites (see README for detailed guides):**
+
+- Route53 hosted domain
+- ACM certificate in `us-east-1`
+- S3 bucket for Terraform backend
+- GitHub repos for frontend (React) and backend (Django GraphQL)
+- CodeStar connection to GitHub
+- ECR repository for the API image
+
+```bash
+cd aws-ecs-ci-cd/
+cp terraform.tfvars.example terraform.tfvars   # fill in ALL variables
+terraform init
+terraform apply
+```
+
+**After deploy, push to either repo's main branch to trigger its pipeline.** The frontend pipeline builds the React app and syncs to S3 + invalidates CloudFront. The backend pipeline builds a Docker image, pushes to ECR, and deploys to ECS.
+
+---
+
+## `pwa-ci-cd/`
+
+PWA hosted on S3 + CloudFront with GitHub Actions CI/CD. Staging and production environments, three-branch Git workflow.
+
+```
+pwa-ci-cd/
+├── terraform/               # Isolated Terraform config (separate from app code)
+├── app/                     # PWA application source
+├── assets/                  # Cloud diagram
+├── .github/workflows/       # CI/CD actions (test, deploy staging, deploy prod)
+├── README.md
+└── README.md.pwa-pipeline   # Pipeline-specific docs
+```
+
+**Branch workflow:**
+
+- `dev` → push triggers tests
+- Merge `dev` → `staging` → tests + deploy to `staging.domain.com`
+- Merge `staging` → `main` → tests + deploy to `domain.com`
+
+```bash
+cd pwa-ci-cd/terraform/
+terraform init
+terraform plan -out plan
+terraform apply
+# Copy output values into GitHub Secrets (see README for list)
+```
+
+**Known issue:** CloudFront origin pointing to the S3 redirect bucket needs a one-time manual fix in the AWS Console ([aws-provider#24332](https://github.com/hashicorp/terraform-provider-aws/issues/24332)) — edit the origin domain to use the S3 website endpoint format.
+
+---
+
+## Local SRE dev setup (Minikube)
+
+Used by the `sre/` lab, also referenced in the repo README:
+
+```bash
+minikube start \
+  --nodes=4 \
+  --cni=flannel \
+  --addons=volumesnapshots,csi-hostpath-driver \
+  --extra-config=apiserver.storage-roles=true
+
+minikube addons enable volumesnapshots
+minikube addons enable csi-hostpath-driver
+minikube addons disable storage-provisioner
+minikube addons disable default-storageclass
+
+kubectl patch storageclass csi-hostpath-sc \
+  -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+```

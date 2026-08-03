@@ -3,7 +3,10 @@
  */
 import React, { type ReactNode, useState } from "react";
 import clsx from "clsx";
-import { HtmlClassNameProvider, ThemeClassNames } from "@docusaurus/theme-common";
+import {
+  HtmlClassNameProvider,
+  ThemeClassNames,
+} from "@docusaurus/theme-common";
 import {
   BlogPostProvider,
   useBlogPost,
@@ -13,11 +16,12 @@ import BlogPostItem from "@theme/BlogPostItem";
 import BlogPostPaginator from "@theme/BlogPostPaginator";
 import BlogPostPageMetadata from "@theme/BlogPostPage/Metadata";
 import BlogPostPageStructuredData from "@theme/BlogPostPage/StructuredData";
-import TOC from "@theme/TOC";
 import ContentVisibility from "@theme/ContentVisibility";
-import { Calendar, Clock, User } from "lucide-react";
+import { Calendar, Clock } from "lucide-react";
 import Link from "@docusaurus/Link";
+import BackLink from "@site/src/components/blog/BackLink";
 import type { Props } from "@theme/BlogPostPage";
+import "@site/src/css/blog.scss";
 
 function HeroImage({ src, alt }: { src?: string; alt: string }) {
   const [failed, setFailed] = useState(false);
@@ -38,29 +42,17 @@ function HeroImage({ src, alt }: { src?: string; alt: string }) {
   );
 }
 
-function BlogPostPageContent({
-  sidebar,
-  children,
-}: {
-  sidebar: Props["sidebar"];
-  children: ReactNode;
-}): ReactNode {
-  const { metadata, toc } = useBlogPost();
+function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
+  const { metadata } = useBlogPost();
   const { nextItem, prevItem, frontMatter } = metadata;
-  const {
-    hide_table_of_contents: hideTableOfContents,
-    toc_min_heading_level: tocMinHeadingLevel,
-    toc_max_heading_level: tocMaxHeadingLevel,
-  } = frontMatter;
 
   const image = frontMatter.image as string | undefined;
   const tags = frontMatter.tags as
-    | (string | { label?: string; permalink?: string })[] | undefined;
+    | (string | { label?: string; permalink?: string })[]
+    | undefined;
   const readingTime = Math.ceil(
     (metadata as { readingTime?: number }).readingTime || 1,
   );
-  const authors = frontMatter.authors as
-    | ({ name?: string } | string)[] | { name?: string } | string | undefined;
   const category = frontMatter.category as string | undefined;
 
   // Format date
@@ -72,44 +64,21 @@ function BlogPostPageContent({
       })
     : undefined;
 
-  // Get author name
-  let authorName: string | undefined;
-  if (Array.isArray(authors) && authors.length > 0) {
-    const first = authors[0];
-    authorName = typeof first === "string" ? first : first?.name;
-  } else if (
-    typeof authors === "object" &&
-    authors !== null &&
-    "name" in authors
-  ) {
-    authorName = (authors as { name?: string }).name;
-  }
-
   // Category badge color
   const categoryBadgeColor =
     category === "project-showcase"
       ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
-      : category === "playbook"
-        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-        : "bg-accent/10 text-accent dark:text-accent-light";
+      : "bg-accent/10 text-accent dark:text-accent-light";
 
   return (
-    <BlogLayout
-      sidebar={sidebar}
-      toc={
-        !hideTableOfContents && toc.length > 0 ? (
-          <TOC
-            toc={toc}
-            minHeadingLevel={tocMinHeadingLevel}
-            maxHeadingLevel={tocMaxHeadingLevel}
-          />
-        ) : undefined
-      }
-    >
+    <BlogLayout>
       <ContentVisibility metadata={metadata} />
 
+      {/* Back link (T017 - US3) */}
+      <BackLink />
+
       {/* Hero image */}
-      <HeroImage src={image} alt={frontMatter.title as string || ""} />
+      <HeroImage src={image} alt={(frontMatter.title as string) || ""} />
 
       {/* Article header */}
       <header className="mb-8">
@@ -125,12 +94,6 @@ function BlogPostPageContent({
 
         {/* Metadata row */}
         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-          {authorName && (
-            <span className="flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5" />
-              {authorName}
-            </span>
-          )}
           {dateStr && (
             <span className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
@@ -149,10 +112,8 @@ function BlogPostPageContent({
               )}
             >
               {category === "project-showcase"
-                ? "Project Showcase"
-                : category === "playbook"
-                  ? "Playbook"
-                  : "Article"}
+                ? "Project"
+                : "Article"}
             </span>
           )}
         </div>
@@ -162,11 +123,14 @@ function BlogPostPageContent({
           <div className="mt-4 flex flex-wrap gap-1.5">
             {tags.map((tag) => {
               const label = typeof tag === "string" ? tag : tag.label || "";
-              const slug = label.toLowerCase().replace(/\s+/g, "-");
+              const permalink =
+                typeof tag === "object" && "permalink" in tag
+                  ? (tag as { permalink?: string }).permalink
+                  : `/engineering/tags/${encodeURIComponent(label.toLowerCase().replace(/\s+/g, "-"))}`;
               return (
                 <Link
                   key={label}
-                  to={`/docs/tags/${encodeURIComponent(slug)}`}
+                  to={permalink || "#"}
                   className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline"
                 >
                   {label}
@@ -178,7 +142,7 @@ function BlogPostPageContent({
       </header>
 
       {/* Article body */}
-      <div className="prose prose-slate dark:prose-invert max-w-none">
+      <div className="blog-post-content prose prose-slate dark:prose-invert max-w-none">
         <BlogPostItem>{children}</BlogPostItem>
       </div>
 
@@ -202,7 +166,7 @@ export default function BlogPostPage(props: Props): ReactNode {
       >
         <BlogPostPageMetadata />
         <BlogPostPageStructuredData />
-        <BlogPostPageContent sidebar={props.sidebar}>
+        <BlogPostPageContent>
           <BlogPostContent />
         </BlogPostPageContent>
       </HtmlClassNameProvider>

@@ -12,6 +12,7 @@ export interface RowCardProps {
   date?: string;
   author?: string;
   className?: string;
+  tagBasePath?: string;
 }
 
 function ImageWithFallback({
@@ -71,6 +72,7 @@ export default function RowCard({
   date,
   author,
   className,
+  tagBasePath = "/docs/tags/",
 }: RowCardProps) {
   return (
     <Link
@@ -114,7 +116,7 @@ export default function RowCard({
             {tags.map((tag) => (
               <a
                 key={tag}
-                href={`/docs/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
+                href={`${tagBasePath}${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
                 onClick={(e) => e.stopPropagation()}
                 className="inline-block rounded border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors no-underline hover:no-underline"
               >

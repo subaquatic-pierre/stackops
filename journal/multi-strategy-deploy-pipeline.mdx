@@ -1,8 +1,8 @@
 ---
 title: "Multi-Strategy Deploy Pipeline"
 date: 2026-08-03
-authors:
-  - pierre
+# authors:
+#   - pierre
 tags: [bash, docker, kubernetes, systemd, deployment, shell, devops]
 image: /img/journal-placeholder.png
 ---
@@ -10,6 +10,8 @@ image: /img/journal-placeholder.png
 _A reusable modular Bash deployment pipeline that builds Docker images, rolls out to Kubernetes for staging, and updates bare-metal VMs via SSH + systemd for production. Swap out the hostnames and image names and it works for any project._
 
 > **Reference repo:** [github.com/subaquatic-pierre/kube-devops](https://github.com/subaquatic-pierre/kube-devops) — contains a working instance of this pipeline wired up for a real project, including live hostnames, service definitions, and Kubernetes manifests.
+
+{/* truncate */}
 
 ---
 
@@ -51,11 +53,11 @@ It finds its own directory (handles being sourced from anywhere), then globs eve
 
 The pipeline supports three environments, each with a different rollout strategy:
 
-| Environment | Dockerfile | Version bump | Rollout strategy |
-|---|---|---|---|
-| `local` | `Dockerfile.local` | `.env` + `kubernetes/deploy.yaml` + `.version` | `kubectl apply` on local cluster |
-| `staging` | `Dockerfile.staging` | `.env` + `kubernetes/deploy.yaml` + `.version` | SCP manifests to remote → `kubectl apply` via SSH |
-| `production` | `Dockerfile.prod` | `.env` only + `.version` | SSH → edit `/etc/default/<svc>` → `systemctl restart` |
+| Environment  | Dockerfile           | Version bump                                   | Rollout strategy                                      |
+| ------------ | -------------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| `local`      | `Dockerfile.local`   | `.env` + `kubernetes/deploy.yaml` + `.version` | `kubectl apply` on local cluster                      |
+| `staging`    | `Dockerfile.staging` | `.env` + `kubernetes/deploy.yaml` + `.version` | SCP manifests to remote → `kubectl apply` via SSH     |
+| `production` | `Dockerfile.prod`    | `.env` only + `.version`                       | SSH → edit `/etc/default/<svc>` → `systemctl restart` |
 
 **Staging uses Kubernetes.** Manifests are SCP'd to a remote control node and applied with `kubectl apply -k` (Kustomize).
 
@@ -89,14 +91,17 @@ DRY_RUN=1 ./deploy.sh 1.4.0 local
 ```
 
 **Positional arguments:**
+
 - `version` — Semver tag used as the Docker image tag (e.g. `1.4.0`)
 - `env` — One of `local`, `staging`, `production`
 
 **Options:**
+
 - `-n`, `--dry-run` — Echo commands instead of executing them
 - `-h`, `--help`, `help` — Print usage and exit
 
 **Environment variable:**
+
 - `DRY_RUN=1` — Same effect as `--dry-run`
 
 ---
@@ -140,6 +145,7 @@ exec_kube() {
 ```
 
 **Key points:**
+
 - Uses Kustomize (`-k`) — the `./kubernetes/` directory should contain a `kustomization.yaml`
 - For local: copies manifests to the target path and applies directly
 - For remote: SCPs manifests, then SSHs and applies
@@ -153,6 +159,7 @@ exec_kube() {
 ```
 
 What happens:
+
 1. Builds each service with `Dockerfile.staging`
 2. Pushes images to your registry
 3. Updates version strings in all `.env` files
@@ -215,6 +222,7 @@ REMOTE
 ```
 
 **SSH options used:**
+
 - `BatchMode=yes` — never prompt for password (fails if key auth isn't set up)
 - `StrictHostKeyChecking=accept-new` — auto-accept first connection, fail on host-key mismatch
 - `ConnectTimeout=8` — fail fast if unreachable
@@ -242,6 +250,7 @@ done
 ```
 
 What happens:
+
 1. Builds all images with `Dockerfile.prod`
 2. Pushes to registry
 3. Updates `.env` files (skips `kubernetes/deploy.yaml` since `UPDATE_KUBE=false`)
@@ -326,11 +335,11 @@ dockerfile_for_env() {
 
 The expected Dockerfiles per service directory — defined in `build_all_images()`:
 
-| Service directory | Required Dockerfiles |
-|---|---|
-| `api/` | `Dockerfile.local`, `Dockerfile.staging`, `Dockerfile.prod` |
-| `www/` | `Dockerfile.local`, `Dockerfile.staging`, `Dockerfile.prod` |
-| `worker/` | `Dockerfile.local`, `Dockerfile.staging`, `Dockerfile.prod` |
+| Service directory | Required Dockerfiles                                        |
+| ----------------- | ----------------------------------------------------------- |
+| `api/`            | `Dockerfile.local`, `Dockerfile.staging`, `Dockerfile.prod` |
+| `www/`            | `Dockerfile.local`, `Dockerfile.staging`, `Dockerfile.prod` |
+| `worker/`         | `Dockerfile.local`, `Dockerfile.staging`, `Dockerfile.prod` |
 
 **Image naming convention** (customize `user` and image names in `build_all_images()`):
 

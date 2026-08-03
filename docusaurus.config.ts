@@ -21,7 +21,7 @@ const config: Config = {
   url: "https://stackops.link",
   baseUrl: "/",
 
-  organizationName: "stackopshq",
+  organizationName: "stackops",
   projectName: "stackops",
   trailingSlash: false,
 
@@ -90,7 +90,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: "img/docusaurus-social-card.jpg",
+    image: "img/logo-dark-theme.svg",
     colorMode: {
       defaultMode: "dark",
       disableSwitch: false,
@@ -143,7 +143,7 @@ const config: Config = {
             },
             {
               label: "GitHub",
-              href: "https://github.com/stackopshq",
+              href: "https://github.com/subauqtic-pierre/stackops",
             },
           ],
         },
