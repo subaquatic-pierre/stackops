@@ -19,7 +19,7 @@ _A reusable modular Bash deployment pipeline that builds Docker images, rolls ou
 
 The pipeline lives in `references/scripts/` under the repo. It uses a **module-loader pattern** — `lib/index.sh` sources every `.sh` module in sorted order, guarded against double-includes. The entry point (`deploy.sh`) sources the loader, then calls into whichever modules it needs.
 
-```
+```bash
 references/scripts/
 ├── deploy.sh              # Entry point / orchestrator
 └── lib/
