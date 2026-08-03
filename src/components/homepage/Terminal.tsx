@@ -116,7 +116,7 @@ export default function Terminal() {
 
   return (
     <div
-      className="reveal terminal max-w-3xl mx-auto text-left"
+      className="reveal terminal max-w-3xl mx-auto text-left min-h-[570px]"
       style={{ transitionDelay: "0.32s" }}
     >
       <div className="terminal-bar">

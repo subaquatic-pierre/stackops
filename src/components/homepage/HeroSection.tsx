@@ -47,7 +47,7 @@ export default function HeroSection({
   onSearchOpen,
 }: HeroSectionProps) {
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-16 pb-20">
+    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden md:pt-16 pt-10 pb-20">
       {/* Ambient orbs */}
       <div className="orb w-[500px] h-[500px] bg-accent/[0.07] -top-60 left-1/4" />
       <div className="orb w-[400px] h-[400px] bg-brand/[0.05] top-1/3 -right-20" />
@@ -68,7 +68,7 @@ export default function HeroSection({
         </div>
       ))}
 
-      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mt-12">
+      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center md:mt-12">
         {/* Badge */}
         <div className="reveal inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-black/5 dark:border-white/[0.06] bg-black/5 dark:bg-white/[0.02] text-[12px] font-medium text-slate-600 dark:text-slate-400 tracking-wide">
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />

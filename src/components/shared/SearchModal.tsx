@@ -189,7 +189,7 @@ export default function SearchModal({
       role="dialog"
       aria-modal="true"
       aria-label="Search documentation"
-      className="fixed inset-0 z-[9999] flex flex-col bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] min-h-screen flex flex-col bg-black/60 backdrop-blur-sm"
       onClick={handleOverlayClick}
     >
       {/* Spacer — pushes the modal down below the navbar on desktop */}
