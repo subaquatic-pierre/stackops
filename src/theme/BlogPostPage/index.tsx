@@ -55,7 +55,6 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
   const readingTime = Math.ceil(
     (metadata as { readingTime?: number }).readingTime || 1,
   );
-  const category = frontMatter.category as string | undefined;
 
   // Format date
   const dateStr = metadata.date
@@ -65,12 +64,6 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
         day: "numeric",
       })
     : undefined;
-
-  // Category badge color
-  const categoryBadgeColor =
-    category === "project-showcase"
-      ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
-      : "bg-accent/10 text-accent dark:text-accent-light";
 
   return (
     <BlogLayout>
@@ -112,18 +105,6 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
             <Clock className="h-3.5 w-3.5" />
             {readingTime} min read
           </span>
-          {category && (
-            <span
-              className={clsx(
-                "inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
-                categoryBadgeColor,
-              )}
-            >
-              {category === "project-showcase"
-                ? "Project"
-                : "Article"}
-            </span>
-          )}
         </div>
 
         {/* Tags */}

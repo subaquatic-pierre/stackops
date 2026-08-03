@@ -1,6 +1,6 @@
 /**
  * Swizzled BlogListPage — renders featured entries (FeaturedCard) on page 1,
- * followed by categorized sections (Project Showcase, Articles, Playbooks) with RowCards.
+ * followed by all other journal entries with RowCards.
  */
 import React, { type ReactNode, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
@@ -17,12 +17,6 @@ import BlogListPageStructuredData from "@theme/BlogListPage/StructuredData";
 import { FeaturedCard, RowCard } from "@site/src/components/shared/cards";
 import FilterBar from "@site/src/components/blog/FilterBar";
 import type { Props } from "@theme/BlogListPage";
-
-// Category display order and labels
-const CATEGORY_CONFIG: Record<string, { label: string; order: number }> = {
-  "project-showcase": { label: "Projects", order: 1 },
-  article: { label: "Articles", order: 2 },
-};
 
 function BlogListPageMetadata(props: Props): ReactNode {
   const { metadata } = props;
@@ -69,15 +63,13 @@ function BlogListPageContent(props: Props): ReactNode {
   const isFirstPage = metadata.page === 1;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Apply filters to items (category + search)
+  // Apply search filter to items
   const filteredItems = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     return items.filter((item) => {
       const fm = (item.content as { frontMatter?: Record<string, unknown> })
         .frontMatter;
-      const itemCategory = (fm?.category as string) || "article";
 
       // Text search (title + description)
       if (query) {
@@ -86,23 +78,14 @@ function BlogListPageContent(props: Props): ReactNode {
         if (!title.includes(query) && !desc.includes(query)) return false;
       }
 
-      // Category filter
-      if (selectedCategory !== null && itemCategory !== selectedCategory) {
-        return false;
-      }
-
       return true;
     });
-  }, [items, selectedCategory, searchQuery]);
+  }, [items, searchQuery]);
 
-  const hasActiveFilters = selectedCategory !== null || searchQuery !== "";
+  const hasActiveFilters = searchQuery !== "";
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
-  }, []);
-
-  const handleCategoryChange = useCallback((category: string | null) => {
-    setSelectedCategory(category);
   }, []);
 
   // Separate featured items from regular items
@@ -118,62 +101,21 @@ function BlogListPageContent(props: Props): ReactNode {
     }
   }
 
-  // Group regular items by category
-  const byCategory: Record<string, Array<Props["items"][number]>> = {};
-  const uncategorized: Array<Props["items"][number]> = [];
-  for (const item of regularItems) {
-    const fm = (item.content as { frontMatter?: Record<string, unknown> })
-      .frontMatter;
-    const category = (fm?.category as string) || "article";
-    if (CATEGORY_CONFIG[category]) {
-      if (!byCategory[category]) byCategory[category] = [];
-      byCategory[category].push(item);
-    } else {
-      uncategorized.push(item);
-    }
-  }
-  if (uncategorized.length > 0) {
-    if (!byCategory["article"]) byCategory["article"] = [];
-    byCategory["article"].push(...uncategorized);
-  }
-
-  // Sort categories by config order
-  const sortedCategories = Object.entries(byCategory).sort((a, b) => {
-    const orderA = CATEGORY_CONFIG[a[0]]?.order ?? 99;
-    const orderB = CATEGORY_CONFIG[b[0]]?.order ?? 99;
-    return orderA - orderB;
-  });
-
   return (
     <BlogLayout>
       {/* Filter bar with search */}
       <FilterBar
-        selectedCategory={selectedCategory}
-        onCategoryChange={handleCategoryChange}
         onSearchChange={handleSearchChange}
       />
 
-      {/* Category return control */}
-      {selectedCategory && (
-        <div className="mb-4 -mt-6">
-          <button
-            type="button"
-            onClick={() => setSelectedCategory(null)}
-            className="text-sm text-accent hover:text-accent-light transition-colors"
-          >
-            ← View all categories
-          </button>
-        </div>
-      )}
-
-      {/* Empty state (T007) */}
+      {/* Empty state */}
       {filteredItems.length === 0 && (
         <div className="py-16 text-center">
           <p className="text-lg text-slate-500 dark:text-slate-400 mb-2">
-            No entries match your filters.
+            No entries match your search.
           </p>
           <p className="text-sm text-slate-400 dark:text-slate-500">
-            Try adjusting your search or category filter.
+            Try adjusting your search terms.
           </p>
         </div>
       )}
@@ -203,17 +145,11 @@ function BlogListPageContent(props: Props): ReactNode {
         </section>
       )}
 
-      {/* Categorized sections */}
-      {sortedCategories.map(([category, catItems]) => (
-        <section key={category} className="mb-10">
-          {/* Skip heading for default "article" category */}
-          {category !== "article" && (
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-              {CATEGORY_CONFIG[category]?.label || category}
-            </h2>
-          )}
+      {/* Regular entries — all in a single flat grid, no category grouping */}
+      {regularItems.length > 0 && (
+        <section className="mb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {catItems.map((item, idx) => {
+            {regularItems.map((item, idx) => {
               const post = mapPostToRowCard(item);
               return (
                 <RowCard
@@ -230,7 +166,7 @@ function BlogListPageContent(props: Props): ReactNode {
             })}
           </div>
         </section>
-      ))}
+      )}
 
       {regularItems.length === 0 &&
         featuredItems.length === 0 &&

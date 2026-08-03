@@ -1,16 +1,11 @@
 import React, { useState } from "react";
-import clsx from "clsx";
 import { Search, X } from "lucide-react";
 
 interface FilterBarProps {
-  selectedCategory: string | null;
-  onCategoryChange: (category: string | null) => void;
   onSearchChange: (query: string) => void;
 }
 
 export default function FilterBar({
-  selectedCategory,
-  onCategoryChange,
   onSearchChange,
 }: FilterBarProps): React.ReactNode {
   const [searchQuery, setSearchQuery] = useState("");
@@ -20,24 +15,10 @@ export default function FilterBar({
     onSearchChange(value);
   };
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    onSearchChange("");
-    onCategoryChange(null);
-  };
-
-  const categories = [
-    { value: null, label: "All" },
-    { value: "project-showcase", label: "Projects" },
-    { value: "article", label: "Articles" },
-  ];
-
-  const hasActiveFilters = selectedCategory !== null || searchQuery !== "";
-
   return (
     <div className="mb-10">
       {/* Search bar */}
-      <div className="relative mb-5">
+      <div className="relative">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         <input
           type="text"
@@ -53,37 +34,6 @@ export default function FilterBar({
             className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           >
             <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      {/* Category tabs + clear */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1">
-          {categories.map((cat) => (
-            <button
-              key={cat.label}
-              type="button"
-              onClick={() => onCategoryChange(cat.value)}
-              className={clsx(
-                "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                selectedCategory === cat.value
-                  ? "bg-accent text-white shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/5",
-              )}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-xs text-accent hover:text-accent-light transition-colors whitespace-nowrap"
-          >
-            Clear filters
           </button>
         )}
       </div>
