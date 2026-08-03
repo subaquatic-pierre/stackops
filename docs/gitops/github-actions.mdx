@@ -1,0 +1,470 @@
+---
+title: 'GitHub Actions & Workflows'
+description: 'Complete GitHub Actions reference: workflow syntax, triggers, jobs, matrix builds, secrets, environments, reusable workflows, and common CI/CD patterns.'
+tags: [github, ci-cd, actions, workflows, reference]
+last_updated: '2026-08-03'
+---
+
+# GitHub Actions & Workflows
+
+## Overview
+
+GitHub Actions automates builds, tests, and deployments directly from your repository. Workflows are YAML files stored in `.github/workflows/` that trigger on events (push, PR, schedule, manual) and run jobs on hosted or self-hosted runners.
+
+## Workflow syntax
+
+### File location and naming
+
+```bash
+.github/workflows/ci.yml          # runs on push/PR
+.github/workflows/deploy.yml       # runs on merge to main
+.github/workflows/scheduled.yml    # runs on cron schedule
+```
+
+### Skeleton workflow
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: npm test
+```
+
+## Triggers (`on`)
+
+### Event types
+
+```yaml
+# Push to any branch
+on: push
+
+# Specific branches
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "src/**"
+      - "package.json"
+
+# Pull requests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+# Schedule (cron)
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"   # weekdays at 8 AM UTC
+
+# Manual trigger
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        type: choice
+        options: [staging, production]
+
+# Tag push
+on:
+  push:
+    tags: ["v*"]
+
+# Multiple events
+on: [push, pull_request]
+```
+
+## Jobs and steps
+
+### Job definition
+
+```yaml
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: app/dist/
+```
+
+### Job dependencies
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm run lint
+
+  test:
+    needs: lint               # runs after lint succeeds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying..."
+```
+
+## Matrix builds
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+        os: [ubuntu-latest, windows-latest]
+      fail-fast: false        # don't cancel all on first failure
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm test
+```
+
+This runs 6 jobs in parallel (3 node versions × 2 operating systems).
+
+## Secrets and environment variables
+
+### Repository secrets
+
+```yaml
+steps:
+  - name: Deploy
+    env:
+      API_KEY: ${{ secrets.API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    run: ./deploy.sh
+```
+
+### Environment-level secrets
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production        # requires approval, uses env-specific secrets
+    steps:
+      - run: ./deploy.sh
+```
+
+Configure environment protection rules in repo settings: required reviewers, wait timer, deployment branches.
+
+### OIDC (no long-lived secrets)
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write          # required for OIDC
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789:role/github-actions
+          aws-region: us-east-2
+
+      - name: Deploy
+        run: terraform apply -auto-approve
+```
+
+## Common workflow patterns
+
+### Node.js CI
+
+```yaml
+name: Node.js CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --coverage
+      - run: npm run build
+```
+
+### Docker build and push
+
+```yaml
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+### Terraform plan on PR
+
+```yaml
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.TERRAFORM_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+          echo 'PLAN<<EOF' >> $GITHUB_OUTPUT
+          cat plan.txt >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+        working-directory: terraform
+
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `## Terraform Plan\n\n\`\`\`hcl\n${{ steps.plan.outputs.PLAN }}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output,
+            });
+```
+
+### Deploy on merge
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./deploy.sh
+```
+
+## Reusable workflows
+
+Call a shared workflow from multiple repositories:
+
+```yaml
+# .github/workflows/_shared-deploy.yml (in a shared repo or same repo)
+name: Shared Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+    secrets:
+      API_KEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - run: deploy --env ${{ inputs.environment }} --key ${{ secrets.API_KEY }}
+```
+
+```yaml
+# Consumer workflow
+jobs:
+  deploy-staging:
+    uses: myorg/shared-workflows/.github/workflows/_shared-deploy.yml@main
+    with:
+      environment: staging
+    secrets:
+      API_KEY: ${{ secrets.STAGING_API_KEY }}
+```
+
+## GitHub CLI (`gh`)
+
+```bash
+# Authentication
+gh auth login
+gh auth status
+
+# Repository
+gh repo create myorg/new-repo --public --clone
+gh repo clone myorg/repo
+
+# Pull requests
+gh pr create --title "Fix login bug" --body "Closes #42"
+gh pr list
+gh pr checkout 123
+gh pr review 123 --approve
+gh pr merge 123 --squash --delete-branch
+
+# Issues
+gh issue create --title "Memory leak in worker" --body "Detailed description..."
+gh issue list --label bug
+gh issue view 42
+
+# Workflows and runs
+gh run list
+gh run watch
+gh run view --log
+gh workflow list
+gh workflow run deploy.yml --ref main
+gh workflow run deploy.yml -f environment=staging
+
+# Releases
+gh release create v1.2.0 --title "v1.2.0" --notes "Release notes here"
+gh release list
+
+# Gist
+gh gist create script.sh --public --desc "Useful utility"
+```
+
+## Workflow tips
+
+| Tip | Detail |
+|---|---|
+| **Cache dependencies** | Use `actions/setup-node` with `cache: "npm"` or `actions/cache@v4` for other ecosystems. |
+| **Concurrency** | `concurrency: { group: deploy, cancel-in-progress: true }` — cancels in-progress runs of the same group. |
+| **Conditional steps** | `if: github.ref == 'refs/heads/main'` or `if: ${{ failure() }}` for cleanup steps. |
+| **Expressions** | `${{ env.STAGE }}`, `${{ matrix.os }}`, `${{ secrets.TOKEN }}` |
+| **Built-in env vars** | `${{ github.sha }}`, `${{ github.ref }}`, `${{ github.event_name }}`, `${{ github.repository }}` |
+| **Job outputs** | `echo "result=success" >> $GITHUB_OUTPUT` then reference with `${{ steps.id.outputs.result }}` |
+
+## See also
+
+- [GitOps with ArgoCD](../gitops/argocd.mdx) — continuous deployment patterns
+- [Terraform Team Collaboration](../terraform/terraform-teams.mdx) — CI/CD for infrastructure
