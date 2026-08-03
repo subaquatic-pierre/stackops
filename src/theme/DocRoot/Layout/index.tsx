@@ -15,7 +15,7 @@ export default function DocRootLayout({
   return (
     <div className="flex flex-col min-h-screen">
       <BackToTopButton />
-      <div className="container  flex flex-1 items-start gap-8 lg:gap-12 py-8 lg:py-12">
+      <div className="container flex flex-1 items-start gap-8 lg:gap-12 py-2 lg:py-4">
         {sidebar && (
           <DocRootLayoutSidebar
             sidebar={sidebar.items}

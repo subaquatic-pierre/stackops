@@ -377,6 +377,91 @@ jobs:
       - run: ./deploy.sh
 ```
 
+### ArgoCD GitOps pipeline (build, push, update)
+
+When an image is pushed, update the image tag in the GitOps repository so ArgoCD picks it up and deploys:
+
+```yaml
+name: Build, Push, and Update GitOps
+
+on:
+  push:
+    tags:
+      - "v*" # Triggers workflow on tag push (e.g., v1.0.0, v2.1.3)
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/gitops-example-backend
+  GITOPS_REPO: subaquatic-pierre/gitops-example
+  GITOPS_BRANCH: main
+
+jobs:
+  build-push-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Get tag version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create Docker Config
+        env:
+          DOCKER_CONFIG_CONTENT: ${{ secrets.DOCKER_CONFIG_JSON }}
+        run: |
+          mkdir -p ~/.docker
+          echo "$DOCKER_CONFIG_CONTENT" > ~/.docker/config.json
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Checkout GitOps Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops-repo
+
+      - name: Update Image Tag in GitOps Repo
+        working-directory: gitops-repo/environments/development/backend
+        run: |
+          # Use sed to update newTag in kustomization.yaml
+          sed -i -E "s/newTag: .*/newTag: ${{ env.VERSION }}/g" kustomization.yaml
+          git diff
+
+      - name: Commit and Push Changes to GitOps Repo
+        working-directory: gitops-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Add the correctly named file
+          git add environments/development/backend/kustomization.yaml
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(backend): bump development image tag to ${{ env.VERSION }}"
+            git push origin ${{ env.GITOPS_BRANCH }}
+          fi
+```
+
+Once the workflow pushes the updated `kustomization.yaml`, [ArgoCD](./argocd.mdx) detects the change (within 3 minutes by default) and syncs the cluster to match. The full flow:
+
+> Push tag → GitHub Actions builds image → pushes to registry → updates image tag in GitOps repo → ArgoCD detects change → deploys to cluster
+
 ## Reusable workflows
 
 Call a shared workflow from multiple repositories:

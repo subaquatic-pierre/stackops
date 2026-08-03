@@ -54,8 +54,14 @@ article,
   max-width: 100%;
 }
 
-.markdown *,
-.theme-doc-markdown * {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
+// .markdown *,
+// .theme-doc-markdown * {
+//   word-wrap: break-word;
+//   overflow-wrap: break-word;
+//   // max-width: 0px;
+//   width: 100%;
+// }
+
+// .theme-doc-markdown .markdown {
+//   max-width: 0 !important;
+// }
