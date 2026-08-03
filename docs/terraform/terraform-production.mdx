@@ -1,0 +1,324 @@
+---
+title: 'Production-Grade Terraform Infrastructure'
+description: 'Building production-grade Terraform: small modules, precondition/postcondition validation, provisioners, null_resource, and external data sources.'
+tags: [terraform, production, modules, validation, provisioners, reference]
+last_updated: '2026-08-03'
+---
+
+# Production-Grade Terraform Infrastructure
+
+## Overview
+
+Production-grade infrastructure is about more than creating resources — it's about validation, failure handling, composition, and operational safety. This reference covers the patterns and techniques that separate a prototype from a production deployment: small composable modules, precondition/postcondition blocks, provisioners as a last resort, and integration with external tooling.
+
+## Small modules pattern
+
+Instead of monolithic modules that do everything, compose infrastructure from small, single-purpose, reusable modules.
+
+### Example: ALB module (single responsibility)
+
+```hcl
+# modules/networking/alb/main.tf
+
+resource "aws_lb" "main" {
+  name               = var.name
+  load_balancer_type = "application"
+  subnets            = var.subnet_ids
+  security_groups    = [aws_security_group.alb.id]
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "404: Page Not Found"
+      status_code  = 404
+    }
+  }
+}
+
+resource "aws_lb_target_group" "main" {
+  name     = var.name
+  port     = var.server_port
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 3
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+resource "aws_security_group" "alb" {
+  name = "${var.name}-alb-sg"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+```
+
+### Composition: service module uses building-block modules
+
+```hcl
+# modules/services/hello-world-app/main.tf
+
+module "asg" {
+  source = "../../cluster/asg-rolling-deploy"
+
+  cluster_name  = "hello-world-${var.environment}"
+  instance_type = var.instance_type
+  min_size      = var.min_size
+  max_size      = var.max_size
+  server_port   = var.server_port
+  subnet_ids    = var.subnet_ids
+}
+
+module "alb" {
+  source = "../../networking/alb"
+
+  name        = "hello-world-${var.environment}"
+  server_port = var.server_port
+  subnet_ids  = var.subnet_ids
+  vpc_id      = var.vpc_id
+}
+
+# Wire modules together by referencing their outputs
+resource "aws_lb_listener_rule" "app" {
+  listener_arn = module.alb.alb_http_listener_arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = module.alb.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["*"]
+    }
+  }
+}
+```
+
+### Benefits of small modules
+
+| Benefit | Example |
+|---|---|
+| **Testable in isolation** | Each module can be verified independently with `terraform plan`. |
+| **Replaceable** | Swap the ALB module for an NLB module without touching ASG code. |
+| **Versionable independently** | The ALB module can evolve at its own pace. |
+| **Easier to review** | Small modules mean small pull requests with clear scope. |
+
+## Precondition and postcondition blocks
+
+Terraform 1.2+ supports validation blocks that fail early with clear errors:
+
+```hcl
+data "aws_ec2_instance_type" "instance" {
+  instance_type = var.instance_type
+}
+
+resource "aws_launch_configuration" "app" {
+  image_id      = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+
+  # Precondition: validate inputs before creating the resource
+  lifecycle {
+    precondition {
+      condition     = data.aws_ec2_instance_type.instance.free_tier_eligible
+      error_message = "Instance type ${var.instance_type} is not Free Tier eligible. Use t2.micro or t3.micro."
+    }
+  }
+}
+
+resource "aws_autoscaling_group" "app" {
+  vpc_zone_identifier = var.subnet_ids
+  min_size            = var.min_size
+
+  # Postcondition: validate after creation
+  lifecycle {
+    postcondition {
+      condition     = length(var.subnet_ids) > 1
+      error_message = "You must use at least 2 subnets (across AZs) for high availability."
+    }
+  }
+}
+```
+
+**When to use:**
+- **Preconditions** — validate inputs before resource creation. Catch configuration errors early.
+- **Postconditions** — validate that the created resource meets requirements. Catch runtime issues.
+
+Both failing conditions produce clear error messages and halt `terraform apply` before proceeding to dependent resources.
+
+## Provisioners
+
+Provisioners run scripts or commands on local or remote machines as part of resource creation. **Use them as a last resort** — they break Terraform's declarative model because their side effects are not tracked in state.
+
+### local-exec
+
+Run a command on the machine running Terraform:
+
+```hcl
+resource "aws_instance" "web" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t2.micro"
+
+  provisioner "local-exec" {
+    command = "echo Instance ${self.public_ip} created >> deployments.log"
+  }
+}
+```
+
+### remote-exec
+
+Run commands on the remote resource via SSH:
+
+```hcl
+resource "tls_private_key" "ssh" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "aws_key_pair" "app" {
+  key_name   = "app-key"
+  public_key = tls_private_key.ssh.public_key_openssh
+}
+
+resource "aws_instance" "web" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t2.micro"
+  key_name      = aws_key_pair.app.key_name
+
+  connection {
+    type        = "ssh"
+    host        = self.public_ip
+    user        = "ubuntu"
+    private_key = tls_private_key.ssh.private_key_pem
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo apt-get update",
+      "sudo apt-get install -y nginx",
+      "sudo systemctl start nginx",
+    ]
+  }
+}
+```
+
+### When to use provisioners
+
+| Good use case | Bad use case |
+|---|---|
+| One-time bootstrap that a config management tool handles afterward. | Ongoing configuration management. Use Ansible/Chef/Puppet instead. |
+| Registering an instance with an external system. | Installing packages that can be baked into the AMI. |
+| Edge cases where no Terraform resource exists. | Anything better handled by `user_data` or cloud-init. |
+
+### null_resource with triggers
+
+When you need a provisioner without managing a real resource:
+
+```hcl
+resource "null_resource" "run_migration" {
+  triggers = {
+    # Change this value to force re-run
+    migration_version = var.migration_version
+  }
+
+  provisioner "local-exec" {
+    command = "npm run migrate"
+  }
+}
+```
+
+`triggers` is a map — when any value changes, the `null_resource` is recreated and the provisioner runs again.
+
+## External data source
+
+Call an external program and use its output in Terraform:
+
+```hcl
+data "external" "version" {
+  program = ["bash", "${path.module}/get-version.sh"]
+}
+
+output "app_version" {
+  value = data.external.version.result.version
+}
+```
+
+```bash
+#!/bin/bash
+# get-version.sh — must output JSON to stdout
+
+VERSION=$(git describe --tags --always 2>/dev/null || echo "unknown")
+
+jq -n --arg version "$VERSION" '{"version": $version}'
+```
+
+**Requirements for the external program:**
+- Must accept JSON on stdin (even if empty `{}`).
+- Must output valid JSON on stdout.
+- Must exit with code 0 on success.
+- Errors on stderr are logged but not fatal.
+
+**Limitations:**
+- Data is queried on every `plan` and `apply`, which can slow things down.
+- The external program must be available on every machine that runs Terraform.
+- Not suitable for managing resources — use a custom provider for that.
+
+## Validation and formatting
+
+```bash
+# Check syntax
+terraform validate
+
+# Auto-format all .tf files
+terraform fmt -recursive
+
+# Check formatting without modifying files (CI use)
+terraform fmt -check -recursive
+
+# Check for provider/backend configuration issues
+terraform plan
+```
+
+## Production checklist
+
+Before deploying to production, verify:
+
+- [ ] Remote state backend configured (S3 + DynamoDB) with `encrypt = true`.
+- [ ] State access restricted via IAM policies.
+- [ ] Secrets marked `sensitive` or managed via Secrets Manager/roles.
+- [ ] Preconditions/postconditions on critical resources.
+- [ ] `lifecycle { create_before_destroy = true }` on launch configs and other resources that would cause downtime.
+- [ ] No provisioners in production modules (use AMI baking, cloud-init, or config management).
+- [ ] `terraform fmt` and `terraform validate` pass in CI.
+- [ ] Module versions pinned to specific tags (not `main`/`master`).
+- [ ] Separate state per environment (file layout, not workspaces).
+
+## See also
+
+- [Terraform Modules](./terraform-modules.mdx) — reusable infrastructure components
+- [Loops, Conditionals & Deployments](./terraform-loops-conditionals.mdx) — zero-downtime strategies
+- [Testing Terraform Code](./terraform-testing.mdx) — unit and integration testing

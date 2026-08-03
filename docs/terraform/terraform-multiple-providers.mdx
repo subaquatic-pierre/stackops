@@ -1,0 +1,368 @@
+---
+title: 'Working with Multiple Providers'
+description: 'Using multiple AWS regions, multiple AWS accounts (via IAM assume_role), and combining AWS + Kubernetes providers in a single Terraform configuration.'
+tags: [terraform, providers, multi-region, multi-account, kubernetes, eks, reference]
+last_updated: '2026-08-03'
+---
+
+# Working with Multiple Providers
+
+## Overview
+
+Real infrastructure rarely fits into a single provider or region. You might deploy across multiple AWS regions for disaster recovery, use separate AWS accounts for security isolation, or combine AWS with Kubernetes, monitoring, or DNS providers. Terraform handles all of these patterns natively.
+
+## Multiple regions
+
+Use provider aliases to deploy resources in more than one region:
+
+```hcl
+# Default provider (no alias)
+provider "aws" {
+  region = "us-east-2"
+}
+
+# Additional region provider
+provider "aws" {
+  alias  = "west"
+  region = "us-west-1"
+}
+
+# Resource in default region
+resource "aws_instance" "east" {
+  provider      = aws        # Explicit; same as omitting the provider argument
+  ami           = data.aws_ami.east.id
+  instance_type = "t2.micro"
+}
+
+# Resource in the west region
+resource "aws_instance" "west" {
+  provider      = aws.west   # Reference the aliased provider
+  ami           = data.aws_ami.west.id
+  instance_type = "t2.micro"
+}
+
+# AMI lookup per region (AMIs are region-specific)
+data "aws_ami" "east" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+}
+
+data "aws_ami" "west" {
+  provider    = aws.west   # Query AMI in the west region
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+}
+```
+
+**Key points:**
+- Each provider alias is an independent API connection — separate credentials, regions, or even accounts.
+- Data sources must use the appropriate provider to query resources in the right region.
+- The `provider` argument on each resource determines which region it's created in.
+
+## Multiple AWS accounts
+
+### Provider-level assume_role
+
+Authenticate normally to one account, then assume a role into another:
+
+```hcl
+provider "aws" {
+  region = "us-east-2"
+}
+
+provider "aws" {
+  alias  = "security"
+  region = "us-east-2"
+
+  assume_role {
+    role_arn     = "arn:aws:iam::222222222222:role/terraform-admin"
+    session_name = "terraform"
+  }
+}
+
+# Verify which account each provider targets
+data "aws_caller_identity" "main" {}
+
+data "aws_caller_identity" "security" {
+  provider = aws.security
+}
+
+output "main_account_id" {
+  value = data.aws_caller_identity.main.account_id
+}
+
+output "security_account_id" {
+  value = data.aws_caller_identity.security.account_id
+}
+```
+
+### Multi-account modules
+
+When a module needs to work across multiple accounts, declare provider aliases in the module:
+
+```hcl
+# Module declares it needs two aws provider configurations
+# modules/multi-account/main.tf
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      configuration_aliases = [aws.parent, aws.child]
+    }
+  }
+}
+
+resource "aws_iam_role" "cross_account" {
+  provider = aws.parent
+  # ...
+}
+
+resource "aws_s3_bucket" "logs" {
+  provider = aws.child
+  # ...
+}
+```
+
+```hcl
+# Root module passes providers explicitly
+module "cross_account_resources" {
+  source = "./modules/multi-account"
+
+  providers = {
+    aws.parent = aws.main
+    aws.child  = aws.security
+  }
+}
+```
+
+## AWS + Kubernetes
+
+A common pattern: Terraform creates the EKS cluster with the AWS provider, then deploys applications with the Kubernetes provider.
+
+### EKS cluster provisioning
+
+```hcl
+provider "aws" {
+  region = "us-east-2"
+}
+
+# EKS cluster role
+resource "aws_iam_role" "eks_cluster" {
+  name = "eks-cluster-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Service = "eks.amazonaws.com" }
+      Action   = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.eks_cluster.name
+}
+
+# EKS cluster
+resource "aws_eks_cluster" "main" {
+  name     = "my-cluster"
+  role_arn = aws_iam_role.eks_cluster.arn
+  version  = "1.30"
+
+  vpc_config {
+    subnet_ids = data.aws_subnets.default.ids
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.eks_cluster_policy]
+}
+
+# EKS node group role
+resource "aws_iam_role" "eks_nodes" {
+  name = "eks-node-group-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action   = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_worker_node" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.eks_nodes.name
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cni" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.eks_nodes.name
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_container_registry" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eks_nodes.name
+}
+
+# Managed node group
+resource "aws_eks_node_group" "main" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "main"
+  node_role_arn   = aws_iam_role.eks_nodes.arn
+  subnet_ids      = data.aws_subnets.default.ids
+  instance_types  = ["t3.medium"]
+
+  scaling_config {
+    desired_size = 2
+    max_size     = 5
+    min_size     = 1
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_worker_node,
+    aws_iam_role_policy_attachment.eks_cni,
+    aws_iam_role_policy_attachment.ec2_container_registry,
+  ]
+}
+```
+
+### Kubernetes application deployment
+
+```hcl
+# Configure the Kubernetes provider to connect to the EKS cluster
+provider "kubernetes" {
+  host                   = aws_eks_cluster.main.endpoint
+  cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.main.token
+}
+
+data "aws_eks_cluster_auth" "main" {
+  name = aws_eks_cluster.main.name
+}
+
+# Deploy an application
+resource "kubernetes_deployment" "app" {
+  metadata {
+    name      = "my-app"
+    namespace = "default"
+    labels = {
+      app = "my-app"
+    }
+  }
+
+  spec {
+    replicas = 2
+
+    selector {
+      match_labels = {
+        app = "my-app"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "my-app"
+        }
+      }
+
+      spec {
+        container {
+          image = "myapp:latest"
+          name  = "app"
+
+          port {
+            container_port = 8080
+          }
+
+          dynamic "env" {
+            for_each = var.app_env_vars
+            content {
+              name  = env.key
+              value = env.value
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Expose via LoadBalancer
+resource "kubernetes_service" "app" {
+  metadata {
+    name = "my-app-service"
+  }
+
+  spec {
+    selector = {
+      app = "my-app"
+    }
+
+    port {
+      port        = 80
+      target_port = 8080
+    }
+
+    type = "LoadBalancer"
+  }
+}
+```
+
+### Helm provider
+
+For more complex Kubernetes deployments, use the Helm provider:
+
+```hcl
+provider "helm" {
+  kubernetes {
+    host                   = aws_eks_cluster.main.endpoint
+    cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.main.token
+  }
+}
+
+resource "helm_release" "nginx_ingress" {
+  name       = "nginx-ingress"
+  repository = "https://kubernetes.github.io/ingress-nginx"
+  chart      = "ingress-nginx"
+  namespace  = "ingress"
+
+  set {
+    name  = "controller.service.type"
+    value = "ClusterIP"
+  }
+}
+```
+
+## Provider dependency pattern
+
+When one provider depends on resources from another, use `depends_on`:
+
+```hcl
+# The Kubernetes provider can't authenticate until the EKS cluster exists
+resource "kubernetes_deployment" "app" {
+  # ...
+
+  depends_on = [aws_eks_node_group.main]
+}
+```
+
+Without explicit `depends_on`, Terraform might try to deploy the Kubernetes resource before the EKS cluster (and its node groups) are ready — resulting in an authentication or connectivity failure.
+
+## See also
+
+- [Terraform Configuration Syntax](./terraform-syntax.mdx) — provider blocks and resource definitions
+- [Terraform Secrets Management](./terraform-secrets.mdx) — IAM roles and OIDC

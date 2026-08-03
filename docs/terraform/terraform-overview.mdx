@@ -47,7 +47,22 @@ Terraform is an infrastructure-as-code tool for building, changing, and versioni
 
 ## Best practices
 
-- Store remote state in a shared backend with locking (S3, Terraform Cloud, etc.).
+- Store remote state in a shared backend with locking (S3, DynamoDB, Terraform Cloud, etc.).
 - Keep modules small, focused, and versioned.
 - Run `terraform plan` in CI before every `apply`.
 - Use variable validation and output descriptions.
+- Test infrastructure code with Terratest and OPA.
+
+## In-depth reference
+
+- [Getting Started](./terraform-getting-started.mdx) — your first Terraform deployment
+- [Why Terraform](./why-terraform.mdx) — IaC philosophy and Terraform's declarative model
+- [Configuration Syntax](./terraform-syntax.mdx) — HCL deep-dive: resources, variables, outputs, data sources
+- [Managing State](./terraform-state.mdx) — remote backends, state locking, workspace isolation
+- [Modules](./terraform-modules.mdx) — building reusable, composable infrastructure
+- [Loops, Conditionals & Deployments](./terraform-loops-conditionals.mdx) — `count`, `for_each`, `for` expressions, zero-downtime
+- [Secret Management](./terraform-secrets.mdx) — KMS, Secrets Manager, IAM roles, OIDC
+- [Multiple Providers](./terraform-multiple-providers.mdx) — multi-region, multi-account, AWS + Kubernetes
+- [Production-Grade Infrastructure](./terraform-production.mdx) — small modules, preconditions, validation
+- [Testing Terraform Code](./terraform-testing.mdx) — Terratest, OPA, unit and integration tests
+- [Team Collaboration](./terraform-teams.mdx) — Terragrunt, CI/CD pipelines, code review workflows

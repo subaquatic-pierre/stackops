@@ -1,0 +1,324 @@
+---
+title: 'Process Management'
+description: 'Reference for Linux process management: listing, monitoring, signaling, priorities, systemd service management, and resource analysis tools.'
+tags: [linux, processes, systemd, troubleshooting, reference]
+last_updated: '2026-08-03'
+---
+
+# Process Management
+
+## Overview
+
+Every running program on a Linux system is a process. Managing processes — listing them, inspecting their resource consumption, sending signals, adjusting priorities, and controlling services — is a fundamental operations skill. This reference covers the core tools and commands for process management, from quick health checks to deep debugging.
+
+## Process inspection
+
+### Listing processes
+
+```bash
+ps aux                              # all processes, BSD-style output
+ps -ef                              # all processes, Unix-style output
+ps -e -o pid,ppid,user,%cpu,%mem,cmd  # custom columns
+
+ps -u www-data                      # processes for a specific user
+ps -C nginx                         # processes matching command name
+ps --ppid 1234                      # child processes of PID 1234
+ps -eo pid,ppid,cmd --forest        # process tree
+```
+
+### Common ps columns
+
+| Flag | Column | Description |
+|---|---|---|
+| `%cpu` | CPU usage | Percentage of CPU time |
+| `%mem` | Memory usage | Percentage of physical memory |
+| `vsz` | Virtual size | Virtual memory in KB |
+| `rss` | Resident size | Physical memory in KB |
+| `stat` | State | Process state code |
+| `start` | Start time | When the process began |
+| `time` | CPU time | Cumulative CPU time |
+| `lstart` | Full start | Exact start timestamp |
+| `nlwp` | Threads | Number of threads |
+
+### Process states
+
+| Code | State | Meaning |
+|---|---|---|
+| `R` | Running | Executing or in run queue |
+| `S` | Sleeping | Waiting for an event (interruptible) |
+| `D` | Uninterruptible sleep | Waiting for I/O (usually disk) |
+| `Z` | Zombie | Terminated but not reaped by parent |
+| `T` | Stopped | Suspended by signal or debugger |
+| `t` | Tracing stop | Paused by ptrace |
+| `<` | High priority | Real-time or niceness < 0 |
+| `N` | Low priority | Niceness > 0 |
+
+### Interactive process viewers
+
+```bash
+top                                 # classic interactive process viewer
+htop                                # improved color viewer (install separately)
+btm                                 # bottom — modern TUI resource monitor
+glances                             # comprehensive system monitor (Python-based)
+```
+
+**top interactive keys:**
+
+| Key | Action |
+|---|---|
+| `1` | Toggle per-CPU view |
+| `M` | Sort by memory usage |
+| `P` | Sort by CPU usage |
+| `c` | Toggle full command path |
+| `k` | Kill a process (prompts for PID and signal) |
+| `r` | Renice a process |
+| `f` | Select displayed columns |
+| `u` | Filter by user |
+| `q` | Quit |
+
+### Finding process PIDs
+
+```bash
+pgrep nginx                         # list PIDs matching pattern
+pgrep -u www-data -f wsgi           # by user and full command line
+pgrep -l nginx                      # show process name alongside PID
+pidof nginx                         # list PIDs by exact binary name
+```
+
+## Sending signals
+
+Signals tell a process to perform a specific action. The default signal for `kill` is `TERM` (15).
+
+### Common signals
+
+| Number | Name | Action |
+|---|---|---|
+| 1 | `SIGHUP` | Hangup — often used to reload configuration |
+| 2 | `SIGINT` | Interrupt from keyboard (Ctrl+C) |
+| 3 | `SIGQUIT` | Quit with core dump |
+| 9 | `SIGKILL` | Kill immediately (cannot be caught or ignored) |
+| 15 | `SIGTERM` | Terminate gracefully (default) |
+| 17 | `SIGCHLD` | Child process terminated |
+| 18 | `SIGCONT` | Continue if stopped |
+| 19 | `SIGSTOP` | Stop process (cannot be caught) |
+
+```bash
+kill 1234                           # send SIGTERM to PID 1234
+kill -9 1234                        # force kill (SIGKILL)
+kill -HUP 1234                      # reload (SIGHUP)
+kill -STOP 1234                     # pause process
+kill -CONT 1234                     # resume process
+
+killall nginx                       # kill all processes named nginx
+killall -HUP nginx                  # reload all nginx processes
+
+pkill -f "python app.py"            # kill by command-line pattern
+pkill -u www-data                   # kill all processes for user
+
+kill -l                             # list all signal names
+```
+
+## Process priority (niceness)
+
+Nice values range from `-20` (highest priority) to `19` (lowest priority). Default is `0`. Only root can set negative values.
+
+```bash
+nice -n 10 my_command               # start with lower priority
+nice -n -5 my_command               # start with higher priority (root)
+
+renice -n 5 -p 1234                 # change priority of running process
+renice -n -10 -u www-data           # change priority for all user processes
+
+ionice -c 2 -n 0 -p 1234            # set I/O scheduling class
+```
+
+**I/O classes:** `1` = real-time, `2` = best-effort (default), `3` = idle.
+
+## systemd service management
+
+`systemd` is the init system and service manager on modern Linux distributions. Services are defined in unit files and managed with `systemctl`.
+
+### Service lifecycle commands
+
+```bash
+systemctl start nginx               # start a service
+systemctl stop nginx                # stop a service
+systemctl restart nginx             # restart a service
+systemctl reload nginx              # reload configuration (SIGHUP)
+systemctl reload-or-restart nginx   # reload if supported, else restart
+systemctl enable nginx              # enable at boot
+systemctl disable nginx             # disable at boot
+systemctl enable --now nginx        # enable and start
+systemctl mask nginx                # prevent service from starting
+systemctl unmask nginx              # allow service to start again
+```
+
+### Status and inspection
+
+```bash
+systemctl status nginx                     # detailed service status
+systemctl is-active nginx                  # active or inactive
+systemctl is-enabled nginx                 # enabled or disabled
+systemctl is-failed nginx                  # check if in failed state
+systemctl list-units --type=service        # list all service units
+systemctl list-units --type=service --state=failed  # list failed services
+systemctl list-unit-files --type=service   # list all installed services
+systemctl show nginx                       # all service properties
+systemctl cat nginx                        # show unit file contents
+```
+
+### Journal inspection for services
+
+```bash
+journalctl -u nginx                        # all logs for the service
+journalctl -u nginx --since "1 hour ago"   # recent logs
+journalctl -u nginx -f                     # follow logs
+journalctl -u nginx -p err                 # errors only
+```
+
+### Writing a systemd service unit
+
+```ini
+# /etc/systemd/system/myapp.service
+[Unit]
+Description=My Application
+After=network.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/myapp
+ExecStart=/opt/myapp/bin/server
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/etc/myapp/env.conf
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Service types
+
+| Type | Behavior |
+|---|---|
+| `simple` | Process is the main service (default); systemd assumes it starts immediately. |
+| `forking` | Process forks and exits; parent PID expected to exit. |
+| `oneshot` | Short-lived process; systemd waits for it to exit. |
+| `notify` | Like `simple`, but sends `sd_notify` when ready. |
+| `idle` | Like `simple`, but waits until no more jobs are active. |
+
+After creating or editing a unit:
+
+```bash
+systemctl daemon-reload              # reload unit definitions
+systemctl start myapp
+systemctl enable myapp
+```
+
+## Resource monitoring
+
+### CPU and memory
+
+```bash
+free -h                              # memory usage summary
+free -h -s 5                         # refresh every 5 seconds
+uptime                               # load averages (1, 5, 15 min)
+
+mpstat 1                             # per-CPU statistics
+mpstat -P ALL 1                      # all CPUs individually
+pidstat 1                            # per-process CPU stats
+pidstat -u -p 1234 1                 # specific PID
+```
+
+### Memory analysis
+
+```bash
+cat /proc/meminfo                    # detailed memory information
+vmstat 1                             # virtual memory statistics
+pmap 1234                            # memory map of a process
+smem -k                              # proportional memory usage (install smem)
+```
+
+### Disk I/O
+
+```bash
+iostat -x 1                          # extended disk I/O stats
+iotop -o                             # top for I/O (sorted by usage)
+ls -l /proc/1234/fd/                 # open file descriptors
+lsof -p 1234                         # list open files for process
+```
+
+### Network per process
+
+```bash
+ss -tlnp                             # TCP listeners with process info
+ss -tunap                            # all TCP/UDP sockets with process
+nethogs eth0                         # bandwidth by process (install nethogs)
+iftop -i eth0                        # bandwidth by connection (install iftop)
+```
+
+## /proc filesystem
+
+The `/proc` virtual filesystem exposes process and kernel information.
+
+```bash
+/proc/cpuinfo                        # CPU details
+/proc/meminfo                        # memory statistics
+/proc/loadavg                        # load averages
+/proc/uptime                         # system uptime
+/proc/version                        # kernel version
+/proc/sys/                           # kernel tunables (sysctl)
+
+# Per-process:
+/proc/<pid>/cmdline                  # command line (null-separated)
+/proc/<pid>/environ                  # environment variables (null-separated)
+/proc/<pid>/fd/                      # open file descriptors
+/proc/<pid>/status                   # process status and resource usage
+/proc/<pid>/limits                   # resource limits
+/proc/<pid>/cgroup                   # cgroup membership
+/proc/<pid>/io                       # I/O statistics
+/proc/<pid>/oom_score                # OOM-killer score (0-1000, higher = more likely to kill)
+/proc/<pid>/oom_score_adj            # OOM score adjustment (-1000 to 1000)
+```
+
+## Troubleshooting patterns
+
+```bash
+# Find what's using the most CPU
+ps aux --sort=-%cpu | head -10
+
+# Find what's using the most memory
+ps aux --sort=-%rss | head -10
+
+# Find zombie processes
+ps aux | awk '$8 ~ /Z/'
+
+# Find process by listening port
+ss -tlnp | grep ':80'
+
+# Check if a process is stuck in D state
+cat /proc/1234/status | grep State
+
+# Trace system calls
+strace -p 1234                       # attach to running process
+strace -p 1234 -e trace=network      # trace only network syscalls
+strace -c -p 1234                    # summary counts
+
+# Trace library calls
+ltrace -p 1234
+
+# Inspect child processes
+pstree -p 1234
+```
+
+## See also
+
+- [Bash & Shell Scripting](./bash.mdx)
+- [Find the Process Listening on a Port](./find-process-listening-port.mdx)
+- [Linux Kernel](./kernel.mdx)
+- [Logging & Log Management](./logging.mdx)

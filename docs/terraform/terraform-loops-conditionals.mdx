@@ -1,0 +1,313 @@
+---
+title: 'Loops, Conditionals & Deployments'
+description: 'Terraform patterns for loops, conditionals, dynamic blocks, zero-downtime deployment strategies, and the moved block for safe refactoring.'
+tags: [terraform, loops, conditionals, deployment, count, for_each, reference]
+last_updated: '2026-08-03'
+---
+
+# Loops, Conditionals & Deployments
+
+## Overview
+
+Real-world Terraform configurations rarely deal with single resources — they create many similar resources, apply logic conditionally, and manage safe deployments. This reference covers the meta-arguments, expressions, and patterns that make Terraform configurations dynamic and production-safe.
+
+## count — creating multiple resources
+
+The `count` meta-argument creates N identical copies of a resource or module:
+
+```hcl
+variable "user_names" {
+  description = "List of IAM user names to create"
+  type        = list(string)
+  default     = ["alice", "bob", "carol"]
+}
+
+resource "aws_iam_user" "users" {
+  count = length(var.user_names)
+  name  = var.user_names[count.index]
+}
+```
+
+`count.index` starts at 0 and increments for each instance. Resource addresses become `<TYPE>.<NAME>[<INDEX>]` (e.g., `aws_iam_user.users[0]`).
+
+### count limitations
+
+- **Order sensitivity**: Removing `var.user_names[1]` shifts indices — `users[2]` becomes `users[1]`, triggering a destroy-and-recreate of the wrong resource.
+- **Use `for_each` instead** when resources need stable identities.
+
+## for_each — creating uniquely keyed resources
+
+`for_each` identifies each instance by a stable key, avoiding the reindexing problem:
+
+```hcl
+variable "user_names" {
+  type = list(string)
+}
+
+resource "aws_iam_user" "users" {
+  for_each = toset(var.user_names)
+  name     = each.key
+}
+```
+
+Resource addresses become `<TYPE>.<NAME>["<key>"]` (e.g., `aws_iam_user.users["alice"]`). Removing "bob" from the list only destroys the "bob" resource — "carol" stays unchanged.
+
+### for_each on map values
+
+```hcl
+variable "app_ports" {
+  type = map(number)
+  default = {
+    web = 80
+    api = 4000
+    ssh = 22
+  }
+}
+
+resource "aws_security_group_rule" "ingress" {
+  for_each    = var.app_ports
+  type        = "ingress"
+  from_port   = each.value
+  to_port     = each.value
+  cidr_blocks = ["0.0.0.0/0"]
+}
+```
+
+### for_each on modules
+
+`for_each` works on `module` blocks (Terraform 0.13+):
+
+```hcl
+module "webserver" {
+  source   = "./modules/webserver"
+  for_each = toset(["staging", "production"])
+
+  environment = each.key
+}
+```
+
+## Conditional resources
+
+Use `count` with a ternary expression to conditionally create resources:
+
+```hcl
+variable "enable_monitoring" {
+  type    = bool
+  default = false
+}
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu" {
+  count = var.enable_monitoring ? 1 : 0
+
+  alarm_name          = "high-cpu-utilization"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  # ...
+}
+```
+
+**Conditional on type/attribute:**
+
+```hcl
+# Only create this alarm for T-class instances (they have CPU credits)
+resource "aws_cloudwatch_metric_alarm" "credit_balance" {
+  count = substr(var.instance_type, 0, 1) == "t" ? 1 : 0
+
+  alarm_name  = "low-cpu-credit-balance"
+  # ...
+}
+```
+
+## for expressions — list and map transformations
+
+### List transformations
+
+```hcl
+variable "names" {
+  type    = list(string)
+  default = ["alice", "bob", "carol"]
+}
+
+locals {
+  upper_names = [for name in var.names : upper(name)]
+  # → ["ALICE", "BOB", "CAROL"]
+
+  short_names = [for name in var.names : upper(name) if length(name) < 5]
+  # → ["BOB"]
+}
+```
+
+### Map transformations
+
+```hcl
+variable "heroes" {
+  type = map(string)
+  default = {
+    luke   = "jedi"
+    han    = "smuggler"
+    leia   = "general"
+  }
+}
+
+locals {
+  bios = [for name, role in var.heroes : "${name} is a ${role}"]
+  # → ["luke is a jedi", "han is a smuggler", "leia is a general"]
+
+  uppercase = {for name, role in var.heroes : upper(name) => upper(role)}
+  # → { LUKE = "JEDI", HAN = "SMUGGLER", LEIA = "GENERAL" }
+}
+```
+
+## dynamic blocks
+
+Generate nested configuration blocks dynamically:
+
+```hcl
+variable "custom_tags" {
+  type    = map(string)
+  default = {}
+}
+
+resource "aws_autoscaling_group" "app" {
+  # ...
+
+  dynamic "tag" {
+    for_each = var.custom_tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
+}
+
+# With a filter: skip the "Name" key if already handled elsewhere
+dynamic "tag" {
+  for_each = {for k, v in var.custom_tags : k => v if k != "Name"}
+  content {
+    key   = tag.key
+    value = tag.value
+    propagate_at_launch = true
+  }
+}
+```
+
+## String directives
+
+Template-style control flow inside strings (useful for `user_data`):
+
+```hcl
+locals {
+  html = <<-EOT
+    <html>
+    <body>
+    <h1>Server Info</h1>
+    %{ for server in var.server_names ~}
+    <li>${server}</li>
+    %{ endfor ~}
+    %{ if var.show_footer ~}
+    <footer>Generated by Terraform</footer>
+    %{ endif ~}
+    </body>
+    </html>
+  EOT
+}
+```
+
+`%{~` strips whitespace before the directive; `~}` strips whitespace after.
+
+## Zero-downtime deployments
+
+### Strategy 1: create_before_destroy
+
+Force Terraform to create the replacement resource before destroying the old one:
+
+```hcl
+resource "aws_launch_configuration" "app" {
+  # ...
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_group" "app" {
+  # Name depends on launch configuration — changing it forces recreate
+  name = "${var.cluster_name}-${aws_launch_configuration.app.name}"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  # Wait for new instances to pass health checks before considering
+  # the deployment complete and destroying the old ASG
+  min_elb_capacity = var.min_size
+}
+```
+
+**How it works:**
+1. Launch configuration changes → new config created first (due to `create_before_destroy`).
+2. ASG name changes (depends on launch config name) → new ASG created with new instances.
+3. New instances register with the load balancer and pass health checks.
+4. `min_elb_capacity` ensures old ASG stays up until new instances are healthy.
+5. Old ASG and old launch configuration are destroyed.
+
+### Strategy 2: Instance refresh
+
+Terraform 1.1+ supports rolling instance replacement without replacing the ASG itself:
+
+```hcl
+resource "aws_autoscaling_group" "app" {
+  name                = var.cluster_name   # Static name
+  launch_configuration = aws_launch_configuration.app.name
+
+  # Only the launch config needs create_before_destroy
+  # The ASG itself is not replaced
+
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
+}
+```
+
+**How it works:**
+1. Launch configuration changes (applied in-place, `create_before_destroy` on the launch config).
+2. The instance refresh replaces instances in batches (50% stay healthy).
+3. The ASG itself is never destroyed — only instances cycle.
+
+### Which strategy to use
+
+| Strategy | Pros | Cons |
+|---|---|---|
+| `create_before_destroy` | Simple, well-understood. | Replaces entire ASG; all instances cycle at once. |
+| Instance refresh | Gradual replacement; ASG name stays stable. | Only available in Terraform 1.1+; more complex failure handling. |
+
+## moved blocks — safe resource refactoring
+
+When you rename a resource or move it into a module, Terraform normally wants to destroy the old one and create the new one. The `moved` block tells Terraform that the resource ID has changed:
+
+```hcl
+# Rename: aws_security_group.instance → aws_security_group.cluster_instance
+moved {
+  from = aws_security_group.instance
+  to   = aws_security_group.cluster_instance
+}
+
+# Move resource into a module
+moved {
+  from = aws_security_group.main
+  to   = module.webserver.aws_security_group.main
+}
+```
+
+After adding a `moved` block, `terraform plan` shows no changes — the resource identity has been updated in state without any real infrastructure modification.
+
+## See also
+
+- [Terraform Configuration Syntax](./terraform-syntax.mdx) — resources, variables, outputs
+- [Terraform Modules](./terraform-modules.mdx) — reusable infrastructure components
+- [Production-Grade Infrastructure](./terraform-production.mdx) — preconditions, postconditions, and validation

@@ -1,0 +1,449 @@
+---
+title: 'Terraform Configuration Syntax'
+description: 'Terraform HCL syntax deep-dive: resources, variables, outputs, data sources, security groups, auto-scaling, and load balancers with complete examples.'
+tags: [terraform, hcl, syntax, variables, outputs, reference]
+last_updated: '2026-08-03'
+---
+
+# Terraform Configuration Syntax
+
+## Overview
+
+HCL (HashiCorp Configuration Language) is Terraform's domain-specific language. It balances human readability with machine-friendliness. This reference covers every major syntax construct — from basic resource definitions to auto-scaling clusters with load balancers.
+
+## Resources
+
+A resource is the fundamental building block in Terraform. Each resource block declares one infrastructure object.
+
+```hcl
+resource "aws_instance" "web" {
+  ami           = "ami-0fb653ca2d3203ac1"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "web-server"
+  }
+}
+```
+
+| Part | Meaning |
+|---|---|
+| `aws_instance` | Resource type — the kind of infrastructure to create. |
+| `"web"` | Local name — how you refer to this resource in other parts of the config. |
+| `{ ... }` | Arguments — the configuration for this specific resource. |
+
+### Referencing resource attributes
+
+Use `<RESOURCE_TYPE>.<NAME>.<ATTRIBUTE>`:
+
+```hcl
+resource "aws_eip" "web" {
+  instance = aws_instance.web.id
+}
+
+output "public_ip" {
+  value = aws_eip.web.public_ip
+}
+```
+
+### Common meta-arguments
+
+| Meta-argument | Purpose | Example |
+|---|---|---|
+| `depends_on` | Explicit dependency | `depends_on = [aws_s3_bucket.logs]` |
+| `count` | Create N copies | `count = 3` |
+| `for_each` | Create one per map/set entry | `for_each = toset(["a", "b"])` |
+| `provider` | Use non-default provider | `provider = aws.west` |
+| `lifecycle` | Control resource lifecycle | `lifecycle { create_before_destroy = true }` |
+| `tags` | Resource tags (most providers) | `tags = { Name = "web" }` |
+
+## Variables
+
+Variables make configurations reusable and environment-independent.
+
+### Variable declarations
+
+```hcl
+# variables.tf
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "server_port" {
+  description = "Port the web server listens on"
+  type        = number
+  default     = 8080
+}
+
+variable "enable_monitoring" {
+  description = "Enable detailed CloudWatch monitoring"
+  type        = bool
+  default     = false
+}
+
+variable "instance_tags" {
+  description = "Tags to apply to instances"
+  type        = map(string)
+  default = {
+    Project     = "myapp"
+    Environment = "dev"
+  }
+}
+
+variable "subnet_ids" {
+  description = "List of subnet IDs"
+  type        = list(string)
+  default     = []
+}
+
+variable "app_config" {
+  description = "Application configuration object"
+  type = object({
+    name    = string
+    version = string
+    ports   = list(number)
+  })
+}
+```
+
+### Variable types
+
+| Type | Example value |
+|---|---|
+| `string` | `"t2.micro"` |
+| `number` | `8080` |
+| `bool` | `true` |
+| `list(string)` | `["a", "b", "c"]` |
+| `map(string)` | `{ Name = "web", Env = "prod" }` |
+| `set(string)` | `toset(["a", "b"])` |
+| `object({...})` | `{ name = "app", version = "1.0", ports = [80, 443] }` |
+| `any` | Accept any type (use sparingly) |
+
+### Setting variable values
+
+```bash
+# Command line
+terraform apply -var="instance_type=t3.medium"
+
+# Variable definition files (.tfvars)
+# terraform.tfvars (auto-loaded) or custom file
+terraform apply -var-file="prod.tfvars"
+```
+
+```hcl
+# terraform.tfvars
+instance_type = "t3.medium"
+server_port   = 8080
+
+instance_tags = {
+  Project     = "myapp"
+  Environment = "production"
+}
+```
+
+### Environment variables
+
+Prefix the variable name with `TF_VAR_`:
+
+```bash
+export TF_VAR_instance_type="t3.medium"
+export TF_VAR_server_port="8080"
+```
+
+## Outputs
+
+Outputs expose values after applying — for display to the user or for consumption by other configurations.
+
+```hcl
+# outputs.tf
+
+output "instance_public_ip" {
+  description = "Public IP of the EC2 instance"
+  value       = aws_instance.web.public_ip
+}
+
+output "alb_dns_name" {
+  description = "DNS name of the load balancer"
+  value       = aws_lb.main.dns_name
+}
+
+output "database_endpoint" {
+  description = "RDS endpoint address"
+  value       = aws_db_instance.main.address
+  sensitive   = false
+}
+```
+
+```bash
+# Query outputs
+terraform output
+terraform output alb_dns_name
+terraform output -json
+```
+
+## Data sources
+
+Data sources query existing infrastructure without managing it — read-only lookups.
+
+```hcl
+# Fetch the default VPC
+data "aws_vpc" "default" {
+  default = true
+}
+
+# Fetch all subnets in the default VPC
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+# Look up a specific AMI
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+}
+```
+
+## String interpolation
+
+Reference variables and resource attributes inside strings with `${}`:
+
+```hcl
+resource "aws_launch_configuration" "app" {
+  name_prefix = "app-${var.environment}-"
+  user_data = templatefile("${path.module}/user-data.sh", {
+    server_port = var.server_port
+    db_address  = var.db_address
+  })
+}
+```
+
+## Locals
+
+`locals` define reusable values that don't change per environment:
+
+```hcl
+locals {
+  http_port    = 80
+  https_port   = 443
+  any_port     = 0
+  tcp_protocol = "tcp"
+  all_ips      = ["0.0.0.0/0"]
+
+  common_tags = {
+    ManagedBy   = "terraform"
+    Environment = var.environment
+  }
+}
+
+resource "aws_security_group" "web" {
+  ingress {
+    from_port   = local.http_port
+    to_port     = local.http_port
+    protocol    = local.tcp_protocol
+    cidr_blocks = local.all_ips
+  }
+
+  tags = merge(local.common_tags, { Name = "web-sg" })
+}
+```
+
+## Security groups
+
+```hcl
+resource "aws_security_group" "instance" {
+  name   = "web-server-sg"
+  vpc_id = data.aws_vpc.default.id
+
+  ingress {
+    from_port   = var.server_port
+    to_port     = var.server_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow inbound HTTP"
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/8"]
+    description = "Allow SSH from internal network"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic"
+  }
+}
+```
+
+### Security group rules (separate resource)
+
+For cleaner management, use standalone `aws_security_group_rule` resources:
+
+```hcl
+resource "aws_security_group" "instance" {
+  name = "web-sg"
+}
+
+resource "aws_security_group_rule" "allow_http" {
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.instance.id
+}
+```
+
+## Auto-scaling group with load balancer
+
+This is the canonical pattern for a stateless web service:
+
+```hcl
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+# Security group for instances
+resource "aws_security_group" "instance" {
+  name = "web-instance-sg"
+  ingress {
+    from_port   = var.server_port
+    to_port     = var.server_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Launch configuration (template for EC2 instances)
+resource "aws_launch_configuration" "web" {
+  image_id        = "ami-0fb653ca2d3203ac1"
+  instance_type   = var.instance_type
+  security_groups = [aws_security_group.instance.id]
+  user_data       = templatefile("${path.module}/user-data.sh", {
+    server_port = var.server_port
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Auto-scaling group
+resource "aws_autoscaling_group" "web" {
+  launch_configuration = aws_launch_configuration.web.name
+  vpc_zone_identifier  = data.aws_subnets.default.ids
+
+  target_group_arns = [aws_lb_target_group.web.arn]
+  health_check_type = "ELB"
+
+  min_size = var.min_size
+  max_size = var.max_size
+
+  tag {
+    key                 = "Name"
+    value               = var.cluster_name
+    propagate_at_launch = true
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "web" {
+  name               = var.cluster_name
+  load_balancer_type = "application"
+  subnets            = data.aws_subnets.default.ids
+  security_groups    = [aws_security_group.alb.id]
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.web.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "404: Not Found"
+      status_code  = "404"
+    }
+  }
+}
+
+resource "aws_lb_target_group" "web" {
+  name     = var.cluster_name
+  port     = var.server_port
+  protocol = "HTTP"
+  vpc_id   = data.aws_vpc.default.id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 3
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+resource "aws_lb_listener_rule" "web" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["*"]
+    }
+  }
+}
+
+# Security group for ALB
+resource "aws_security_group" "alb" {
+  name = "web-alb-sg"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+```
+
+## See also
+
+- [Terraform Getting Started](./terraform-getting-started.mdx) — first deployment
+- [Managing Terraform State](./terraform-state.mdx) — remote state and locking
+- [Terraform Modules](./terraform-modules.mdx) — reusable infrastructure components

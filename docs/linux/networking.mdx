@@ -1,0 +1,394 @@
+---
+title: 'Linux Networking'
+description: 'Reference for Linux networking: interface configuration, routing, DNS, firewalls (UFW & iptables), diagnostics, and kernel-level network tuning.'
+tags: [linux, networking, firewall, iptables, ufw, troubleshooting, reference]
+last_updated: '2026-08-03'
+---
+
+# Linux Networking
+
+## Overview
+
+Linux networking encompasses interface configuration, routing, DNS resolution, firewall management, and diagnostic tooling. This reference covers both the modern `iproute2` tooling and legacy commands, along with firewall configuration using UFW and iptables, plus kernel-level network tuning.
+
+## Interface management
+
+### ip command (modern)
+
+```bash
+# Show interfaces and addresses
+ip addr show                         # all interfaces and IPs
+ip link show                         # interface states only
+ip -br addr                          # brief (compact) format
+ip -4 addr                           # IPv4 only
+ip -6 addr                           # IPv6 only
+
+# Manage interfaces
+ip link set eth0 up                  # bring up
+ip link set eth0 down                # bring down
+ip link set eth0 mtu 9000            # set MTU
+
+# IP address management
+ip addr add 10.0.0.10/24 dev eth0    # add IP
+ip addr del 10.0.0.10/24 dev eth0    # remove IP
+```
+
+### Legacy commands (ifconfig)
+
+```bash
+ifconfig                             # all active interfaces
+ifconfig -a                          # all interfaces including down
+ifconfig eth0                        # specific interface
+ifconfig eth0 10.0.0.10 netmask 255.255.255.0 up  # set IP
+ifconfig eth0 down                   # bring down
+```
+
+### Interface configuration files
+
+**Debian/Ubuntu** (`/etc/network/interfaces`):
+
+```
+auto eth0
+iface eth0 inet static
+    address 10.0.0.10
+    netmask 255.255.255.0
+    gateway 10.0.0.1
+    dns-nameservers 8.8.8.8 1.1.1.1
+
+auto eth1
+iface eth1 inet dhcp
+```
+
+**Systemd-networkd** (`/etc/systemd/network/`):
+
+```ini
+# /etc/systemd/network/20-eth0.network
+[Match]
+Name=eth0
+
+[Network]
+Address=10.0.0.10/24
+Gateway=10.0.0.1
+DNS=8.8.8.8
+DNS=1.1.1.1
+```
+
+**Netplan** (Ubuntu 18.04+, `/etc/netplan/`):
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 10.0.0.10/24
+      gateway4: 10.0.0.1
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
+```
+
+Apply: `netplan apply`
+
+### Interface statistics
+
+```bash
+ip -s link                           # packet statistics
+ethtool eth0                         # driver info, speed, duplex
+ethtool -S eth0                      # hardware statistics
+sar -n DEV 1 5                       # network throughput per interface (sysstat)
+```
+
+## Routing
+
+### Viewing routes
+
+```bash
+ip route show                        # main routing table
+ip route show table all              # all routing tables
+route -n                             # legacy command
+netstat -rn                          # legacy command
+```
+
+### Managing routes
+
+```bash
+# Add default gateway
+ip route add default via 10.0.0.1
+ip route add default via 10.0.0.1 dev eth0
+
+# Add specific route
+ip route add 192.168.1.0/24 via 10.0.0.254
+ip route add 10.0.0.0/8 via 10.0.0.1 dev eth1
+
+# Delete route
+ip route del 192.168.1.0/24
+ip route del default
+
+# Policy routing (multiple routing tables)
+echo "200 custom" >> /etc/iproute2/rt_tables
+ip route add default via 10.0.0.1 table custom
+ip rule add from 10.0.0.10 table custom
+```
+
+### Persistent routes
+
+```bash
+# Debian: /etc/network/interfaces
+up ip route add 192.168.1.0/24 via 10.0.0.254
+
+# Systemd-networkd
+[Route]
+Destination=192.168.1.0/24
+Gateway=10.0.0.254
+```
+
+## DNS resolution
+
+### Configuration files
+
+```bash
+/etc/resolv.conf                     # DNS resolver config (often generated)
+/etc/nsswitch.conf                   # name service switch (order of resolution)
+/etc/hosts                           # static host-to-IP mappings
+```
+
+### systemd-resolved
+
+```bash
+resolvectl status                    # DNS server info and link status
+resolvectl query example.com         # resolve a hostname
+resolvectl statistics                # cache hit/miss stats
+resolvectl flush-caches              # flush DNS cache
+systemctl restart systemd-resolved   # restart resolver
+```
+
+### Manual DNS queries
+
+```bash
+# dig (from dnsutils/bind-utils)
+dig example.com                      # basic query
+dig +short example.com               # concise output
+dig example.com MX                   # mail exchange records
+dig -x 93.184.216.34                 # reverse lookup
+dig @1.1.1.1 example.com            # query specific server
+dig +trace example.com               # trace resolution path
+
+# nslookup (simpler)
+nslookup example.com
+nslookup 93.184.216.34
+
+# host
+host example.com
+host -t MX example.com
+```
+
+## Connection diagnostics
+
+### Connectivity testing
+
+```bash
+ping -c 4 host                       # send 4 echo requests
+ping -i 0.2 host                     # 0.2s interval (flood control)
+ping -s 1400 host                    # packet size (test MTU)
+ping -W 2 host                       # 2-second timeout
+
+traceroute host                      # trace path with UDP
+traceroute -I host                   # use ICMP (like Windows tracert)
+mtr host                             # real-time route trace (my traceroute)
+```
+
+### Port and service checking
+
+```bash
+# netcat (nc)
+nc -zv host 22                       # scan TCP port (verbose)
+nc -zuv host 53                      # scan UDP port
+nc -w 3 host 80                      # 3-second timeout
+echo "HEAD / HTTP/1.1" | nc host 80  # send raw data
+
+# telnet (quick port check)
+telnet host 22
+telnet host 80                       # type HEAD / HTTP/1.1 then Enter twice
+
+# ss - socket statistics
+ss -tlnp                             # TCP listeners with process
+ss -tunap                            # all sockets with process
+ss -s                                # summary statistics
+ss -t state established              # established connections only
+```
+
+### Network analysis
+
+```bash
+# tcpdump (packet capture)
+tcpdump -i eth0                      # capture on interface
+tcpdump -i eth0 port 80              # filter by port
+tcpdump -i eth0 host 10.0.0.5        # filter by host
+tcpdump -i eth0 -w capture.pcap      # write to file
+tcpdump -i any not port 22           # exclude SSH traffic
+tcpdump -r capture.pcap              # read from file
+
+# Watch traffic rates
+iftop -i eth0                        # bandwidth by connection
+nethogs eth0                         # bandwidth by process
+iptraf-ng                            # interactive traffic monitor
+bmon                                 # bandwidth graphs
+```
+
+## Firewall management
+
+### UFW (Uncomplicated Firewall)
+
+UFW is a user-friendly front-end for iptables, default on Ubuntu.
+
+```bash
+# Status and defaults
+ufw status verbose                   # show rules and default policies
+ufw enable                           # enable firewall (enable at boot)
+ufw disable                          # disable firewall
+ufw reload                           # reload rules
+
+# Default policies
+ufw default deny incoming            # block all incoming
+ufw default allow outgoing           # allow all outgoing
+
+# Allow rules
+ufw allow ssh                        # allow port 22 (ssh)
+ufw allow 80/tcp                     # allow port 80 TCP
+ufw allow 443                        # allow port 443 (TCP and UDP)
+ufw allow 6000:6007/tcp              # allow port range
+ufw allow from 10.0.0.0/8           # allow from subnet
+ufw allow from 10.0.0.5 to any port 3306  # specific source to specific port
+
+# Deny rules
+ufw deny 25/tcp                      # deny SMTP
+ufw deny from 192.168.1.100
+
+# Delete rules (by number or spec)
+ufw status numbered
+ufw delete 3                         # delete rule number 3
+ufw delete allow 80/tcp              # delete by original spec
+
+# Logging
+ufw logging on
+ufw logging off
+ufw logging medium                   # on, off, low, medium, high, full
+
+# Application profiles
+ufw app list
+ufw app info "Nginx Full"
+ufw allow "Nginx Full"
+```
+
+### iptables (direct)
+
+```bash
+# List rules
+iptables -L -n -v                    # list with counters (numeric)
+iptables -L -n -v --line-numbers     # with line numbers
+iptables -t nat -L -n -v             # NAT table rules
+
+# Chain policies
+iptables -P INPUT DROP               # set default input policy to drop
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Basic rules
+iptables -A INPUT -i lo -j ACCEPT                          # allow loopback
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT  # allow established
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT              # allow SSH
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT              # allow HTTP
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT             # allow HTTPS
+iptables -A INPUT -s 10.0.0.0/8 -j ACCEPT                  # allow private subnet
+iptables -A INPUT -j DROP                                   # drop everything else
+
+# Delete rules
+iptables -D INPUT 3                   # delete by line number
+iptables -D INPUT -p tcp --dport 80 -j ACCEPT  # delete by spec
+iptables -F                           # flush all rules (caution)
+
+# Insert rules
+iptables -I INPUT 1 -s 10.0.0.5 -j ACCEPT   # insert at position 1
+
+# NAT and port forwarding
+iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to-destination 10.0.0.10:80
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+# Save rules (persistent across reboots)
+iptables-save > /etc/iptables/rules.v4         # Debian (install iptables-persistent)
+iptables-save                                   # RHEL (with iptables-services)
+```
+
+### nftables (modern replacement)
+
+```bash
+nft list ruleset                     # list all rules
+nft add table inet filter            # create table
+nft add chain inet filter input { type filter hook input priority 0; }
+nft add rule inet filter input tcp dport 22 accept
+```
+
+## Kernel networking parameters
+
+Tune network behavior via `sysctl`:
+
+```bash
+# /etc/sysctl.d/99-network.conf
+
+# Enable IP forwarding (for routing/NAT)
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+
+# Increase connection tracking
+net.netfilter.nf_conntrack_max = 262144
+
+# TCP tuning
+net.core.somaxconn = 4096
+net.ipv4.tcp_max_syn_backlog = 4096
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_tw_reuse = 1
+
+# Buffer sizes
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+
+# Disable IPv6 (if not used)
+net.ipv6.conf.all.disable_ipv6 = 1
+
+sysctl --system                      # apply all
+```
+
+## Common network troubleshooting workflow
+
+```bash
+# 1. Check if interface is up with an IP
+ip addr show eth0
+
+# 2. Check if you can reach the gateway
+ping -c 3 <gateway-ip>
+
+# 3. Check DNS resolution
+dig +short example.com
+
+# 4. Check if a specific port is listening
+ss -tlnp | grep :<port>
+
+# 5. Check firewall rules
+ufw status verbose                   # UFW
+iptables -L -n -v                    # iptables
+
+# 6. Trace the route to a remote host
+mtr example.com                      # best visual traceroute
+
+# 7. Capture traffic for deep inspection
+tcpdump -i eth0 -nn port <port> -w debug.pcap
+```
+
+## See also
+
+- [SSH & Remote Access](./ssh.mdx)
+- [Find the Process Listening on a Port](./find-process-listening-port.mdx)
+- [Common Configuration Locations](./common-configs.mdx)
+- [Linux Kernel](./kernel.mdx)

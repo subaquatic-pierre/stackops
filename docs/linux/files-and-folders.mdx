@@ -1,8 +1,460 @@
-- overview to tar
-- common tar usage examples, with flags etc. for createing and extractive archive files
-- any other useful packages or commands used with archive files
-- include locations for standard files on debian systems, eg. logging files, binary files, any other common files and locations
-- CRUD opeerations for files
-- finding files, searching files, viewing files
-- file editors VIM commands and common config
-- sed and grep commands common flags and examples
+---
+title: 'Files, Archives & File Editors'
+description: 'Comprehensive reference for Linux file operations: CRUD, searching, archiving with tar, file viewer tools, sed/awk text processing, and Vim editor commands.'
+tags: [linux, files, tar, vim, sed, grep, reference]
+last_updated: '2026-08-03'
+---
+
+# Files, Archives & File Editors
+
+## Overview
+
+This reference covers the most common file operations on Linux: creating, reading, searching, and editing files; compressing and archiving with `tar` and friends; text processing with `sed`, `awk`, and `grep`; and essential Vim editor commands. It also catalogs the standard directory hierarchy on Debian-based systems.
+
+## Standard file locations
+
+### Filesystem hierarchy
+
+| Directory | Purpose |
+|---|---|
+| `/bin/` | Essential user command binaries. |
+| `/sbin/` | System administration binaries. |
+| `/usr/bin/` | Non-essential user binaries. |
+| `/usr/sbin/` | Non-essential system binaries. |
+| `/usr/local/bin/` | Locally installed user binaries. |
+| `/etc/` | System-wide configuration files. |
+| `/var/log/` | Log files. |
+| `/var/lib/` | Variable state data (databases, package data). |
+| `/tmp/` | Temporary files (cleared on reboot). |
+| `/var/tmp/` | Temporary files (persist across reboots). |
+| `/opt/` | Add-on application packages. |
+| `/home/` | User home directories. |
+| `/root/` | Root user home directory. |
+| `/boot/` | Kernel images and bootloader files. |
+| `/proc/` | Virtual filesystem for kernel/process info. |
+| `/sys/` | Virtual filesystem for device/kernel parameters. |
+| `/dev/` | Device nodes. |
+| `/run/` | Runtime variable data (temporary since last boot). |
+| `/srv/` | Data served by the system (e.g., web root). |
+
+## CRUD operations
+
+### Creating files and directories
+
+```bash
+touch file.txt                       # create empty file
+touch file{1,2,3}.txt                # create multiple files
+mkdir newdir                         # create directory
+mkdir -p a/b/c                       # create nested directories
+```
+
+### Reading files
+
+```bash
+cat file.txt                         # print entire file
+cat -n file.txt                      # with line numbers
+less file.txt                        # paginated view (q to quit)
+more file.txt                        # basic pagination (legacy)
+head -n 20 file.txt                  # first 20 lines
+tail -n 20 file.txt                  # last 20 lines
+tail -f /var/log/syslog              # follow file as it grows
+tail -F /var/log/syslog              # follow, reopens on rotation
+nl file.txt                          # number lines
+```
+
+### Copying, moving, deleting
+
+```bash
+cp source.txt dest.txt               # copy file
+cp -r sourcedir/ destdir/            # copy directory recursively
+cp -p source.txt dest.txt            # preserve attributes
+cp -u source.txt dest.txt            # copy only if source is newer
+
+mv oldname.txt newname.txt           # rename/move
+mv file.txt /dest/path/              # move to directory
+mv -i file.txt /dest/path/           # prompt before overwriting
+
+rm file.txt                          # remove file
+rm -rf somedir/                      # recursive force remove (dangerous)
+rmdir emptydir/                      # remove empty directory
+```
+
+### Linking files
+
+```bash
+ln -s /actual/path/file.txt link.txt  # symbolic link (soft link)
+ln /actual/path/file.txt hardlink.txt # hard link
+ls -l link.txt                       # see symlink target
+readlink -f link.txt                 # resolve full path of symlink
+```
+
+### File comparison
+
+```bash
+diff file1.txt file2.txt             # line-by-line differences
+diff -u file1.txt file2.txt          # unified diff format (patch-compatible)
+diff -r dir1/ dir2/                  # recursive directory comparison
+colordiff file1.txt file2.txt        # colorized diff (install colordiff)
+comm file1.txt file2.txt             # compare sorted files (columns: unique-to-1, unique-to-2, common)
+```
+
+## File permissions (quick reference)
+
+```bash
+chmod 755 script.sh                  # rwxr-xr-x
+chmod 644 file.txt                   # rw-r--r--
+chmod 600 id_rsa                     # rw-------
+chmod 700 ~/.ssh                     # rwx------
+chown user:group file.txt            # change owner and group
+chown -R user:group /opt/app         # recursive
+chgrp group file.txt                 # change group
+```
+
+See the full [Users & Permissions](./users-and-permissions.mdx) reference for complete details.
+
+## Finding and searching
+
+### find
+
+```bash
+find /var/log -name "*.log"               # by filename pattern
+find /var/log -name "*.log" -type f       # files only (not directories)
+find /home -name "*.txt" -mtime -7        # modified in last 7 days
+find /tmp -name "*.tmp" -mtime +30        # older than 30 days
+find / -type f -size +100M                # larger than 100 MB
+find / -type f -size +1G 2>/dev/null      # suppress permission errors
+
+# Execute actions on found files
+find . -name "*.bak" -delete              # delete found files
+find . -name "*.log" -exec gzip {} \;     # gzip each file
+find . -name "*.log" -exec mv {} /backup/ \;  # move each file
+
+# Complex conditions
+find /var -type f \( -name "*.log" -o -name "*.txt" \) -mtime -1
+
+# Exclude directory
+find /var -not -path "*/cache/*" -name "*.log"
+
+# By user/group
+find /home -user jdoe
+find /home -group developers
+
+# By permissions
+find / -perm 777 -type f
+find / -perm -u+s                          # files with SUID bit
+```
+
+### grep
+
+```bash
+grep "pattern" file.txt                     # basic search
+grep -i "pattern" file.txt                  # case-insensitive
+grep -r "pattern" /etc/                     # recursive search
+grep -rl "pattern" /etc/                    # list matching files (not content)
+grep -rn "pattern" /etc/                    # with line numbers
+grep -v "pattern" file.txt                  # invert match (exclude)
+grep -c "pattern" file.txt                  # count matches
+grep -E "pat1|pat2" file.txt                # extended regex (OR)
+grep -A2 -B3 "pattern" file.txt             # 3 lines before, 2 after
+grep -w "word" file.txt                     # whole word only
+grep -o "pattern" file.txt                  # only matching text
+
+# With file types
+grep --include="*.log" -rn "error" /var/log/
+grep --exclude="*.gz" -rn "error" /var/log/
+```
+
+### locate (fast, uses an index database)
+
+```bash
+updatedb                            # update the file database
+locate nginx.conf                   # find files by name
+locate -i nginx                     # case-insensitive
+locate -r '\.conf$'                 # regex match
+```
+
+### which / whereis / type
+
+```bash
+which python                         # locate a command in PATH
+whereis python                       # find binary, source, and man page
+type python                          # show how the shell would interpret the command
+```
+
+## Archives and compression
+
+### tar
+
+```bash
+# Create archives
+tar -czf archive.tar.gz dir/        # create gzipped tar
+tar -cjf archive.tar.bz2 dir/       # create bzip2 compressed tar
+tar -cJf archive.tar.xz dir/        # create xz compressed tar
+tar -cf archive.tar dir/            # create uncompressed tar
+
+# Extract archives
+tar -xzf archive.tar.gz             # extract gzipped tar
+tar -xjf archive.tar.bz2            # extract bzip2 tar
+tar -xJf archive.tar.xz             # extract xz tar
+tar -xf archive.tar                 # auto-detect compression
+
+# List contents
+tar -tzf archive.tar.gz             # list without extracting
+tar -tvf archive.tar                # verbose listing
+
+# Extract to specific directory
+tar -xzf archive.tar.gz -C /dest/path/
+
+# Common flags
+# c = create, x = extract, t = list
+# v = verbose, f = file, C = change directory
+# z = gzip, j = bzip2, J = xz
+
+# Exclude patterns
+tar -czf backup.tar.gz dir/ --exclude='*.log' --exclude='node_modules'
+```
+
+### Compression utilities
+
+```bash
+# gzip / gunzip
+gzip file.txt                       # compress to file.txt.gz
+gunzip file.txt.gz                   # decompress
+gzip -k file.txt                    # keep original
+gzip -1 file.txt                    # fastest (least compression)
+gzip -9 file.txt                    # best compression
+
+# bzip2 / bunzip2
+bzip2 file.txt
+bunzip2 file.txt.bz2
+
+# xz
+xz file.txt
+unxz file.txt.xz
+
+# zip / unzip (cross-platform)
+zip archive.zip file1.txt file2.txt
+zip -r archive.zip dir/
+unzip archive.zip
+unzip -l archive.zip                # list contents
+```
+
+### Other archive tools
+
+```bash
+# 7z (install p7zip-full)
+7z a archive.7z dir/                 # create 7z archive
+7z x archive.7z                     # extract with full paths
+7z l archive.7z                     # list contents
+
+# rar (install rar/unrar)
+rar a archive.rar dir/
+unrar x archive.rar
+```
+
+## Text processing
+
+### sed (stream editor)
+
+```bash
+# Substitution
+sed 's/old/new/' file.txt                    # replace first occurrence per line
+sed 's/old/new/g' file.txt                   # replace all occurrences per line
+sed 's/old/new/gi' file.txt                  # case-insensitive, all
+sed 's/old/new/2' file.txt                   # replace 2nd occurrence only
+
+# In-place editing
+sed -i 's/foo/bar/g' file.txt                 # edit file directly
+sed -i.bak 's/foo/bar/g' file.txt             # create backup with .bak extension
+
+# Delete lines
+sed '5d' file.txt                             # delete line 5
+sed '5,10d' file.txt                          # delete lines 5-10
+sed '/pattern/d' file.txt                     # delete matching lines
+sed '/^$/d' file.txt                          # delete blank lines
+sed '/^#/d' file.txt                          # delete comment lines
+
+# Print lines
+sed -n '5p' file.txt                          # print line 5
+sed -n '5,10p' file.txt                       # print lines 5-10
+sed -n '/pattern/p' file.txt                  # print matching lines
+
+# Insert/append
+sed '5i\new line before line 5' file.txt      # insert before
+sed '5a\new line after line 5' file.txt       # append after
+
+# Multiple commands
+sed -e 's/foo/bar/g' -e 's/baz/qux/g' file.txt
+
+# Capture groups
+sed 's/\([0-9]*\)-\([0-9]*\)/\2-\1/' file.txt  # swap captured groups
+```
+
+### awk
+
+```bash
+# Column extraction
+awk '{print $1}' file.txt                              # first column
+awk '{print $1, $3}' file.txt                          # columns 1 and 3
+awk -F: '{print $1, $7}' /etc/passwd                   # custom delimiter
+awk -F, '{print $NF}' file.csv                         # last column
+
+# Filtering
+awk '$3 > 100 {print $1, $3}' file.txt                 # conditional
+awk '/pattern/ {print $1}' file.txt                    # pattern match
+awk 'NR>=5 && NR<=10 {print}' file.txt                 # line range
+
+# Summaries and calculations
+awk '{sum+=$2} END {print "Total:", sum}' file.txt     # sum column
+awk '{count++} END {print count}' file.txt             # count lines
+awk '{max=($1>max ? $1 : max)} END {print max}'        # maximum value
+awk '{ips[$1]++} END {for(ip in ips) print ip, ips[ip]}'  # count occurrences
+
+# Formatting
+awk '{printf "%-20s %10d\n", $1, $2}' file.txt         # formatted output
+```
+
+### cut, sort, uniq, wc
+
+```bash
+cut -d':' -f1,7 /etc/passwd            # extract fields by delimiter
+cut -c1-10 file.txt                    # extract character ranges
+
+sort file.txt                           # sort lines alphabetically
+sort -n file.txt                        # numeric sort
+sort -rn file.txt                       # reverse numeric sort
+sort -t':' -k3 -n /etc/passwd          # sort by field, numeric
+sort -u file.txt                        # unique sort (remove duplicates)
+
+uniq sorted_file.txt                    # remove adjacent duplicates
+uniq -c sorted_file.txt                 # count occurrences
+uniq -d sorted_file.txt                 # show only duplicates
+sort file.txt | uniq -c | sort -rn      # frequency count (descending)
+
+wc file.txt                             # lines, words, bytes
+wc -l file.txt                          # line count only
+wc -w file.txt                          # word count only
+wc -c file.txt                          # byte count only
+```
+
+## Vim essentials
+
+### Modes
+
+| Mode | How to enter | Purpose |
+|---|---|---|
+| Normal | `Esc` (default) | Navigation and commands |
+| Insert | `i`, `a`, `o`, `I`, `A`, `O` | Typing text |
+| Visual | `v`, `V`, `Ctrl+v` | Selecting text |
+| Command | `:` | Ex commands (save, quit, search) |
+
+### Navigation
+
+```vim
+h  j  k  l           " left, down, up, right
+w                    " next word
+b                    " previous word
+0                    " start of line
+^                    " first non-blank character
+$                    " end of line
+gg                   " top of file
+G                    " bottom of file
+:42                  " go to line 42
+Ctrl+f               " page down (forward)
+Ctrl+b               " page up (backward)
+%                    " jump to matching bracket
+```
+
+### Editing
+
+```vim
+i                    " insert before cursor
+a                    " insert after cursor
+I                    " insert at start of line
+A                    " insert at end of line
+o                    " open new line below
+O                    " open new line above
+dd                   " delete (cut) line
+dw                   " delete word
+D                    " delete to end of line
+yy                   " yank (copy) line
+yw                   " yank word
+p                    " paste after cursor
+P                    " paste before cursor
+u                    " undo
+Ctrl+r               " redo
+.                    " repeat last change
+r                    " replace single character
+>>                   " indent line
+<<                   " un-indent line
+```
+
+### Visual mode
+
+```vim
+v                    " character-wise selection
+V                    " line-wise selection
+Ctrl+v               " block selection
+d / y / c            " delete / yank / change selection
+>                    " indent selection
+```
+
+### Search and replace
+
+```vim
+/pattern             " search forward
+?pattern             " search backward
+n                    " next match
+N                    " previous match
+*                    " search word under cursor
+
+:s/old/new/g         " replace in current line
+:%s/old/new/g        " replace in entire file
+:%s/old/new/gc       " replace with confirmation
+:5,10s/old/new/g     " replace in lines 5-10
+```
+
+### File operations
+
+```vim
+:w                   " save (write)
+:q                   " quit
+:wq                  " save and quit
+:x                   " save and quit (only if changed)
+:q!                  " quit without saving
+:w newfile.txt       " save as new file
+:e file.txt          " open/edit another file
+```
+
+### Window splitting
+
+```vim
+:vsp file.txt        " vertical split
+:sp file.txt         " horizontal split
+Ctrl+w w             " switch between splits
+Ctrl+w q             " close split
+:only                " close all other splits
+```
+
+### Vim configuration
+
+```vim
+# ~/.vimrc
+set number           " show line numbers
+set relativenumber   " relative line numbers
+set expandtab        " use spaces instead of tabs
+set tabstop=4        " tab width
+set shiftwidth=4     " indent width
+set autoindent       " auto-indent new lines
+set hlsearch         " highlight search results
+set incsearch        " incremental search
+set ignorecase smartcase  " case-insensitive unless uppercase is used
+syntax on            " syntax highlighting
+```
+
+## See also
+
+- [Users & Permissions](./users-and-permissions.mdx)
+- [Bash & Shell Scripting](./bash.mdx)
+- [Logging & Log Management](./logging.mdx)
+- [Common Configuration Locations](./common-configs.mdx)

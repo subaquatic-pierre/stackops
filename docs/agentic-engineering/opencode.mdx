@@ -1,0 +1,297 @@
+---
+title: 'OpenCode Configuration Guide'
+description: 'Complete reference for configuring OpenCode: providers, agents, skills, Docker sandboxing, shortcuts, and custom tooling.'
+tags: [agentic-engineering, opencode, ai, configuration, reference]
+last_updated: '2026-08-03'
+---
+
+# OpenCode Configuration Guide
+
+## Overview
+
+OpenCode is an AI coding agent that runs in the terminal. It provides slash commands, custom agents, provider integrations, and extensible skills — all configured through `~/.config/opencode/`. This reference covers configuration, Docker sandboxing, keyboard shortcuts, and common patterns.
+
+## Configuration file
+
+The main configuration lives at `~/.config/opencode/config.json` (or `opencode.json` in the project root for per-project overrides).
+
+### Basic structure
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "google/gemini-2.5-pro",
+  "default_agent": "nexus",
+  "agent": {
+    "build": { "disable": true },
+    "plan": { "disable": true }
+  },
+  "provider": { ... }
+}
+```
+
+| Key | Purpose |
+|---|---|
+| `model` | Default model for the default agent (provider/model-name). |
+| `default_agent` | Agent used when no specific agent is invoked. |
+| `agent.<name>.disable` | Disable built-in agents (e.g., disable `build` and `plan` if unused). |
+| `provider` | Custom AI provider configurations. |
+
+### Provider configuration
+
+Define each model provider with its API endpoint, key, and available models:
+
+```json
+{
+  "provider": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://api.deepseek.com",
+        "apiKey": "sk-..."
+      },
+      "models": {
+        "deepseek-v4-flash": {
+          "name": "DeepSeek v4 Flash"
+        },
+        "deepseek-v4-pro": {
+          "name": "DeepSeek v4 Pro"
+        }
+      }
+    },
+    "google": {
+      "name": "Google AI",
+      "options": {
+        "apiKey": "..."
+      }
+    },
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "llama3.1:8b": {
+          "name": "Llama 3.1 8B",
+          "limit": { "context": 131072, "output": 8192 }
+        },
+        "qwen2.5-coder:14b": {
+          "name": "Qwen 2.5 Coder 14B",
+          "limit": { "context": 32768, "output": 8192 }
+        },
+        "deepseek-r1:32b": {
+          "name": "DeepSeek R1 32B",
+          "reasoning": true,
+          "limit": { "context": 131072, "output": 8192 }
+        }
+      }
+    }
+  }
+}
+```
+
+| Provider field | Purpose |
+|---|---|
+| `name` | Display name for the provider. |
+| `npm` | SDK package. Use `@ai-sdk/openai-compatible` for OpenAI-compatible APIs. |
+| `options.baseURL` | API endpoint URL. |
+| `options.apiKey` | API key (can also reference environment variables). |
+| `models.<key>.limit` | Token limits: `context` (input), `output` (generation). |
+| `models.<key>.reasoning` | Mark model as reasoning-capable (`true`). |
+
+## Custom agents
+
+Agents are defined as Markdown files in `~/.config/opencode/agents/`. Each agent specifies its model, permissions, and system prompt.
+
+### Agent definition
+
+```markdown
+---
+name: Builder
+description: Senior software engineer for building and shipping production code.
+mode: primary
+model: deepseek/deepseek-v4-pro
+permission:
+  edit: allow
+  bash: allow
+---
+
+You are **Nexus**, a senior software engineer. You design, build, review,
+and ship production-quality code across any language or framework.
+
+- Read the codebase thoroughly before writing code — understand existing
+  patterns, naming, and conventions.
+- Prefer editing existing files over creating new ones.
+- Run tests, typechecks, and linters after making changes.
+- Write concise commit messages that match the project's style.
+- When unsure about architecture, ask clarifying questions before guessing.
+- Think like a senior engineer: maintainability, edge cases, performance,
+  security, and testing.
+```
+
+### Agent frontmatter fields
+
+| Field | Purpose |
+|---|---|
+| `name` | Agent display name. |
+| `description` | Short description shown in agent lists. |
+| `mode` | `primary` (runs by default) or `subagent` (invoked by name). |
+| `model` | Default model for this agent: `provider/model-name`. |
+| `permission.edit` | `allow` or `deny` — can the agent edit files? |
+| `permission.bash` | `allow` or `deny` — can the agent run shell commands? |
+
+### Using agents
+
+Switch agents during a session or invoke specific agents for specific tasks. The default agent loads at startup unless overridden by `--agent`:
+
+```bash
+opencode --agent builder
+```
+
+## Custom skills
+
+Skills extend OpenCode with specialized workflows. They live in `~/.config/opencode/skills/`.
+
+### Skill structure
+
+Each skill is a directory with a `SKILL.md` file:
+
+```
+~/.config/opencode/skills/
+├── my-skill/
+│   └── SKILL.md          # Skill definition and instructions
+└── ui-ux-pro-max/
+    └── SKILL.md
+```
+
+Skills are loaded automatically at startup. The agent's system prompt references available skills, and you invoke them via the skill tool during a session.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Alt+Enter` | Insert a new line at cursor position. |
+| `Ctrl+Shift+V` | Paste multiple lines from clipboard. |
+| `Ctrl+C` | Interrupt the current agent action. |
+| `Ctrl+D` | Exit session (EOF). |
+
+## Docker sandbox
+
+Running OpenCode inside Docker provides an isolated workspace with consistent tooling. This is the recommended setup for security and reproducibility.
+
+### Dockerfile
+
+```dockerfile
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl wget git unzip gnupg \
+    build-essential gcc g++ make \
+    python3 python3-pip python3-venv \
+    jq vim nano htop dnsutils iputils-ping netcat-openbsd ssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 22
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd --gid 1001 oc \
+    && useradd --uid 1000 --gid 1001 --create-home \
+        --home-dir /home/oc --shell /bin/bash oc
+
+# Install OpenCode globally
+RUN npm install -g opencode-ai
+
+# Prepare directories
+RUN mkdir -p \
+    /home/oc/.config/opencode \
+    /home/oc/.local/share/opencode \
+    /home/oc/.local/state \
+    /workspace \
+    && chown -R oc:oc /home/oc /workspace
+
+USER oc
+ENV HOME=/home/oc
+WORKDIR /workspace
+
+# Install Rust (optional, for Rust-based tools)
+# RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN chmod g+s /workspace
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+```
+
+### Entrypoint script
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+# Ensure workspace permissions
+sudo chown -R oc:oc /workspace 2>/dev/null || true
+
+exec "$@"
+```
+
+### Launch script
+
+Place this at `~/.config/opencode/run.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+IMAGE_NAME="opencode-powerful:latest"
+SCRIPT_DIR="$HOME/.config/opencode"
+
+# Build image if it doesn't exist
+if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+    echo "⚙️ Building Docker image..."
+    docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
+fi
+
+# Ensure config directories exist on host
+mkdir -p "$HOME/.config/opencode"
+mkdir -p "$HOME/.local/share/opencode"
+
+echo "🚀 Launching OpenCode sandbox..."
+echo "📂 Workspace: $PWD"
+
+docker run -it --rm \
+    --name "opencode_$(basename "$PWD")" \
+    --network host \
+    --workdir /workspace \
+    --user oc \
+    -v "$PWD":/workspace \
+    -v "$HOME/.config/opencode":/home/oc/.config/opencode \
+    -v "$HOME/.local/share/opencode":/home/oc/.local/share/opencode \
+    -v "$HOME/.local/state":/home/oc/.local/state \
+    "$IMAGE_NAME" \
+    "$@"
+```
+
+Make it executable:
+
+```bash
+chmod +x ~/.config/opencode/run.sh
+```
+
+### Usage
+
+```bash
+# Launch in current project directory
+~/.config/opencode/run.sh opencode
+
+# With custom arguments
+~/.config/opencode/run.sh opencode --model deepseek/deepseek-v4-pro
+```
+
+## See also
+
+- [Spec Kit](./spec-kit.mdx) — spec-driven development workflow

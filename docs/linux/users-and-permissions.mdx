@@ -1,0 +1,342 @@
+---
+title: 'Users, Groups & Permissions'
+description: 'Reference for Linux user and group management, file permissions, ACLs, sudo configuration, and security frameworks like AppArmor.'
+tags: [linux, users, permissions, security, reference]
+last_updated: '2026-08-03'
+---
+
+# Users, Groups & Permissions
+
+## Overview
+
+Linux is a multi-user operating system built around a permissions model that controls what each user and process can access. Understanding user accounts, group membership, file ownership, and permission bits is essential for securing systems and debugging access issues.
+
+## User management
+
+### Listing and inspecting users
+
+```bash
+whoami                               # current user
+id                                   # UID, GID, and group memberships
+id www-data                           # inspect another user
+who                                  # logged-in users
+w                                    # logged-in users with what they're doing
+last                                 # recent login history
+last -n 10                           # last 10 logins
+lastb                                # failed login attempts (requires /var/log/btmp)
+```
+
+### User account files
+
+```bash
+/etc/passwd                          # user account definitions
+/etc/shadow                          # encrypted passwords and aging
+/etc/group                           # group definitions
+/etc/gshadow                         # group passwords (rarely used)
+/etc/shells                          # valid login shells
+/etc/skel/                           # skeleton files for new user homes
+```
+
+**`/etc/passwd` format:**
+
+```
+username:password:UID:GID:GECOS:home_directory:shell
+```
+
+The password field is `x` (shadow passwords stored in `/etc/shadow`).
+
+### Creating and modifying users
+
+```bash
+# Create a user
+useradd -m -s /bin/bash jdoe                # create with home dir and shell
+useradd -u 1500 -g developers alice         # specific UID and primary group
+useradd -G docker,sudo bob                  # supplementary groups
+
+# Modify a user
+usermod -aG docker jdoe                     # add to supplementary group (append)
+usermod -s /bin/zsh jdoe                    # change login shell
+usermod -L jdoe                             # lock account
+usermod -U jdoe                             # unlock account
+usermod -e 2026-12-31 jdoe                  # set account expiration
+
+# Delete a user
+userdel jdoe                                # remove user (keep home dir)
+userdel -r jdoe                             # remove user and home directory
+
+# Password management
+passwd jdoe                                 # set/change password
+passwd -l jdoe                              # lock password
+passwd -u jdoe                              # unlock password
+passwd -S jdoe                              # password status info
+passwd -e jdoe                              # expire password (force change on next login)
+
+# Change user info
+chsh -s /bin/zsh                            # change own shell
+chfn                                        # change GECOS info (full name, phone, etc.)
+```
+
+## Group management
+
+```bash
+# Create and modify groups
+groupadd developers                          # create a new group
+groupadd -g 2000 ops                         # with specific GID
+groupmod -n devs developers                  # rename group
+groupdel developers                          # delete group
+
+# List groups
+groups                                       # groups for current user
+groups jdoe                                  # groups for specific user
+getent group                                 # all groups on the system
+getent group docker                          # specific group entry
+
+# Change primary group
+usermod -g developers jdoe
+
+# Set group password (rare)
+gpasswd developers
+```
+
+### Adding users to groups
+
+```bash
+usermod -aG docker,www-data jdoe             # append to supplementary groups
+gpasswd -a jdoe docker                       # alternative syntax
+gpasswd -d jdoe docker                       # remove from group
+```
+
+Changes take effect on next login. Use `newgrp docker` or `su - jdoe` in the current session to pick up new memberships immediately.
+
+## File permissions
+
+### Standard permission model
+
+Permissions are represented as three triads: **owner**, **group**, and **others**.
+
+```
+-rwx r-x r--   owner  group   file.txt
+ │  │   │   │
+ │  │   │   └── others: read only
+ │  │   └────── group: read + execute
+ │  └────────── owner: read + write + execute
+ └───────────── file type: - (regular), d (directory), l (symlink)
+```
+
+### Permission values
+
+| Octal | Binary | Permissions |
+|---|---|---|
+| 0 | `---` | None |
+| 1 | `--x` | Execute only |
+| 2 | `-w-` | Write only |
+| 3 | `-wx` | Write + Execute |
+| 4 | `r--` | Read only |
+| 5 | `r-x` | Read + Execute |
+| 6 | `rw-` | Read + Write |
+| 7 | `rwx` | Read + Write + Execute |
+
+### Changing permissions
+
+```bash
+# Symbolic mode
+chmod u+x script.sh                  # owner: add execute
+chmod g-w file.txt                   # group: remove write
+chmod o= file.txt                    # others: remove all permissions
+chmod a+r file.txt                   # all (ugo): add read
+chmod u=rwx,g=rx,o= file.txt        # set exact permissions
+
+# Octal mode
+chmod 755 script.sh                  # rwx r-x r-x
+chmod 644 file.txt                   # rw- r-- r--
+chmod 600 id_rsa                     # rw- --- ---
+chmod 750 /opt/app                   # rwx r-x ---
+
+# Recursive
+chmod -R 755 /var/www                # change all files and dirs
+```
+
+### Changing ownership
+
+```bash
+chown jdoe file.txt                  # change owner
+chown jdoe:developers file.txt       # change owner and group
+chown :developers file.txt           # change group only
+chown -R jdoe:developers /opt/app    # recursive
+chgrp developers file.txt            # change group (alternative)
+```
+
+### Special permission bits
+
+| Bit | Octal | Symbol | File effect | Directory effect |
+|---|---|---|---|---|
+| SUID | 4000 | `u+s` | Execute as file owner | (no effect) |
+| SGID | 2000 | `g+s` | Execute as group owner | New files inherit directory group |
+| Sticky | 1000 | `+t` | (no effect) | Only file owner can delete |
+
+```bash
+chmod u+s /usr/bin/passwd            # SUID: run as root regardless of caller
+chmod g+s /shared/project            # SGID: new files inherit directory group
+chmod +t /tmp                        # Sticky: users can only delete own files
+```
+
+**In `ls` output:**
+- SUID: `rws` in owner execute position (or `rwS` if no execute)
+- SGID: `rws` in group execute position (or `rwS` if no execute)
+- Sticky: `rwt` in others execute position (or `rwT` if no execute)
+
+### Default permissions: umask
+
+```bash
+umask                                # display current mask (e.g., 0022)
+umask 027                            # set mask: new files get 640, dirs get 750
+
+# Default file:  666 - 022 = 644 (rw-r--r--)
+# Default dir:   777 - 022 = 755 (rwxr-xr-x)
+```
+
+Common umask values: `022` (group/others read), `027` (group read, others none), `077` (only owner).
+
+## Access Control Lists (ACLs)
+
+ACLs extend the standard owner-group-others model with fine-grained permissions for specific users and groups.
+
+```bash
+# View ACLs
+getfacl file.txt                     # show ACL for file
+
+# Set ACLs
+setfacl -m u:alice:rw file.txt       # grant user alice read+write
+setfacl -m u:alice:r-x script.sh     # grant user alice read+execute
+setfacl -m g:devs:r-- file.txt       # grant group devs read
+setfacl -m o::-- file.txt            # remove all others permissions
+setfacl -x u:alice file.txt          # remove ACL for user alice
+setfacl -b file.txt                  # remove all extended ACLs
+
+# Default ACLs (inherited by new items in a directory)
+setfacl -m d:u:alice:rwx /shared/
+```
+
+**Requires ACL support:** The filesystem must be mounted with the `acl` option. Check with `tune2fs -l /dev/sda1 | grep "Default mount options"`.
+
+## Sudo configuration
+
+`sudo` allows permitted users to execute commands as another user (typically root).
+
+### Configuration files
+
+```bash
+/etc/sudoers                         # main configuration (edit with visudo)
+/etc/sudoers.d/                      # drop-in configuration files
+```
+
+### sudoers syntax
+
+```bash
+# User privilege specification
+jdoe    ALL=(ALL:ALL) ALL            # jdoe can run anything as anyone
+
+# Group privilege specification
+%developers  ALL=(ALL) ALL           # group developers gets full sudo
+%ops         ALL=/usr/bin/systemctl restart nginx    # specific commands only
+
+# No password
+jdoe    ALL=(ALL) NOPASSWD: ALL
+
+# Run as specific user
+jdoe    ALL=(postgres) /usr/bin/psql
+```
+
+### sudo commands
+
+```bash
+sudo command                         # run as root
+sudo -u postgres command             # run as specific user
+sudo -i                              # interactive root shell
+sudo su -                            # same as above
+sudo -l                              # list allowed commands
+sudo -k                              # invalidate cached credentials (force password)
+visudo                               # safely edit /etc/sudoers
+```
+
+### Managing sudoers safely
+
+Always use `visudo` to edit sudoers — it validates syntax before saving:
+
+```bash
+visudo                               # edit /etc/sudoers
+visudo -f /etc/sudoers.d/custom      # edit a drop-in file
+```
+
+## AppArmor
+
+AppArmor is a Mandatory Access Control (MAC) framework, default on Debian/Ubuntu, that restricts program capabilities via profiles.
+
+### Checking status
+
+```bash
+aa-status                            # show loaded profiles and enforcement status
+apparmor_status                      # same information
+```
+
+Each profile is in one of these modes:
+- **Enforce**: Policy is enforced; violations are blocked and logged.
+- **Complain**: Policy is NOT enforced; violations are only logged.
+
+### Managing profiles
+
+```bash
+# Profile files location
+/etc/apparmor.d/                     # profile definitions
+
+# Set profile mode
+aa-enforce /etc/apparmor.d/usr.bin.nginx     # enforce profile
+aa-complain /etc/apparmor.d/usr.bin.nginx    # complain mode (learning)
+
+# Disable a profile
+apparmor_parser -R /etc/apparmor.d/usr.bin.nginx    # unload profile
+ln -s /etc/apparmor.d/usr.bin.nginx /etc/apparmor.d/disable/  # disable at boot
+
+# Reload all profiles
+systemctl reload apparmor
+
+# Generate a new profile
+aa-genprof /path/to/binary           # interactive profile generation
+```
+
+### Viewing denials
+
+```bash
+dmesg | grep -i apparmor
+grep apparmor /var/log/syslog
+grep apparmor /var/log/kern.log
+```
+
+## Common permission recipes
+
+```bash
+# Secure SSH private key
+chmod 600 ~/.ssh/id_rsa
+
+# Secure SSH directory
+chmod 700 ~/.ssh
+
+# Web server directory (readable by www-data group)
+chown -R root:www-data /var/www
+find /var/www -type d -exec chmod 750 {} \;
+find /var/www -type f -exec chmod 640 {} \;
+
+# Shared group directory with SGID
+chown root:devs /shared/project
+chmod 2770 /shared/project            # SGID bit + rwx for owner and group
+
+# Application owned by dedicated user
+chown -R app:app /opt/myapp
+chmod 750 /opt/myapp
+```
+
+## See also
+
+- [Common Configuration Locations](./common-configs.mdx)
+- [Bash & Shell Scripting](./bash.mdx)
+- [SSH & Remote Access](./ssh.mdx)

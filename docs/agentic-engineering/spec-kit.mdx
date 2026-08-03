@@ -1,0 +1,205 @@
+---
+title: 'Spec Kit — Spec-Driven Development'
+description: 'Concise reference for the Spec Kit workflow: constitution, specify, clarify, plan, checklist, tasks, analyze, implement, and converge commands for agentic SDD.'
+tags: [agentic-engineering, spec-kit, sdd, ai, workflow, reference]
+last_updated: '2026-08-03'
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Spec Kit — Spec-Driven Development
+
+## Overview
+
+Spec Kit provides a structured, spec-driven development (SDD) workflow for AI coding agents. Instead of jumping straight to code, you create a specification first, then plan, break down tasks, implement, and verify — all guided by slash commands that your agent runs step by step.
+
+## Core principles
+
+1. **Specify before you code** — define what the feature does before deciding how to build it.
+2. **Plan before you task** — choose the tech stack and architecture after requirements are clear.
+3. **Task before you implement** — break work into small, dependency-ordered, independently verifiable steps.
+4. **Verify before you ship** — analyze artifacts for consistency, then converge to confirm nothing was missed.
+
+## Installation
+
+Spec Kit is bundled with OpenCode. Ensure you have the latest version:
+
+```bash
+npm install -g opencode-ai
+```
+
+No additional installation is needed — the `/speckit.*` commands are available in any OpenCode session.
+
+## Commands reference
+
+The commands are designed to run in order, forming a pipeline:
+
+```
+/speckit.constitution → /speckit.specify → /speckit.clarify → /speckit.plan →
+/speckit.checklist → /speckit.tasks → /speckit.analyze → /speckit.implement →
+/speckit.converge
+```
+
+Only `/speckit.specify` is strictly required before `/speckit.plan`. The clarify, checklist, and analyze commands are quality gates for features with meaningful ambiguity.
+
+### `/speckit.constitution`
+
+Creates or updates the project **constitution** — the guiding principles evaluated against in every later phase. Run once up front and update when principles change.
+
+```
+/speckit.constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
+```
+
+**When to run:** Once when setting up a project. Re-run when principles change. Provides the foundation against which all specifications are validated.
+
+### `/speckit.specify`
+
+Creates or updates a feature **specification** from a natural-language description. Focus on the **what** and **why** — user-facing behavior and goals — not the tech stack.
+
+```
+/speckit.specify Build an application that helps me organize photos into albums grouped by date, re-orderable by drag-and-drop on the main page, with a tile preview inside each album.
+```
+
+**Output:** `specs/<prefix>-<short-name>/spec.md`
+
+The spec captures:
+- User scenarios and acceptance criteria
+- Functional requirements
+- Success criteria (measurable, technology-agnostic)
+- Key entities and data relationships
+
+### `/speckit.clarify`
+
+Asks up to five targeted questions about underspecified areas of the current spec and encodes your answers back into `spec.md`. Run as many times as needed before planning.
+
+```
+/speckit.clarify Focus on the task card behavior: status changes, comment limits, and who can be assigned.
+```
+
+**When to run:** When the spec has ambiguity that could lead to wrong design decisions. Clarifying before planning prevents building on uncertain ground.
+
+### `/speckit.plan`
+
+Runs the planning process to generate design artifacts from the spec. Provide your tech stack, architecture, and technical constraints as arguments.
+
+```
+/speckit.plan Use .NET Aspire with Postgres. The frontend is Blazor Server with drag-and-drop boards and real-time updates. Expose REST APIs for projects, tasks, and notifications.
+```
+
+**Output:** `specs/<feature>/plan.md` — containing technology choices, architecture decisions, data models, and component breakdowns.
+
+### `/speckit.checklist`
+
+Generates a quality checklist — think of it as **unit tests for your requirements**. It checks whether the spec itself is complete, clear, unambiguous, and consistent.
+
+```
+/speckit.checklist
+```
+
+```
+/speckit.checklist Focus on the Kanban board interactions and comment permissions.
+```
+
+**What it checks:** Are drag-and-drop rules defined for every column? Is behavior specified for a deleted assigned user? Are edge cases covered?
+
+If the checklist surfaces gaps, loop back to `/speckit.clarify` or `/speckit.specify` to tighten the spec before breaking the work down.
+
+### `/speckit.tasks`
+
+Generates an actionable, **dependency-ordered** `tasks.md` from the design artifacts. Tasks are organized into phases:
+
+| Phase | Purpose |
+|---|---|
+| **Setup** | Project scaffolding, dependencies, tooling. |
+| **Foundational** | Blocking prerequisites all user stories depend on. |
+| **User Story N** | One phase per user story, in priority order. |
+| **Polish** | Cross-cutting concerns: error handling, logging, docs. |
+
+Tests are generated within a user story's phase when requested. Tasks are marked for parallel execution where possible.
+
+```
+/speckit.tasks
+```
+
+**Output:** `specs/<feature>/tasks.md`
+
+### `/speckit.analyze`
+
+Performs a **read-only** cross-artifact consistency and quality analysis across `spec.md`, `plan.md`, and `tasks.md`. It never edits files — it produces a report and can optionally suggest remediations.
+
+```
+/speckit.analyze
+```
+
+**What it finds:** Tasks with no matching requirement, plan choices that contradict the spec, missing acceptance criteria. Run it before implementing while artifacts can still be adjusted cheaply.
+
+### `/speckit.implement`
+
+Executes the tasks in `tasks.md`, running each phase in dependency order and respecting parallel markers.
+
+```
+/speckit.implement
+```
+
+For large features, scope each run to avoid overwhelming the agent:
+
+```
+/speckit.implement Implement only the Setup and Foundational phases: project scaffolding and the project/task data model with basic CRUD. Stop before the user-story features.
+```
+
+```
+/speckit.implement Now implement the Kanban board user story: drag-and-drop between columns.
+```
+
+Verify each stage works before moving to the next.
+
+### `/speckit.converge`
+
+Assesses the codebase against the feature's spec, plan, and tasks to confirm nothing was missed. It is **append-only**: it never edits or deletes code. Its only possible write is adding tasks to `tasks.md`.
+
+```
+/speckit.converge
+```
+
+**Two outcomes:**
+
+- **Converged** — no gaps found. Tasks are unchanged. You see: `✅ Converged — the implementation satisfies the spec, plan, and tasks.` Proceed to review or open a PR.
+- **Tasks appended** — gaps found. New tasks are added under a Convergence section. Run `/speckit.implement` to complete them, then `/speckit.converge` again. Repeat until converged.
+
+## Development workflow
+
+### End-to-end flow
+
+1. **Constitution** (once per project): Define principles your project follows.
+2. **Specify**: Write a natural-language description of the feature → spec.md created.
+3. **Clarify** (optional): Refine ambiguous areas.
+4. **Plan**: Add tech stack and architectural decisions → plan.md created.
+5. **Checklist** (optional): Validate the spec is complete and unambiguous.
+6. **Tasks**: Break work into ordered, parallelizable chunks → tasks.md created.
+7. **Analyze** (optional): Cross-check all three artifacts for consistency.
+8. **Implement**: Execute tasks phase by phase.
+9. **Converge**: Verify nothing was missed.
+
+### Quick start
+
+Start with a small, well-defined feature:
+
+```
+/speckit.specify Add a health check endpoint that returns status of all dependent services
+```
+
+Then immediately plan and implement:
+
+```
+/speckit.plan Use Express.js with a /health route that checks PostgreSQL and Redis connectivity.
+/speckit.tasks
+/speckit.implement
+/speckit.converge
+```
+
+For more complex features, add clarify and analyze steps between specify and plan.
+
+## See also
+
+- [OpenCode Configuration](./opencode.mdx) — agent setup and customization

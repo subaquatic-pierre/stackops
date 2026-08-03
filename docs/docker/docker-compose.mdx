@@ -1,0 +1,340 @@
+---
+title: 'Docker Compose Reference'
+description: 'Complete Docker Compose reference: service definitions, networking, volumes, profiles, environment management, and production patterns.'
+tags: [docker, compose, containers, reference]
+last_updated: '2026-08-03'
+---
+
+# Docker Compose Reference
+
+## Overview
+
+Docker Compose defines and runs multi-container applications. A single YAML file (`docker-compose.yml`) describes services, networks, and volumes, letting you spin up a full stack with one command.
+
+## Quick reference
+
+```bash
+docker compose up                   # start all services (foreground)
+docker compose up -d                # start in detached mode
+docker compose up -d --build        # rebuild images before starting
+docker compose down                 # stop and remove containers, networks
+docker compose down -v              # also remove named volumes
+docker compose down --rmi all       # also remove images
+
+docker compose start                # start existing stopped services
+docker compose stop                 # stop running services
+docker compose restart              # restart all services
+docker compose restart webapp       # restart specific service
+docker compose pause                # pause services
+docker compose unpause              # unpause services
+
+docker compose ps                   # list services
+docker compose ps -a                # include stopped services
+docker compose top webapp           # processes in a service
+
+docker compose logs                 # logs from all services
+docker compose logs -f              # follow logs
+docker compose logs webapp db       # specific services
+docker compose logs --tail=50 webapp
+
+docker compose exec webapp sh       # run command in running service
+docker compose exec -T webapp ls    # non-interactive
+docker compose run webapp sh        # run new container for one-off command
+docker compose run --rm webapp npm test
+
+docker compose build                # build or rebuild services
+docker compose build --no-cache     # force full rebuild
+docker compose build webapp         # build specific service
+
+docker compose pull                 # pull latest images
+docker compose push                 # push service images
+
+docker compose config               # validate and view resolved config
+docker compose config --services    # list service names
+docker compose config --volumes     # list volume names
+```
+
+## Compose file reference
+
+### Top-level keys
+
+```yaml
+version: "3.9"           # Compose file version (optional in modern compose)
+name: myapp              # project name
+services:                # container definitions (required)
+networks:                # custom network definitions
+volumes:                 # named volume definitions
+configs:                 # config objects (swarm)
+secrets:                 # secret objects (swarm)
+```
+
+### Service definition
+
+```yaml
+services:
+  webapp:
+    image: nginx:alpine              # image from registry
+    build:                           # build from Dockerfile
+      context: ./www                  # build context path
+      dockerfile: Dockerfile.prod     # Dockerfile name
+      args:                           # build arguments
+        NODE_ENV: production
+      target: builder                 # multi-stage target
+    container_name: my-webapp        # custom container name
+    hostname: webapp                 # container hostname
+    restart: unless-stopped          # restart policy
+    ports:                           # port mappings
+      - "8080:80"
+      - "443:443"
+    expose:                          # expose ports to linked services (not host)
+      - "3000"
+    environment:                     # environment variables
+      NODE_ENV: production
+      DB_HOST: db
+    env_file:                        # load from env file
+      - ./config/webapp.env
+    volumes:                         # mount volumes
+      - ./www:/usr/share/nginx/html:ro
+      - app_data:/var/lib/data
+    networks:                        # attach to networks
+      - frontend
+      - backend
+    depends_on:                      # dependency ordering
+      db:
+        condition: service_healthy
+    healthcheck:                     # health check
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    command: ["nginx", "-g", "daemon off;"]   # override default command
+    entrypoint: ["/custom-entrypoint.sh"]     # override entrypoint
+    user: "1000:1000"                         # run as user
+    working_dir: /app                         # working directory
+    profiles:                                 # conditional activation
+      - debug
+    deploy:                                   # swarm deployment config
+      replicas: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    init: true                                # use init process
+    stop_grace_period: 30s                    # grace period before SIGKILL
+    extra_hosts:                              # add hosts entries
+      - "api.internal:10.0.0.5"
+    logging:                                  # logging driver
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+### Common service patterns
+
+```yaml
+# Web frontend
+services:
+  web:
+    build: ./www
+    ports:
+      - "80:3000"
+    environment:
+      - API_URL=http://api:4000
+    depends_on:
+      - api
+
+# API backend
+  api:
+    build: ./api
+    expose:
+      - "4000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+    depends_on:
+      db:
+        condition: service_healthy
+
+# PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: mydb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# Redis cache
+  cache:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
+```
+
+### Networks
+
+```yaml
+networks:
+  frontend:                   # default: bridge driver
+  backend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-backend
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+```
+
+### Volumes
+
+```yaml
+volumes:
+  pgdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/storage/pgdata
+  redisdata:
+    external: true             # volume is managed outside of compose
+```
+
+### Profiles (conditional services)
+
+```yaml
+services:
+  app:
+    build: .
+  debug-tools:
+    image: nicolaka/netshoot
+    profiles:            # only started with --profile debug
+      - debug
+    command: sleep infinity
+```
+
+```bash
+docker compose up -d                    # only starts app
+docker compose --profile debug up -d    # also starts debug-tools
+```
+
+### Extends and fragments (YAML anchors)
+
+```yaml
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  webapp:
+    <<: *common
+    image: nginx:alpine
+
+  api:
+    <<: *common
+    image: myapp:latest
+```
+
+### Using multiple compose files
+
+```bash
+# Base config + override
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# docker-compose.override.yml is applied automatically
+# docker-compose.prod.yml only when explicitly specified
+```
+
+```yaml
+# docker-compose.yml
+services:
+  web:
+    build: .
+    ports:
+      - "80:3000"
+
+# docker-compose.prod.yml
+services:
+  web:
+    restart: always
+    ports:
+      - "443:3000"
+    environment:
+      - NODE_ENV=production
+```
+
+## Environment variable interpolation
+
+Compose supports `${VARIABLE}` substitution from shell environment or `.env` files:
+
+```yaml
+services:
+  web:
+    image: ${DOCKER_REGISTRY:-docker.io}/myapp:${APP_VERSION:-latest}
+    ports:
+      - "${HOST_PORT:-8080}:3000"
+```
+
+Default values: `${VAR:-default}` (empty/unset → default), `${VAR-default}` (only unset → default).
+
+Error if missing: `${VAR:?error message}`.
+
+```bash
+# .env file in the same directory as docker-compose.yml
+DOCKER_REGISTRY=my.registry.com
+APP_VERSION=2.1.0
+HOST_PORT=9090
+```
+
+## Production considerations
+
+```yaml
+services:
+  api:
+    restart: unless-stopped              # or 'always' for critical services
+    init: true                           # handle signals properly
+    read_only: true                      # root FS read-only (except volumes)
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+```
+
+## See also
+
+- [Docker Overview](./docker-overview.mdx)
+- [Docker Project Examples](./project-example.mdx)

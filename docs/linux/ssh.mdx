@@ -1,0 +1,354 @@
+---
+title: 'SSH & Remote Access'
+description: 'Complete reference for SSH: key generation, client configuration, tunneling, agent forwarding, rsync, and common connection patterns.'
+tags: [linux, ssh, networking, security, remote-access, reference]
+last_updated: '2026-08-03'
+---
+
+# SSH & Remote Access
+
+## Overview
+
+SSH (Secure Shell) is the standard protocol for securely connecting to and managing remote Linux systems. Beyond interactive shells, SSH provides encrypted file transfer, port forwarding, agent forwarding, and key-based authentication — all essential for daily operations work.
+
+## SSH keys
+
+### Key types and generation
+
+```bash
+# Generate an Ed25519 key (modern, recommended)
+ssh-keygen -t ed25519 -C "john@example.com"
+
+# Generate an RSA key (4096-bit)
+ssh-keygen -t rsa -b 4096 -C "john@example.com"
+
+# Generate with specific filename
+ssh-keygen -t ed25519 -f ~/.ssh/prod_key -C "production access"
+
+# Change passphrase on existing key
+ssh-keygen -p -f ~/.ssh/id_ed25519
+
+# Inspect a public key
+ssh-keygen -l -f ~/.ssh/id_ed25519.pub
+```
+
+### Common key types
+
+| Type | Algorithm | Recommendation |
+|---|---|---|
+| `ed25519` | Ed25519 | Preferred — fast, compact, secure |
+| `rsa` (3072+) | RSA | Fallback for older servers |
+| `ecdsa` | ECDSA | P-256 curve; usable but Ed25519 is better |
+| `dsa` | DSA | Deprecated — avoid |
+
+### Copying keys to a server
+
+```bash
+ssh-copy-id user@remote-host                    # copy default key
+ssh-copy-id -i ~/.ssh/prod_key user@host        # copy specific key
+ssh-copy-id -p 2222 user@host                   # non-standard port
+```
+
+Manual method if `ssh-copy-id` is unavailable:
+
+```bash
+cat ~/.ssh/id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+```
+
+## Connecting
+
+### Basic connections
+
+```bash
+ssh user@host                        # standard connection
+ssh -p 2222 user@host                # non-standard port
+ssh -i ~/.ssh/prod_key user@host     # specific identity file
+ssh -v user@host                     # verbose (debugging connection issues)
+ssh -vvv user@host                   # very verbose
+```
+
+### Connection patterns
+
+```bash
+# Run a single command
+ssh user@host "uptime"
+ssh user@host "sudo systemctl restart nginx"
+
+# Run a local script on a remote host
+ssh user@host "bash -s" < local_script.sh
+
+# Multi-hop (jump host)
+ssh -J jump-user@bastion.internal target-user@10.0.1.50
+
+# Escape sequences (from an active session)
+~.               # force disconnect
+~^Z              # background the connection
+~?               # list escape sequences
+```
+
+## SSH client configuration
+
+The `~/.ssh/config` file allows persistent per-host connection settings.
+
+### Basic host configuration
+
+```
+# ~/.ssh/config
+
+Host prod-web-1
+    HostName 10.0.1.50
+    User deploy
+    Port 22
+    IdentityFile ~/.ssh/prod_key
+
+Host prod-web-2
+    HostName 10.0.1.51
+    User deploy
+    IdentityFile ~/.ssh/prod_key
+
+# Wildcard patterns
+Host staging-*
+    User ubuntu
+    IdentityFile ~/.ssh/staging_key
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+
+Host *.internal
+    ProxyJump bastion.internal
+    User admin
+```
+
+### Useful SSH config options
+
+| Option | Purpose | Example |
+|---|---|---|
+| `HostName` | Target hostname or IP | `HostName 10.0.0.5` |
+| `User` | Username | `User deploy` |
+| `Port` | SSH port | `Port 2222` |
+| `IdentityFile` | Private key path | `IdentityFile ~/.ssh/prod_key` |
+| `ProxyJump` | Jump host | `ProxyJump bastion` |
+| `ForwardAgent` | Agent forwarding | `ForwardAgent yes` |
+| `ServerAliveInterval` | Keep-alive interval | `ServerAliveInterval 60` |
+| `ServerAliveCountMax` | Max keep-alive count | `ServerAliveCountMax 5` |
+| `Compression` | Enable compression | `Compression yes` |
+| `StrictHostKeyChecking` | Accept unknown hosts | `StrictHostKeyChecking accept-new` |
+| `UserKnownHostsFile` | Known hosts file | `UserKnownHostsFile ~/.ssh/known_hosts` |
+| `LocalForward` | Local port forward | `LocalForward 5432 db.internal:5432` |
+| `RemoteForward` | Remote port forward | `RemoteForward 8080 localhost:80` |
+
+### Server keep-alive settings
+
+```bash
+# Client-side keep-alive
+ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=5 user@host
+
+# Server-side keep-alive (/etc/ssh/sshd_config)
+ClientAliveInterval 60
+ClientAliveCountMax 5
+```
+
+## Port forwarding (tunneling)
+
+### Local port forwarding
+
+Access a remote service through an SSH tunnel:
+
+```bash
+# Forward local port 8080 to remote:80
+ssh -L 8080:localhost:80 user@web-server
+
+# Forward local port 5432 to a database via a jump host
+ssh -L 5432:db.internal:5432 user@bastion
+
+# Access remote service on localhost:8080
+curl http://localhost:8080
+```
+
+### Remote port forwarding
+
+Expose a local service to a remote host:
+
+```bash
+# Expose local port 3000 to remote:8080
+ssh -R 8080:localhost:3000 user@public-server
+
+# Now others on public-server can access your local service via port 8080
+```
+
+### Dynamic (SOCKS) forwarding
+
+Create a SOCKS proxy through the SSH connection:
+
+```bash
+ssh -D 1080 user@bastion
+# Configure browser to use SOCKS5 proxy at localhost:1080
+```
+
+### Background tunnels
+
+```bash
+ssh -fN -L 5432:db.internal:5432 user@bastion
+# -f: background, -N: no remote command
+```
+
+## SSH agent
+
+The `ssh-agent` holds decrypted private keys in memory, so you only type your passphrase once per session.
+
+### Starting the agent
+
+```bash
+eval "$(ssh-agent)"                  # start a new agent
+ssh-add                              # add default key (~/.ssh/id_rsa, etc.)
+ssh-add ~/.ssh/prod_key              # add a specific key
+ssh-add -l                           # list loaded keys
+ssh-add -L                           # list public keys
+ssh-add -d ~/.ssh/prod_key           # remove a key
+ssh-add -D                           # remove all keys
+ssh-add -t 3600 ~/.ssh/prod_key      # add key with 1-hour lifetime
+```
+
+### Agent forwarding
+
+Agent forwarding lets you use your local keys on a remote host without copying them:
+
+```bash
+ssh -A user@bastion                   # forward agent
+ssh -A -J user@bastion 10.0.1.50     # jump host with agent forwarding
+```
+
+**Security note:** Agent forwarding exposes your agent socket to the remote host. Use with caution on untrusted servers, or prefer `ProxyJump` (which doesn't expose the agent).
+
+## Server configuration
+
+### Key server settings (`/etc/ssh/sshd_config`)
+
+```
+Port 22
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+AllowUsers deploy admin
+MaxAuthTries 3
+ClientAliveInterval 60
+ClientAliveCountMax 5
+X11Forwarding no
+```
+
+After editing:
+
+```bash
+sshd -t                              # test configuration syntax
+systemctl reload sshd                 # apply changes without dropping connections
+systemctl restart sshd                # restart sshd (may drop existing sessions)
+```
+
+### Managing authorized keys
+
+```bash
+# ~/.ssh/authorized_keys (one key per line)
+ssh-ed25519 AAAAC3... deploy@host
+
+# Restrict a key to a single command
+command="/opt/backup/run.sh" ssh-ed25519 AAAAC3... backup-bot
+
+# Restrict a key by source IP
+from="10.0.0.0/8" ssh-ed25519 AAAAC3... internal-user
+```
+
+## File transfer
+
+### scp
+
+```bash
+# Copy to remote
+scp file.txt user@host:/path/to/destination/
+scp -P 2222 file.txt user@host:~/app/
+
+# Copy from remote
+scp user@host:/var/log/syslog ./logs/
+
+# Recursive copy
+scp -r configs/ user@host:/etc/myapp/
+
+# Preserve attributes
+scp -p file.txt user@host:/tmp/
+```
+
+### rsync
+
+`rsync` efficiently synchronizes files between local and remote systems with delta transfers.
+
+```bash
+# Basic sync to remote
+rsync -avz ./www/ user@host:/var/www/
+
+# Sync from remote
+rsync -avz user@host:/var/log/ ./logs/
+
+# Dry-run (preview without transferring)
+rsync -avzn ./www/ user@host:/var/www/
+
+# Delete files on destination that don't exist on source
+rsync -avz --delete ./www/ user@host:/var/www/
+
+# Common flags
+rsync -avP ./dir/ user@host:/dir/    # archive mode, verbose, show progress
+```
+
+| Flag | Effect |
+|---|---|
+| `-a` | Archive mode: recursive, preserve permissions, timestamps, symlinks |
+| `-v` | Verbose |
+| `-z` | Compress during transfer |
+| `-P` | Show progress and keep partial files |
+| `-n` | Dry-run |
+| `--delete` | Remove files on dest not present on source |
+| `--exclude` | Exclude patterns (e.g., `--exclude='*.log'`) |
+| `-e "ssh -p 2222"` | Use specific SSH port |
+
+### sftp
+
+```bash
+sftp user@host                       # interactive FTP-like session
+sftp -P 2222 user@host               # non-standard port
+```
+
+Interactive commands: `ls`, `cd`, `get`, `put`, `mget`, `mput`, `rm`, `mkdir`, `bye`.
+
+## Troubleshooting connectivity
+
+```bash
+# Verbose connection attempts
+ssh -vvv user@host
+
+# Check DNS
+dig +short host.example.com
+
+# Check port reachability
+nc -zv host.example.com 22
+telnet host.example.com 22
+
+# Check known_hosts issues
+ssh-keygen -R host.example.com       # remove host from known_hosts
+ssh -o StrictHostKeyChecking=no user@host  # skip host key check (insecure)
+
+# Check key permissions
+ls -la ~/.ssh/
+# Should be: dir=700, private keys=600, public keys=644
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_*
+chmod 644 ~/.ssh/id_*.pub
+
+# Check server logs
+ssh user@host "sudo tail -50 /var/log/auth.log"   # Debian
+ssh user@host "sudo tail -50 /var/log/secure"     # RHEL
+```
+
+## See also
+
+- [Users & Permissions](./users-and-permissions.mdx)
+- [Linux Networking](./networking.mdx)
+- [Files & Folders](./files-and-folders.mdx)
+- [Common Configuration Locations](./common-configs.mdx)

@@ -1,0 +1,122 @@
+---
+title: 'Terraform Getting Started'
+description: 'Quick-start guide for Terraform: the "Hello, World" equivalent, core workflow, and first EC2 deployment with terraform init, plan, apply, and destroy.'
+tags: [terraform, iac, getting-started, reference]
+last_updated: '2026-08-03'
+---
+
+# Terraform Getting Started
+
+## Overview
+
+Terraform is an infrastructure-as-code tool that lets you define cloud resources in declarative configuration files and manage their full lifecycle with a consistent CLI workflow. This guide walks through your first Terraform deployment — the equivalent of "Hello, World" for infrastructure.
+
+## The fundamental workflow
+
+Every Terraform project follows four core commands:
+
+```bash
+terraform init       # Initialize the working directory; download providers.
+terraform plan       # Preview changes before applying.
+terraform apply      # Create/update resources based on configuration.
+terraform destroy    # Tear down all managed resources.
+```
+
+This loop — **write config → init → plan → apply → destroy** — is the foundation of every Terraform project, from a single EC2 instance to multi-account architectures.
+
+## Your first configuration
+
+### main.tf
+
+```hcl
+terraform {
+  required_version = ">= 1.0.0, < 2.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-2"
+}
+
+resource "aws_instance" "hello" {
+  ami           = "ami-0fb653ca2d3203ac1"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "terraform-hello"
+  }
+}
+```
+
+### Key blocks explained
+
+| Block | Purpose |
+|---|---|
+| `terraform { }` | Configure Terraform itself — version constraints and provider requirements. |
+| `required_providers { }` | Declare which providers are needed and where to get them (`source`). |
+| `provider "aws" { }` | Configure the AWS provider — region, credentials, and other settings. |
+| `resource "aws_instance" "hello" { }` | Define an infrastructure resource. This creates one EC2 instance. |
+
+## Running it
+
+```bash
+# 1. Initialize the project
+terraform init
+
+# Output:
+# Initializing the backend...
+# Initializing provider plugins...
+# - Finding hashicorp/aws versions matching "~> 5.0"...
+# - Installing hashicorp/aws v5...
+# Terraform has been successfully initialized!
+
+# 2. Preview changes
+terraform plan
+
+# Output: + aws_instance.hello will be created
+# Plan: 1 to add, 0 to change, 0 to destroy.
+
+# 3. Apply the changes
+terraform apply
+
+# Terraform shows the plan again and asks for confirmation.
+# Type 'yes' to proceed.
+
+# 4. Tear it down
+terraform destroy
+
+# Removes the EC2 instance. Type 'yes' to confirm.
+```
+
+## What happens under the hood
+
+When you run `terraform apply`, Terraform:
+
+1. Reads your configuration files (`*.tf`) and builds a dependency graph.
+2. Compares the desired state (your config) with the actual state (recorded in `terraform.tfstate`).
+3. Generates an execution plan: which resources to create, update, or destroy.
+4. Calls the AWS API (via the provider) to create the EC2 instance.
+5. Writes the new state to `terraform.tfstate`.
+
+## The state file
+
+After applying, you'll find `terraform.tfstate` — a JSON file that maps your configuration to real AWS resources. Treat it as sensitive: it contains resource IDs, attributes, and may include secrets.
+
+For team environments, never store state in version control. Instead, use a remote backend like S3 with DynamoDB locking (see [Managing Terraform State](./terraform-state.mdx)).
+
+## Common pitfalls
+
+- **Forgot `terraform init`?** Run it when you add new providers or clone a project for the first time.
+- **State drift**: If someone changes a resource outside Terraform (e.g., in the AWS console), `terraform plan` detects the drift and offers to reconcile it.
+- **Credentials**: Terraform reads AWS credentials from the standard locations (environment variables, `~/.aws/credentials`, IAM roles). Set `AWS_PROFILE` or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`.
+
+## See also
+
+- [Terraform Configuration Syntax](./terraform-syntax.mdx) — variables, outputs, and data sources
+- [Managing Terraform State](./terraform-state.mdx) — remote state backends and locking

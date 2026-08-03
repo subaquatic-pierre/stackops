@@ -1,0 +1,345 @@
+---
+title: 'Terraform Modules'
+description: 'Building reusable Terraform modules: inputs, outputs, module sources (local, Git), file layout conventions, versioning, and composing infrastructure from modules.'
+tags: [terraform, modules, iac, reusable, reference]
+last_updated: '2026-08-03'
+---
+
+# Terraform Modules
+
+## Overview
+
+A Terraform module is a container for multiple resources that are used together. Every Terraform configuration has at least one module (the **root module**). Modules let you encapsulate infrastructure patterns, share them across environments, and compose complex architectures from simple building blocks.
+
+## Why modules
+
+Without modules, long configurations become hard to understand, error-prone to duplicate, and impossible to reuse across environments. Modules provide:
+
+- **Encapsulation**: Group related resources behind a clean interface.
+- **Reusability**: Write once, use across staging, production, and other projects.
+- **Composability**: Build complex infrastructure by combining small, focused modules.
+- **Versioning**: Pin module versions to control when and how infrastructure changes.
+
+## The root module
+
+The root module is the directory where you run `terraform` commands. It calls child modules but is not itself callable:
+
+```hcl
+# Root module: live/prod/services/webserver/main.tf
+
+module "webserver" {
+  source = "../../../modules/webserver"
+  environment = "production"
+  instance_type = "t3.medium"
+}
+```
+
+## Creating a module
+
+A module is simply a directory with `.tf` files. It exposes variables (inputs) and outputs:
+
+```
+modules/webserver/
+├── main.tf            # Resources
+├── variables.tf       # Input variables
+├── outputs.tf         # Output values
+└── user-data.sh       # Supporting files (templates, scripts)
+```
+
+### Module inputs (variables.tf)
+
+```hcl
+variable "environment" {
+  description = "Environment name (e.g., staging, production)"
+  type        = string
+}
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "min_size" {
+  description = "Minimum ASG size"
+  type        = number
+  default     = 1
+}
+
+variable "max_size" {
+  description = "Maximum ASG size"
+  type        = number
+  default     = 3
+}
+
+variable "server_port" {
+  description = "Port the server listens on"
+  type        = number
+  default     = 8080
+}
+```
+
+### Module resources (main.tf)
+
+```hcl
+locals {
+  http_port  = 80
+  any_port   = 0
+  tcp        = "tcp"
+  all_ips    = ["0.0.0.0/0"]
+}
+
+resource "aws_security_group" "instance" {
+  name = "${var.environment}-webserver"
+
+  ingress {
+    from_port   = var.server_port
+    to_port     = var.server_port
+    protocol    = local.tcp
+    cidr_blocks = local.all_ips
+  }
+}
+
+resource "aws_launch_configuration" "app" {
+  image_id        = data.aws_ami.ubuntu.id
+  instance_type   = var.instance_type
+  security_groups = [aws_security_group.instance.id]
+
+  user_data = templatefile("${path.module}/user-data.sh", {
+    server_port = var.server_port
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_group" "app" {
+  launch_configuration = aws_launch_configuration.app.name
+  vpc_zone_identifier  = data.aws_subnets.default.ids
+  target_group_arns    = [aws_lb_target_group.app.arn]
+  health_check_type    = "ELB"
+
+  min_size = var.min_size
+  max_size = var.max_size
+
+  tag {
+    key                 = "Name"
+    value               = var.environment
+    propagate_at_launch = true
+  }
+}
+```
+
+**Note:** `path.module` references the module's own directory — essential for locating template files bundled with the module.
+
+### Module outputs (outputs.tf)
+
+```hcl
+output "alb_dns_name" {
+  description = "DNS name of the ALB"
+  value       = aws_lb.app.dns_name
+}
+
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.app.name
+}
+
+output "instance_security_group_id" {
+  description = "ID of the instance security group"
+  value       = aws_security_group.instance.id
+}
+```
+
+## Consuming modules
+
+### Local path source
+
+```hcl
+module "webserver" {
+  source = "./modules/webserver"   # Relative path
+
+  environment   = "production"
+  instance_type = "t3.medium"
+  min_size      = 2
+  max_size      = 10
+}
+```
+
+```hcl
+module "webserver" {
+  source = "../../../modules/webserver"   # Relative to root
+
+  environment   = "staging"
+  instance_type = "t2.micro"
+}
+```
+
+### Git source (versioned modules)
+
+```hcl
+module "webserver" {
+  source = "github.com/myorg/terraform-modules//webserver?ref=v2.1.0"
+
+  environment = "production"
+}
+```
+
+| Source format | Example |
+|---|---|
+| Local path | `"./modules/webserver"` |
+| GitHub HTTPS | `"github.com/org/repo//path/to/module?ref=v1.0"` |
+| Git SSH | `"git@github.com:org/repo.git//module?ref=v1.0"` |
+| Terraform Registry | `"hashicorp/consul/aws"` |
+| Generic Git | `"git::https://example.com/repo.git?ref=v1.0"` |
+| S3 / HTTP | `"https://releases.example.com/module-v1.0.zip"` |
+
+The `//` syntax in Git URLs separates the repository URL from the subdirectory path. Always pin to a version tag (`?ref=v1.0`), never use `master` or `main` for production configurations.
+
+## Composing modules
+
+Modules can call other modules:
+
+```
+modules/services/hello-world-app/
+├── main.tf        # calls modules/cluster/asg and modules/networking/alb
+├── variables.tf
+└── outputs.tf
+```
+
+```hcl
+# modules/services/hello-world-app/main.tf
+
+module "asg" {
+  source = "../../cluster/asg-rolling-deploy"
+  environment   = var.environment
+  instance_type = var.instance_type
+  min_size      = var.min_size
+  server_port   = var.server_port
+}
+
+module "alb" {
+  source = "../../networking/alb"
+  environment    = var.environment
+  server_port    = var.server_port
+  instance_count = var.min_size
+}
+
+# Wire modules together
+resource "aws_lb_listener_rule" "app" {
+  listener_arn = module.alb.alb_http_listener_arn
+  action {
+    type             = "forward"
+    target_group_arn = module.alb.target_group_arn
+  }
+  condition { ... }
+}
+```
+
+## Module composition patterns
+
+### Pattern 1: Environment-specific values at root
+
+```hcl
+# live/stage/services/app/main.tf
+module "app" {
+  source        = "../../../../modules/hello-world-app"
+  environment   = "stage"
+  instance_type = "t2.micro"
+  min_size      = 1
+  max_size      = 3
+}
+```
+
+```hcl
+# live/prod/services/app/main.tf
+module "app" {
+  source        = "../../../../modules/hello-world-app"
+  environment   = "prod"
+  instance_type = "t3.large"
+  min_size      = 3
+  max_size      = 10
+}
+```
+
+### Pattern 2: Extend module resources
+
+Sometimes you need resources beyond what the module provides. Create them in the root module and reference the module's outputs:
+
+```hcl
+module "webserver" {
+  source        = "../../modules/webserver"
+  environment   = "prod"
+  instance_type = "t3.large"
+}
+
+# Add a custom security group rule
+resource "aws_security_group_rule" "allow_health_check" {
+  type              = "ingress"
+  from_port         = 8080
+  to_port           = 8080
+  protocol          = "tcp"
+  cidr_blocks       = ["10.0.0.0/8"]
+  security_group_id = module.webserver.instance_security_group_id
+}
+
+# Add Auto Scaling schedule for business hours
+resource "aws_autoscaling_schedule" "scale_up" {
+  scheduled_action_name  = "scale-up-business-hours"
+  min_size              = 3
+  max_size              = 10
+  desired_capacity      = 5
+  recurrence            = "0 8 * * MON-FRI"
+  autoscaling_group_name = module.webserver.asg_name
+}
+```
+
+## File layout conventions
+
+```
+live/                                # Environment-specific roots
+├── stage/
+│   ├── data-stores/
+│   │   └── mysql/main.tf
+│   └── services/
+│       └── webserver/main.tf
+└── prod/
+    ├── data-stores/
+    │   └── mysql/main.tf
+    └── services/
+        └── webserver/main.tf
+
+modules/                             # Reusable components
+├── networking/
+│   └── alb/
+│       ├── main.tf
+│       ├── variables.tf
+│       └── outputs.tf
+├── cluster/
+│   └── asg-rolling-deploy/
+│       ├── main.tf
+│       ├── variables.tf
+│       └── outputs.tf
+└── services/
+    └── hello-world-app/
+        ├── main.tf
+        ├── variables.tf
+        └── outputs.tf
+
+global/                              # Account-wide resources
+└── iam/main.tf
+```
+
+## Module versioning best practices
+
+1. **Tag releases**: Use semantic versioning (`v1.0.0`, `v2.1.0`) on your module repository.
+2. **Pin versions**: Never use `master`/`main` in production `source` references. Always pin to a tag.
+3. **Test before upgrading**: Apply module version bumps to staging first, verify, then promote to production.
+4. **Changelog**: Document what changed between versions so consumers know what to expect.
+
+## See also
+
+- [Terraform Configuration Syntax](./terraform-syntax.mdx) — resource definitions and variables
+- [Managing Terraform State](./terraform-state.mdx) — state isolation per environment
+- [Loops, Conditionals & Deployments](./terraform-loops-conditionals.mdx) — `count`, `for_each`, and dynamic blocks

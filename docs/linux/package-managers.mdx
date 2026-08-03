@@ -1,0 +1,318 @@
+---
+title: 'Package Managers'
+description: 'Complete reference for Linux package management: dpkg, APT, nala, package file locations, repository management, and common operations.'
+tags: [linux, packages, apt, dpkg, debian, reference]
+last_updated: '2026-08-03'
+---
+
+# Package Managers
+
+## Overview
+
+Debian-based Linux distributions use two layers of package management: the low-level `dpkg` tool that directly manipulates `.deb` packages, and the high-level `apt` front-end that handles repository resolution, dependency management, and downloads. This reference covers both, plus `nala` — a modern, user-friendly wrapper around APT.
+
+## dpkg: low-level package management
+
+`dpkg` works directly with `.deb` package files and the installed package database. It does not handle dependencies automatically.
+
+### Package inspection
+
+```bash
+dpkg -l                              # list all installed packages
+dpkg -l | grep nginx                 # find a specific package
+dpkg -l | head -5                    # just the first few lines
+dpkg -s nginx                        # status of installed package (detailed)
+dpkg -p nginx                        # status (like -s, includes available info)
+dpkg -L nginx                        # list files installed by a package
+dpkg -c package.deb                  # list contents of a .deb file (before installing)
+dpkg -S /etc/nginx/nginx.conf        # find which package owns a file
+dpkg --get-selections                # list all packages with install status
+```
+
+### Package installation and removal
+
+```bash
+# Install a local .deb file
+dpkg -i package.deb
+dpkg --install package.deb
+
+# Remove a package (keep config files)
+dpkg -r nginx
+dpkg --remove nginx
+
+# Purge a package (remove everything including configs)
+dpkg -P nginx
+dpkg --purge nginx
+
+# Configure partially installed packages
+dpkg --configure -a
+
+# Force install (ignore dependency errors — use with caution)
+dpkg --force-depends -i package.deb
+
+# Fix broken dependencies (defer to apt for this)
+apt install -f                       # recommended way to fix dpkg dependency issues
+```
+
+### Package database files
+
+```bash
+/var/lib/dpkg/status                 # installed package metadata
+/var/lib/dpkg/available              # available packages from repositories
+/var/lib/dpkg/info/                  # package scripts and file lists
+/var/cache/apt/archives/             # downloaded .deb package cache
+```
+
+## APT: high-level package management
+
+APT resolves dependencies, retrieves packages from repositories, and provides a consistent interface for upgrades and searches.
+
+### APT command reference (modern: `apt`)
+
+| Command | Purpose |
+|---|---|
+| `apt update` | Refresh package index from repositories. |
+| `apt upgrade` | Upgrade all installed packages (no removals). |
+| `apt full-upgrade` | Upgrade with package removals if needed. |
+| `apt install <pkg>` | Install a package and its dependencies. |
+| `apt remove <pkg>` | Remove a package (keep config files). |
+| `apt purge <pkg>` | Remove package and configuration files. |
+| `apt autoremove` | Remove orphaned dependencies. |
+| `apt autoclean` | Remove old cached packages. |
+| `apt clean` | Clear all cached packages. |
+| `apt search <term>` | Search package names and descriptions. |
+| `apt show <pkg>` | Display detailed package information. |
+| `apt list` | List packages (all, installed, upgradable). |
+| `apt list --installed` | List installed packages. |
+| `apt list --upgradable` | List packages with available updates. |
+| `apt satisfies <regex>` | Show packages matching a dependency string. |
+| `apt edit-sources` | Edit repository sources. |
+| `apt policy <pkg>` | Show version and repository info. |
+
+### Legacy commands (apt-get, apt-cache)
+
+| `apt-get` | Equivalent `apt` |
+|---|---|
+| `apt-get update` | `apt update` |
+| `apt-get upgrade` | `apt upgrade` |
+| `apt-get dist-upgrade` | `apt full-upgrade` |
+| `apt-get install` | `apt install` |
+| `apt-get remove` | `apt remove` |
+| `apt-get purge` | `apt purge` |
+| `apt-get autoremove` | `apt autoremove` |
+| `apt-get autoclean` | `apt autoclean` |
+| `apt-cache search` | `apt search` |
+| `apt-cache show` | `apt show` |
+| `apt-cache policy` | `apt policy` |
+
+### Common workflows
+
+```bash
+# Full system update
+apt update && apt upgrade -y
+
+# Search and install
+apt search postgres
+apt show postgresql
+apt install postgresql -y
+
+# Remove unused packages
+apt autoremove --purge -y
+
+# Hold a package (prevent upgrades)
+apt-mark hold nginx
+apt-mark unhold nginx
+apt-mark showhold
+
+# Install a specific version
+apt install nginx=1.24.0-1
+
+# Reinstall a package (repair)
+apt install --reinstall nginx
+
+# Install without prompts
+DEBIAN_FRONTEND=noninteractive apt install -y nginx
+
+# Simulate changes (dry-run)
+apt install --dry-run nginx
+```
+
+## Repository management
+
+### Sources configuration
+
+```bash
+# Main sources list
+/etc/apt/sources.list
+
+# Additional repository files
+/etc/apt/sources.list.d/
+
+# GPG keys for repository verification
+/etc/apt/trusted.gpg
+/etc/apt/trusted.gpg.d/
+```
+
+### sources.list format
+
+```
+deb  [options]  http://archive.ubuntu.com/ubuntu/  jammy  main restricted universe multiverse
+deb  [options]  http://archive.ubuntu.com/ubuntu/  jammy-updates main restricted
+deb  [options]  http://security.ubuntu.com/ubuntu/  jammy-security main
+
+deb-src  [options]  http://archive.ubuntu.com/ubuntu/  jammy main
+```
+
+| Component | Purpose |
+|---|---|
+| `main` | Officially supported free software. |
+| `restricted` | Proprietary drivers (supported). |
+| `universe` | Community-maintained free software. |
+| `multiverse` | Non-free or restricted license software. |
+
+### Adding a third-party repository
+
+```bash
+# Method 1: add-apt-repository (auto-adds GPG key)
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
+add-apt-repository ppa:deadsnakes/ppa
+
+# Method 2: manual (add key + repo file)
+curl -fsSL https://example.com/gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/example.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/example.gpg] https://repo.example.com stable main" \
+    > /etc/apt/sources.list.d/example.list
+
+apt update
+```
+
+### APT pinning (preferences)
+
+Control which repository provides each package:
+
+```bash
+# /etc/apt/preferences.d/99-pin-nginx
+Package: nginx
+Pin: release a=stable
+Pin-Priority: 900
+
+Package: *
+Pin: release a=experimental
+Pin-Priority: 100
+```
+
+## nala: modern APT front-end
+
+`nala` is a drop-in replacement for `apt` with parallel downloads, better history, and cleaner output.
+
+```bash
+# Install nala
+apt install nala
+
+# Basic usage (same commands as apt)
+nala update                         # parallel repository refresh
+nala upgrade                        # upgrade with progress bars
+nala install nginx                  # install with download speed display
+nala remove nginx
+nala purge nginx
+nala autoremove
+nala autopurge                      # autoremove + purge
+
+# History and rollback
+nala history                        # list transaction history
+nala history info 5                 # details of transaction #5
+nala history undo 5                 # revert transaction #5
+
+# Fetch (download only, don't install)
+nala fetch <package>                # download to current directory
+
+# Show package info
+nala show nginx                     # detailed package info
+
+# Search
+nala search nginx                   # search package names/descriptions
+
+# List packages
+nala list --upgradable              # packages with updates available
+nala list --installed               # all installed packages
+```
+
+### nala vs APT key differences
+
+| Feature | APT | nala |
+|---|---|---|
+| Parallel downloads | No | Yes (16 mirrors by default) |
+| Transaction history | No | Yes (`nala history`) |
+| Rollback | No | Yes (`nala history undo`) |
+| Download progress | Basic | Per-package progress bars |
+| Speed | Single connection | Multiple mirrors simultaneously |
+
+## Package file locations
+
+### Installed files
+
+```bash
+dpkg -L nginx                        # all files from a package
+dpkg -S /etc/nginx/nginx.conf        # which package owns a file
+```
+
+### Where packages install to (conventions)
+
+| Path | Purpose |
+|---|---|
+| `/usr/bin/` | User command binaries |
+| `/usr/sbin/` | System administration binaries |
+| `/usr/lib/` | Libraries |
+| `/usr/share/` | Architecture-independent data |
+| `/usr/share/doc/` | Package documentation |
+| `/usr/share/man/` | Manual pages |
+| `/etc/` | Configuration files |
+| `/var/lib/` | Variable state data |
+| `/var/log/` | Log files |
+| `/var/cache/` | Cache data |
+
+### Package cache
+
+```bash
+# Clean package cache
+apt clean                            # remove all .deb files from /var/cache/apt/archives/
+apt autoclean                        # remove only obsolete .deb files
+
+# Check cache size
+du -sh /var/cache/apt/archives/
+
+# Install from cache (offline)
+dpkg -i /var/cache/apt/archives/*.deb
+```
+
+## Troubleshooting
+
+```bash
+# Fix broken dependencies
+apt install -f
+dpkg --configure -a
+
+# Reinstall a package to fix corrupt files
+apt install --reinstall nginx
+
+# Check for held broken packages
+apt-mark showhold
+
+# Verify package integrity
+debsums nginx                        # check installed files against checksums
+
+# Clean up configuration from removed packages
+dpkg -l | grep '^rc'                 # find removed-but-config-left packages
+dpkg --purge $(dpkg -l | grep '^rc' | awk '{print $2}')
+
+# Force reconfigure
+dpkg-reconfigure nginx
+
+# Find missing recommended packages
+apt-get check
+```
+
+## See also
+
+- [Common Configuration Locations](./common-configs.mdx)
+- [Linux Kernel](./kernel.mdx)
+- [Device Management](./devices.mdx)

@@ -1,0 +1,345 @@
+---
+title: 'Terraform Team Collaboration'
+description: 'Working with Terraform as a team: Terragrunt for DRY configurations, CI/CD pipelines, code review workflows, environment isolation, and how to avoid common team pitfalls.'
+tags: [terraform, teams, terragrunt, ci-cd, collaboration, reference]
+last_updated: '2026-08-03'
+---
+
+# Terraform Team Collaboration
+
+## Overview
+
+A single developer running `terraform apply` from a laptop works for prototypes — but not for teams. Production infrastructure needs safe collaboration: multiple team members applying changes without stepping on each other, code review for infrastructure changes, automated CI/CD pipelines, and clear environment boundaries. This reference covers the patterns, tools, and workflows that make Terraform work at team scale.
+
+## Core challenges for teams
+
+| Challenge | Without a solution | With a solution |
+|---|---|---|
+| **State conflicts** | Two people run `apply` simultaneously, corrupt state. | Remote state backend with DynamoDB locking. |
+| **Code duplication** | Each environment copies the same Terraform config, diverging over time. | Reusable modules + Terragrunt for DRY environment configuration. |
+| **Access control** | Everyone can apply to production. | CI/CD pipelines with gated apply permissions. |
+| **Reviewability** | Infrastructure changes are invisible until they break something. | Pull requests with `terraform plan` output in comments. |
+| **Environment drift** | Production and staging diverge because changes aren't promoted systematically. | Module versioning + promotion pipeline. |
+
+## Terragrunt: DRY configurations at scale
+
+Terragrunt wraps Terraform to reduce duplication across environments. It manages remote state configuration, CLI arguments, and multi-module commands.
+
+### Without Terragrunt (repetitive)
+
+```hcl
+# live/stage/services/webserver/main.tf
+terraform {
+  backend "s3" {
+    bucket         = "terraform-state"
+    key            = "stage/services/webserver/terraform.tfstate"
+    region         = "us-east-2"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+}
+
+provider "aws" {
+  region = "us-east-2"
+}
+
+module "webserver" {
+  source        = "github.com/org/modules//webserver?ref=v1.0.0"
+  environment   = "stage"
+  instance_type = "t2.micro"
+  min_size      = 1
+}
+```
+
+```hcl
+# live/prod/services/webserver/main.tf — same boilerplate, repeated
+terraform {
+  backend "s3" {
+    bucket         = "terraform-state"
+    key            = "prod/services/webserver/terraform.tfstate"
+    region         = "us-east-2"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+}
+
+provider "aws" {
+  region = "us-east-2"
+}
+
+module "webserver" {
+  source        = "github.com/org/modules//webserver?ref=v1.0.0"
+  environment   = "prod"
+  instance_type = "t3.large"
+  min_size      = 3
+}
+```
+
+Every environment duplicates the backend, provider, and module source configuration.
+
+### With Terragrunt (DRY)
+
+**Root `terragrunt.hcl`** (shared by all environments):
+
+```hcl
+# terragrunt.hcl (at the repo root or in an _envcommon directory)
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-2"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+}
+
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite"
+  contents  = <<-EOF
+    provider "aws" {
+      region = "us-east-2"
+    }
+  EOF
+}
+```
+
+**Per-environment config** (minimal — just what varies):
+
+```hcl
+# live/stage/services/webserver/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+
+terraform {
+  source = "github.com/org/modules//webserver?ref=v1.0.0"
+}
+
+inputs = {
+  environment   = "stage"
+  instance_type = "t2.micro"
+  min_size      = 1
+  max_size      = 3
+}
+```
+
+```hcl
+# live/prod/services/webserver/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders()
+}
+
+terraform {
+  source = "github.com/org/modules//webserver?ref=v1.0.0"
+}
+
+inputs = {
+  environment   = "prod"
+  instance_type = "t3.large"
+  min_size      = 3
+  max_size      = 10
+}
+```
+
+**Key Terragrunt features:**
+
+| Feature | What it does |
+|---|---|
+| `include` | Inherit configuration from parent `terragrunt.hcl` files. |
+| `find_in_parent_folders()` | Walk up the directory tree to find the root config. |
+| `path_relative_to_include()` | Auto-generate state keys based on directory structure. |
+| `generate` | Auto-generate `.tf` files (backend config, provider blocks). |
+| `inputs` | Pass variable values to the module. |
+| `dependencies` | Declare cross-module ordering. |
+
+### Running Terragrunt
+
+```bash
+# Replace 'terraform' with 'terragrunt'
+terragrunt init
+terragrunt plan
+terragrunt apply
+terragrunt destroy
+
+# Run across multiple modules
+terragrunt run-all plan      # plan all modules in subdirectories
+terragrunt run-all apply     # apply all modules (respects dependencies)
+```
+
+## CI/CD pipeline for infrastructure
+
+### Typical pipeline stages
+
+```
+Pull Request → terraform fmt → terraform validate → terraform plan → post plan comment
+    ↓
+Merge to main → terraform apply (auto or manual approval)
+```
+
+### Pipeline example (GitHub Actions)
+
+```yaml
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "live/**"
+      - "modules/**"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terragrunt
+        uses: gruntwork-io/terragrunt-action@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.TERRAFORM_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Terragrunt Format
+        run: terragrunt hclfmt --terragrunt-check
+
+      - name: Terragrunt Plan
+        id: plan
+        run: |
+          terragrunt run-all plan -no-color 2>&1 | tee plan.txt
+          echo 'PLAN_OUTPUT<<EOF' >> $GITHUB_ENV
+          cat plan.txt >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+
+      - name: Post Plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = process.env.PLAN_OUTPUT;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan\n\n\`\`\`\n${output}\n\`\`\``
+            });
+```
+
+### Apply workflow (on merge)
+
+```yaml
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "live/**"
+      - "modules/**"
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval in GitHub
+    steps:
+      - uses: actions/checkout@v4
+      - name: Terragrunt Apply
+        run: terragrunt run-all apply -auto-approve
+```
+
+## Code review for infrastructure
+
+### What to review
+
+| Check | Questions to ask |
+|---|---|
+| **Resource names** | Are names consistent? Do they follow naming conventions? |
+| **Tags** | Are all resources tagged? Tags for ownership, environment, cost center? |
+| **Security** | Are security groups overly permissive? Any `0.0.0.0/0` that should be restricted? |
+| **State impact** | Will this change destroy resources unexpectedly? Is a `moved` block needed? |
+| **Cost** | Is the instance type appropriate? Any orphaned resources not cleaned up? |
+| **Variable defaults** | Are defaults safe? (e.g., a default that deletes real data) |
+
+### Automated checks in CI
+
+Add to your CI pipeline:
+
+```bash
+# Format check
+terraform fmt -check -recursive
+
+# Terraform validate
+terraform validate
+
+# TFLint (linting rules)
+tflint --recursive
+
+# Checkov (security scanning)
+checkov -d .
+
+# Infracost (cost estimation)
+infracost breakdown --path .
+```
+
+## Environment promotion strategy
+
+```
+Dev → Staging → Production
+```
+
+- **Dev**: Developers apply directly from branches (optional, for quick iteration).
+- **Staging**: CI/CD applies automatically on merge to `main`. Tests run. Manual verification.
+- **Production**: CI/CD applies with a manual approval gate. Changes are promoted from staging after validation.
+
+Module version bumps follow: update staging first → verify → update production.
+
+## Git repository structure
+
+### Monorepo (recommended for most teams)
+
+```
+infrastructure/
+├── modules/                 # Reusable components (versioned separately via tags)
+│   ├── networking/
+│   │   └── alb/
+│   ├── cluster/
+│   │   └── asg/
+│   └── data-stores/
+│       └── mysql/
+├── live/                    # Environment-specific terraform
+│   ├── stage/
+│   └── prod/
+└── terragrunt.hcl           # Root Terragrunt configuration
+```
+
+### Multi-repo
+
+Each module is its own repository, versioned and published independently. Environment configurations in a separate "live" repo that references module repos by version.
+
+**Monorepo pros:** Simpler to navigate, easier to make cross-module changes. **Multi-repo pros:** Independent versioning, stricter API boundaries, smaller blast radius.
+
+## Best practices for teams
+
+1. **Never apply from a laptop to production** — use CI/CD with approval gates.
+2. **Post plan output on every PR** — reviewers must see what will change.
+3. **Use Terragrunt (or similar)** — reduces copy-paste and ensures consistent backend configuration.
+4. **Lock the state** — DynamoDB locking prevents concurrent applies, critical in team environments.
+5. **Separate state per environment** — file layout (`live/stage/`, `live/prod/`) with distinct state keys.
+6. **Version your modules** — tag releases with semantic versions. Pin to tags, never to branches.
+7. **Rotate credentials** — use OIDC for CI/CD, IAM roles for compute, avoid long-lived IAM user keys.
+8. **Run automated checks in CI** — `fmt`, `validate`, `tflint`, `checkov`, OPA policies.
+
+## See also
+
+- [Managing Terraform State](./terraform-state.mdx) — remote backends and locking
+- [Terraform Modules](./terraform-modules.mdx) — designing reusable modules
+- [Terraform Secrets Management](./terraform-secrets.mdx) — OIDC for CI/CD authentication
+- [Testing Terraform Code](./terraform-testing.mdx) — automated testing in CI

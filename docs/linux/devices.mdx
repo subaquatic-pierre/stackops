@@ -1,0 +1,279 @@
+---
+title: 'Device Management'
+description: 'Reference for Linux device management: listing devices, inspecting hardware, managing drivers, debugging device issues, and understanding /dev, /sys, and /proc.'
+tags: [linux, devices, hardware, kernel, troubleshooting, reference]
+last_updated: '2026-08-03'
+---
+
+# Device Management
+
+## Overview
+
+In Linux, everything is a file — including devices. Physical hardware, virtual peripherals, and kernel interfaces are exposed through the `/dev` directory as device nodes, with detailed attributes available under `/sys` and `/proc`. This reference covers identifying hardware, managing drivers, troubleshooting device issues, and understanding the Linux device model.
+
+## Device listing and identification
+
+### Block devices (disks, partitions)
+
+```bash
+lsblk                                # tree view of all block devices
+lsblk -f                             # include filesystem type and UUID
+lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,LABEL,UUID  # custom columns
+
+ls -l /dev/sd*                       # SCSI/SATA disk devices
+ls -l /dev/nvme*                     # NVMe devices
+ls -l /dev/vd*                       # VirtIO (virtual) block devices
+```
+
+### USB devices
+
+```bash
+lsusb                                # list USB buses and devices
+lsusb -t                             # tree view of USB hierarchy
+lsusb -v                             # verbose (detailed descriptors)
+lsusb -s 001:003                     # specific bus:device
+```
+
+### PCI devices
+
+```bash
+lspci                                # list all PCI devices
+lspci -k                             # show kernel drivers in use
+lspci -v                             # verbose device info
+lspci -nn                            # show numeric vendor/device IDs
+lspci | grep -i network              # find network adapters
+lspci | grep -i vga                  # list graphics cards
+```
+
+### CPU information
+
+```bash
+lscpu                                # CPU architecture details
+cat /proc/cpuinfo                    # raw CPU info
+nproc                                # number of processing units
+lscpu | grep "Model name"
+lscpu | grep "CPU(s)"
+```
+
+### Memory information
+
+```bash
+lsmem                                # memory block list
+free -h                              # memory summary
+cat /proc/meminfo                    # detailed memory statistics
+dmidecode -t memory                  # physical memory details (requires root)
+```
+
+### All hardware summary
+
+```bash
+lshw -short                          # concise hardware list (install lshw)
+lshw -class disk                     # disks only
+lshw -class network                  # network adapters only
+lshw -html > hardware.html           # export to HTML
+```
+
+## Device files (/dev)
+
+### Device node types
+
+```bash
+ls -l /dev | head -10
+# crw-------   root root   10, 235 Jan 1 00:00 autofs
+# brw-rw----   root disk     8,   0 Jan 1 00:00 sda
+```
+
+| Type | Prefix | Major | Minor | Example |
+|---|---|---|---|---|
+| Character | `c` | Identifies driver | Instance | `/dev/tty` (5,0), `/dev/null` (1,3) |
+| Block | `b` | Identifies driver | Partition | `/dev/sda` (8,0), `/dev/sda1` (8,1) |
+
+### Common /dev nodes
+
+| Device | Path | Purpose |
+|---|---|---|
+| Terminal | `/dev/tty` | Current terminal |
+| Console | `/dev/console` | System console |
+| Null | `/dev/null` | Data sink (discards all writes) |
+| Zero | `/dev/zero` | Infinite stream of null bytes |
+| Random | `/dev/random` | Entropy-backed random data (blocks) |
+| Urandom | `/dev/urandom` | Non-blocking random data |
+| Full | `/dev/full` | Always returns "disk full" on write |
+| Loop | `/dev/loop*` | Loopback devices (for mounting images) |
+
+### Device by-* directories
+
+```bash
+/dev/disk/by-id/                     # by manufacturer/model/serial
+/dev/disk/by-uuid/                   # by filesystem UUID
+/dev/disk/by-label/                  # by filesystem label
+/dev/disk/by-path/                   # by physical connection
+
+# Find the UUID of a disk
+ls -l /dev/disk/by-uuid/
+blkid /dev/sda1
+```
+
+## Kernel modules (drivers)
+
+### Listing modules
+
+```bash
+lsmod                                # list loaded kernel modules
+lsmod | grep nvidia                  # check if a module is loaded
+modinfo nvidia                       # detailed info about a module
+modinfo -d ext4                      # module description
+```
+
+### Loading and unloading modules
+
+```bash
+# Load a module
+modprobe nvidia
+modprobe -v e1000e                   # verbose
+
+# Unload a module
+modprobe -r nvidia
+rmmod nvidia                          # lower-level (use modprobe -r instead)
+
+# Module with parameters
+modprobe e1000e debug=1
+
+# Blacklist a module
+echo "blacklist nouveau" > /etc/modprobe.d/blacklist-nouveau.conf
+```
+
+### Module configuration files
+
+```bash
+/etc/modules                         # modules to load at boot (Debian)
+/etc/modules-load.d/                 # systemd module loading
+/etc/modprobe.d/                     # module parameters and blacklisting
+
+# Example: set module options
+# /etc/modprobe.d/network.conf
+options e1000e InterruptThrottleRate=3000
+```
+
+## Hardware inspection commands
+
+### Detailed hardware info
+
+```bash
+dmidecode                            # DMI/SMBIOS table (BIOS, system, baseboard)
+dmidecode -t system                  # system info (manufacturer, product, serial)
+dmidecode -t memory                  # RAM details (speed, size, slots)
+dmidecode -t processor               # CPU details
+dmidecode -t bios                    # BIOS version
+
+lscpu                                # CPU architecture
+sensors                              # temperature, voltage, fan speeds (lm-sensors)
+hddtemp /dev/sda                     # hard drive temperature
+smartctl -a /dev/sda                 # S.M.A.R.T. drive health (install smartmontools)
+```
+
+### USB device details
+
+```bash
+usb-devices                          # verbose USB device tree
+lsusb -v -s 001:003                  # verbosity for specific device
+dmesg | grep -i usb                  # kernel messages about USB devices
+```
+
+### Network device details
+
+```bash
+ethtool eth0                         # driver, speed, duplex, link status
+ethtool -i eth0                      # driver info for interface
+ethtool -S eth0                      # interface statistics
+ip link show                         # all network interfaces
+iwconfig                             # wireless interface details
+```
+
+## Debugging device issues
+
+### Checking kernel messages
+
+```bash
+dmesg | grep -i "error\|fail\|warn"  # scan for problems
+dmesg -w                             # watch kernel messages in real-time
+dmesg | grep -i usb                  # USB-related messages
+
+# After plugging in a device
+dmesg | tail -20
+```
+
+### Checking device drivers
+
+```bash
+# Find driver for a device
+lspci -k | grep -A3 -i network
+
+# Check if a module is loaded
+lsmod | grep module_name
+
+# Check available drivers for a PCI device
+lspci -nn -d 8086:  # check Intel devices by vendor ID
+```
+
+### udev monitoring
+
+```bash
+udevadm monitor                       # watch real-time device events
+udevadm monitor --property            # include property changes
+
+udevadm info -a -n /dev/sda           # attributes for a specific device
+udevadm info -q path -n /dev/sda      # sysfs path for device
+```
+
+### Testing devices
+
+```bash
+# Test disk read speed
+hdparm -Tt /dev/sda
+
+# Write zeros to test disk (DESTRUCTIVE)
+dd if=/dev/zero of=/dev/sdb bs=1M count=100
+
+# Check for bad blocks (non-destructive read test)
+badblocks -sv /dev/sda1
+```
+
+## /sys filesystem
+
+`/sys` exposes kernel objects, their attributes, and relationships.
+
+```bash
+/sys/block/                          # block devices (symlinked)
+/sys/class/                          # device classes (net, tty, sound, etc.)
+/sys/bus/                            # bus types (pci, usb, etc.)
+/sys/devices/                        # physical device tree
+/sys/kernel/                         # kernel tunables
+/sys/module/                         # loaded modules and parameters
+/sys/power/                          # power management
+
+# Example: check link speed
+cat /sys/class/net/eth0/speed
+
+# Example: trigger device rescan
+echo 1 > /sys/class/scsi_device/0:0:0:0/device/rescan
+```
+
+## /proc filesystem (device-related)
+
+```bash
+/proc/devices                        # registered character and block devices
+/proc/ioports                        # I/O port ranges
+/proc/iomem                          # memory-mapped I/O regions
+/proc/interrupts                     # IRQ assignments
+/proc/bus/input/devices              # input device details
+/proc/scsi/scsi                      # SCSI device info
+/proc/asound/cards                   # sound cards
+/proc/acpi/                          # ACPI information
+```
+
+## See also
+
+- [Block Storage](./block-storage.mdx)
+- [Linux Kernel](./kernel.mdx)
+- [Linux Networking](./networking.mdx)

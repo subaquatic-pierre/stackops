@@ -1,0 +1,369 @@
+---
+title: 'Docker Overview'
+description: 'Comprehensive Docker reference: container lifecycle, image management, networking, volumes, Dockerfile best practices, and image optimization techniques.'
+tags: [docker, containers, overview, reference]
+last_updated: '2026-08-03'
+---
+
+# Docker Overview
+
+## Overview
+
+Docker packages applications into portable containers that run consistently across development, staging, and production environments. Each container shares the host kernel but runs in an isolated userspace with its own filesystem, networking, and process tree.
+
+## Core concepts
+
+- **Image** — a read-only template containing application code, libraries, and dependencies. Built from a Dockerfile.
+- **Container** — a runnable instance of an image with its own writable layer.
+- **Dockerfile** — a script of instructions for building an image.
+- **Registry** — a repository for storing and distributing images (Docker Hub, ECR, GCR, private registries).
+- **Volume** — persistent storage mounted into a container, managed by Docker or directly from the host.
+- **Network** — virtual network that containers attach to for communication.
+
+## Container lifecycle
+
+### Running containers
+
+```bash
+# Create and start a container
+docker run -d --name webapp -p 8080:80 nginx:alpine
+```
+
+| Flag | Purpose |
+|---|---|
+| `-d` | Run in detached mode (background). |
+| `--name <name>` | Assign a name to the container. |
+| `-p <host>:<container>` | Publish port (host → container). |
+| `-p <ip>:<host>:<container>` | Publish to specific host IP. |
+| `-P` | Publish all exposed ports to random host ports. |
+| `-e KEY=VALUE` | Set environment variable. |
+| `--env-file <file>` | Read env vars from a file. |
+| `-v <host>:<container>` | Bind mount a host directory. |
+| `-v <volume>:<container>` | Mount a named volume. |
+| `--rm` | Remove container when it exits. |
+| `-it` | Interactive mode with pseudo-TTY. |
+| `--restart <policy>` | Restart policy: `no`, `always`, `on-failure`, `unless-stopped`. |
+| `--network <name>` | Attach to a custom network. |
+| `--memory=<limit>` | Memory limit (e.g., `512m`, `2g`). |
+| `--cpus=<limit>` | CPU limit (e.g., `1.5`). |
+| `--user <uid>:<gid>` | Run as specific user. |
+| `--init` | Use init process to forward signals. |
+
+### Container management
+
+```bash
+docker ps                                   # list running containers
+docker ps -a                                # list all containers (including stopped)
+docker ps -q                                # list only container IDs
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+docker start webapp                         # start stopped container
+docker stop webapp                          # gracefully stop (SIGTERM → SIGKILL after timeout)
+docker stop -t 30 webapp                    # stop with 30s timeout
+docker restart webapp                       # restart container
+docker pause webapp                         # freeze container
+docker unpause webapp                       # unfreeze container
+docker kill webapp                          # force kill (SIGKILL)
+docker kill -s SIGHUP webapp                # send custom signal
+
+docker rm webapp                            # remove stopped container
+docker rm -f webapp                         # force remove (running container)
+docker rm $(docker ps -aq)                  # remove all stopped containers
+docker container prune                      # remove all stopped containers
+docker container prune -f                   # force (no prompt)
+
+docker rename oldname newname               # rename a container
+```
+
+### Inspecting containers
+
+```bash
+docker logs webapp                           # view logs
+docker logs -f webapp                        # follow logs (tail -f)
+docker logs --tail 100 webapp                # last 100 lines
+docker logs --since 10m webapp               # logs from last 10 minutes
+docker logs --timestamps webapp              # include timestamps
+
+docker inspect webapp                        # JSON metadata about container
+docker inspect -f '{{.NetworkSettings.IPAddress}}' webapp  # specific field
+
+docker top webapp                            # running processes inside container
+docker stats                                 # live resource usage for all containers
+docker stats --no-stream                     # one-shot stats
+docker stats webapp db                       # specific containers
+
+docker port webapp                           # port mappings
+
+docker diff webapp                           # files changed in container filesystem
+
+docker exec -it webapp sh                    # shell inside running container
+docker exec -it webapp bash                  # bash (if available)
+docker exec webapp ls -la /app               # run a single command
+```
+
+### Copying files
+
+```bash
+docker cp ./local.conf webapp:/etc/app/config.conf     # host → container
+docker cp webapp:/var/log/app.log ./logs/              # container → host
+```
+
+### Committing changes
+
+```bash
+docker commit webapp myapp:snapshot         # create image from container changes
+```
+
+## Image management
+
+### Working with images
+
+```bash
+docker images                               # list local images
+docker images -a                            # include intermediate layers
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+
+docker pull nginx:alpine                    # download image from registry
+docker pull nginx@sha256:abc123...          # pull by digest
+docker push myrepo/myapp:v1.0               # upload image to registry
+
+docker tag myapp:v1.0 myrepo/myapp:v1.0     # tag image for a registry
+docker tag myapp:v1.0 myrepo/myapp:latest   # add additional tag
+
+docker rmi nginx:alpine                     # remove image
+docker rmi $(docker images -q)              # remove all images
+docker image prune                          # remove dangling images
+docker image prune -a                       # remove all unused images
+
+docker history nginx:alpine                 # show image layers
+docker save -o myapp.tar myapp:v1.0          # export image to tar file
+docker load -i myapp.tar                    # import image from tar file
+```
+
+### Building images
+
+```bash
+docker build -t myapp:v1.0 .                # build from Dockerfile in current dir
+docker build -t myapp:v1.0 -f Dockerfile.prod .  # specify Dockerfile
+docker build --no-cache -t myapp:v1.0 .     # force full rebuild
+docker build --build-arg NODE_ENV=production -t myapp:v1.0 .  # pass build arguments
+docker build --platform linux/amd64 -t myapp:v1.0 .    # cross-platform build
+```
+
+## Dockerfile reference
+
+### Key instructions
+
+```dockerfile
+# Base image
+FROM node:22-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy files
+COPY package*.json ./
+COPY . .
+
+# Run commands during build
+RUN npm ci --production
+
+# Build-time variables
+ARG NODE_ENV=production
+
+# Environment variables (also available at runtime)
+ENV NODE_ENV=$NODE_ENV
+
+# Expose ports (informational)
+EXPOSE 3000
+
+# Container user
+USER node
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+# Entrypoint
+ENTRYPOINT ["node"]
+CMD ["server.js"]
+
+# Multi-stage: copy from builder stage
+FROM node:22-alpine
+COPY --from=builder /app/dist ./dist
+```
+
+### Dockerfile best practices
+
+```dockerfile
+# GOOD: pin versions, use specific tags
+FROM node:22.12.0-alpine3.20
+
+# GOOD: combine RUN commands to reduce layers
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# GOOD: copy package files first (leverage layer caching)
+COPY package.json package-lock.json ./
+RUN npm ci --production
+COPY . .
+
+# GOOD: multi-stage builds separate build and runtime
+FROM golang:1.22 AS builder
+WORKDIR /src
+COPY . .
+RUN go build -o /app .
+
+FROM alpine:3.20
+COPY --from=builder /app /app
+ENTRYPOINT ["/app"]
+
+# GOOD: use .dockerignore
+# node_modules
+# .git
+# *.md
+# .env
+```
+
+### Image minification techniques
+
+```bash
+# Use slim/alpine base images (dramatically smaller)
+node:22              → ~1.1 GB
+node:22-slim         → ~250 MB
+node:22-alpine       → ~130 MB
+
+# Multi-stage builds (only ship the compiled output)
+# Example: Go binary in scratch
+FROM golang:1.22 AS builder
+RUN go build -ldflags="-s -w" -o /app .
+
+FROM scratch
+COPY --from=builder /app /app
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+ENTRYPOINT ["/app"]
+
+# Clean up package managers
+RUN apt-get update && apt-get install -y curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use --no-install-recommends
+RUN apt-get install -y --no-install-recommends curl
+
+# npm: use ci instead of install, prune dev deps
+RUN npm ci --production
+
+# python: no cache dir
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Combine layers to reduce total image size
+RUN curl -sL https://example.com/binary -o /usr/local/bin/binary \
+    && chmod +x /usr/local/bin/binary \
+    && rm -rf /tmp/*
+
+# Analyze image layers
+docker history myapp:v1.0
+docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock \
+    wagoodman/dive myapp:v1.0
+```
+
+## Docker networking
+
+### Network commands
+
+```bash
+docker network ls                          # list networks
+docker network inspect bridge              # inspect default bridge
+docker network create mynet                # create user-defined bridge
+docker network create --driver overlay mynet  # swarm overlay network
+docker network rm mynet                    # remove network
+docker network connect mynet webapp        # connect running container
+docker network disconnect mynet webapp     # disconnect container
+docker network prune                       # remove unused networks
+```
+
+### Network drivers
+
+| Driver | Use case |
+|---|---|
+| `bridge` | Default; containers on same host communicate. |
+| `host` | Container shares host network stack (no isolation). |
+| `none` | No networking. |
+| `overlay` | Multi-host communication (Docker Swarm). |
+| `macvlan` | Assign MAC address to container; appears as physical device. |
+
+## Docker volumes
+
+### Volume commands
+
+```bash
+docker volume ls                          # list volumes
+docker volume create app_data             # create named volume
+docker volume inspect app_data            # volume metadata
+docker volume rm app_data                 # remove volume
+docker volume prune                       # remove unused volumes
+
+# Mount in a container
+docker run -v app_data:/app/data nginx
+docker run -v "$(pwd)/config:/app/config" nginx    # bind mount
+docker run --mount type=bind,src="$(pwd)/config",dst=/app/config nginx
+docker run --tmpfs /app/tmp:exec nginx             # tmpfs mount (in memory)
+```
+
+## Docker Compose
+
+See the dedicated [Docker Compose Reference](./docker-compose.mdx) for a full guide.
+
+### Quick start commands
+
+```bash
+docker compose up -d                     # start services in background
+docker compose down                      # stop and remove containers/networks
+docker compose logs -f                   # follow logs from all services
+docker compose ps                        # list services
+docker compose exec webapp sh            # exec into a service
+docker compose build                     # build/rebuild services
+docker compose restart webapp            # restart a specific service
+```
+
+## Cleaning up
+
+```bash
+docker system df                          # disk usage by Docker
+docker system df -v                       # detailed per-object usage
+
+docker system prune                       # remove unused containers, networks, images, build cache
+docker system prune -a                    # also remove unused images (not just dangling)
+docker system prune -a --volumes          # include volumes (caution)
+
+docker builder prune                      # clean build cache
+docker builder prune -a                   # clean all build cache
+```
+
+## Common patterns
+
+### One-shot task container
+
+```bash
+docker run --rm -v "$(pwd):/workspace" -w /workspace \
+    node:22-alpine npm test
+```
+
+### Debugging a failing container
+
+```bash
+# Override entrypoint to get a shell
+docker run --rm -it --entrypoint sh myapp:v1.0
+
+# Check logs of an exited container
+docker logs $(docker ps -lq)
+
+# Inspect container in detail
+docker inspect myapp | jq '.[0].State'
+```
+
+## See also
+
+- [Docker Compose Reference](./docker-compose.mdx)
+- [Docker Project Examples](./project-example.mdx)

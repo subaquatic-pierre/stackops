@@ -1,0 +1,286 @@
+---
+title: 'Managing Terraform State'
+description: 'Terraform state management: remote backends (S3), state locking (DynamoDB), workspace isolation, remote state data sources, and file layout strategies.'
+tags: [terraform, state, backend, s3, dynamodb, workspaces, reference]
+last_updated: '2026-08-03'
+---
+
+# Managing Terraform State
+
+## Overview
+
+Terraform state is the bridge between your configuration files and the real infrastructure in the cloud. It's a JSON file (default: `terraform.tfstate`) that Terraform uses to know which resources it manages, what their current attributes are, and how they map to your configuration. Understanding how to store, lock, and structure state is critical for team collaboration and production safety.
+
+## Why state matters
+
+Without state, Terraform can't:
+
+- Know which cloud resources it owns (vs. resources created by other tools).
+- Detect drift between your configuration and reality.
+- Compute the minimal set of changes needed (the "plan").
+- Track resource dependencies and metadata.
+
+Every time you run `terraform apply`, Terraform reads the current state, compares it with your configuration, generates a plan, applies changes, and writes the new state.
+
+## Problems with local state
+
+Storing `terraform.tfstate` on a developer's laptop has serious limitations:
+
+| Problem | Impact |
+|---|---|
+| **No collaboration** | Only one person can apply. State is siloed on a single machine. |
+| **No locking** | Two people running `apply` simultaneously can corrupt state. |
+| **Secrets in plaintext** | State may contain database passwords, API keys, and other sensitive values. |
+| **Loss risk** | If the laptop dies, state is gone — you can't manage existing resources. |
+
+The solution: use a **remote backend**.
+
+## Remote state with S3 + DynamoDB
+
+The most common production backend: S3 for storage, DynamoDB for locking.
+
+### Setup (run once per AWS account)
+
+```hcl
+# Create the S3 bucket and DynamoDB table before using them as a backend.
+# This is a chicken-and-egg problem: use local state for this one-time setup,
+# then configure the remote backend in your actual configuration.
+
+provider "aws" {
+  region = "us-east-2"
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "my-company-terraform-state-bucket"
+}
+
+resource "aws_s3_bucket_versioning" "state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "state" {
+  bucket                  = aws_s3_bucket.terraform_state.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_dynamodb_table" "terraform_lock" {
+  name         = "terraform-state-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+```
+
+### Configure the backend
+
+Once the bucket and table exist, configure the backend in your configuration:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "my-company-terraform-state-bucket"
+    key            = "prod/services/webserver/terraform.tfstate"
+    region         = "us-east-2"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
+}
+```
+
+| Backend option | Purpose |
+|---|---|
+| `bucket` | S3 bucket name for state storage. |
+| `key` | Path within the bucket — one per environment/component. |
+| `region` | AWS region of the bucket and DynamoDB table. |
+| `dynamodb_table` | Table for state locking (prevents concurrent applies). |
+| `encrypt` | Encrypt state at rest in S3. |
+
+After configuring, run `terraform init` to migrate state to the remote backend. Terraform prompts: "Do you want to copy existing state to the new backend?" Type `yes`.
+
+## State file isolation
+
+Keep state files separate per environment to prevent staging changes from affecting production.
+
+### File layout strategy
+
+```
+live/
+├── global/
+│   └── iam/
+│       └── main.tf
+├── stage/
+│   ├── data-stores/
+│   │   └── mysql/
+│   │       └── main.tf
+│   └── services/
+│       └── webserver/
+│           └── main.tf
+└── prod/
+    ├── data-stores/
+    │   └── mysql/
+    │       └── main.tf
+    └── services/
+        └── webserver/
+            └── main.tf
+```
+
+Each `main.tf` has its own backend configuration with a unique `key`:
+
+```hcl
+# live/stage/services/webserver/main.tf
+terraform {
+  backend "s3" {
+    bucket = "terraform-state"
+    key    = "stage/services/webserver/terraform.tfstate"
+    # ...
+  }
+}
+```
+
+### Benefits
+
+- Apply changes to staging without touching production state.
+- Each environment has isolated state — no risk of cross-environment corruption.
+- Smaller state files are faster to plan and apply.
+
+## Cross-state references
+
+When one component's outputs are needed by another (e.g., a web server needs the database endpoint), use `terraform_remote_state`:
+
+```hcl
+data "terraform_remote_state" "db" {
+  backend = "s3"
+
+  config = {
+    bucket = "terraform-state"
+    key    = "stage/data-stores/mysql/terraform.tfstate"
+    region = "us-east-2"
+  }
+}
+
+resource "aws_instance" "web" {
+  # ...
+
+  user_data = templatefile("${path.module}/user-data.sh", {
+    db_address = data.terraform_remote_state.db.outputs.address
+    db_port    = data.terraform_remote_state.db.outputs.port
+  })
+}
+```
+
+**Output must be defined in the database configuration:**
+
+```hcl
+output "address" {
+  value       = aws_db_instance.mysql.address
+  description = "Database endpoint address"
+}
+
+output "port" {
+  value       = aws_db_instance.mysql.port
+  description = "Database port"
+}
+```
+
+### Limitations of remote_state
+
+- Tight coupling: the consumer must know the backend configuration of the producer.
+- Read-only: you can't modify the other component's state.
+- Better alternative for intra-module dependencies: pass outputs as module variables.
+
+## Terraform workspaces
+
+Workspaces provide an alternative to file-layout-based isolation, managing multiple state files within the same configuration.
+
+### Workspace commands
+
+```bash
+terraform workspace list              # List all workspaces
+terraform workspace new staging      # Create a new workspace
+terraform workspace select staging   # Switch to a workspace
+terraform workspace show             # Show current workspace
+terraform workspace delete staging   # Delete a workspace (can't be the current one)
+```
+
+### Using in configuration
+
+```hcl
+resource "aws_instance" "web" {
+  instance_type = terraform.workspace == "production"
+    ? "t3.large"
+    : "t2.micro"
+
+  count = terraform.workspace == "default" ? 3 : 1
+
+  tags = {
+    Environment = terraform.workspace
+  }
+}
+```
+
+### Workspaces vs file layout
+
+| Aspect | Workspaces | File layout |
+|---|---|---|
+| **Visibility** | Implicit — state varies by workspace, config is the same. | Explicit — each environment has its own config directory. |
+| **Granularity** | Coarse — one workspace per config. | Fine — you can vary any resource per environment. |
+| **Risk** | Easy to accidentally apply to the wrong workspace. | Harder to accidentally apply to the wrong environment. |
+| **Use case** | Testing a configuration against multiple identical environments. | Production-grade isolation with per-environment customization. |
+
+**Recommendation:** Prefer file layout for production environments. Workspaces work for ephemeral environments (testing, branch previews).
+
+## Handling sensitive data in state
+
+State files contain resource attributes — including secrets. Mitigations:
+
+1. **Encrypt at rest**: Use `encrypt = true` in the S3 backend.
+2. **Restrict access**: Lock down the S3 bucket with IAM policies. Only CI/CD and trusted users should have read access.
+3. **Mark outputs sensitive**:
+
+```hcl
+output "db_password" {
+  value     = aws_db_instance.mysql.password
+  sensitive = true
+}
+```
+
+Sensitive outputs are hidden in `terraform apply` output and in `terraform output` unless you explicitly reference them.
+
+4. **Never store state in version control**: Add `*.tfstate` and `*.tfstate.*` to `.gitignore`.
+
+## State commands
+
+```bash
+terraform state list                  # List all resources in state
+terraform state show aws_instance.web  # Show attributes of a resource
+terraform state mv                    # Move a resource within state
+terraform state rm                    # Remove a resource from state (doesn't destroy)
+terraform state pull                  # Download state from remote backend
+terraform state push                  # Upload state to remote backend (use with caution)
+terraform refresh                     # Update state to match real infrastructure
+```
+
+## See also
+
+- [Terraform Modules](./terraform-modules.mdx) — reusable configuration units
+- [Terraform Secrets Management](./terraform-secrets.mdx) — handling credentials and secrets
+- [Terraform Getting Started](./terraform-getting-started.mdx)

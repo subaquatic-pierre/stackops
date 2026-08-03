@@ -1,0 +1,370 @@
+---
+title: 'Block Storage & Disk Management'
+description: 'Reference for Linux block storage: partitioning, formatting, mounting, LVM, filesystem operations, and disk debugging.'
+tags: [linux, storage, disk, lvm, filesystem, reference]
+last_updated: '2026-08-03'
+---
+
+# Block Storage & Disk Management
+
+## Overview
+
+Block storage is the abstraction layer Linux uses for hard drives, SSDs, NVMe devices, and virtual disks. Managing block devices means partitioning, formatting filesystems, mounting them, and optionally pooling them with LVM. This reference covers the full lifecycle of block storage management and debugging.
+
+## Disk and partition listing
+
+### Block device overview
+
+```bash
+lsblk                                # tree view of all block devices
+lsblk -f                             # include filesystem type, UUID, labels
+lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,LABEL,UUID,MODEL
+lsblk -d                             # exclude partitions; only whole devices
+
+fdisk -l                             # list all partitions (requires root)
+parted -l                            # list partitions (alternative)
+```
+
+### Disk identification
+
+```bash
+ls /dev/sd*                          # SCSI/SATA devices
+ls /dev/nvme*                        # NVMe devices
+ls /dev/vd*                          # VirtIO virtual disks
+ls /dev/disk/by-id/                  # by manufacturer/model/serial
+ls /dev/disk/by-uuid/                # by filesystem UUID
+ls /dev/disk/by-path/                # by PCI path
+ls /dev/disk/by-label/               # by filesystem label
+
+blkid                                # UUIDs and filesystem types for all devices
+blkid /dev/sda1
+```
+
+### Disk information
+
+```bash
+fdisk -l /dev/sda                    # partition table for a device
+parted /dev/sda print                # partition table (alternative)
+cfdisk /dev/sda                      # interactive partition tool
+
+hdparm -I /dev/sda                   # drive identification (ATA info)
+hdparm -Tt /dev/sda                  # read speed benchmark
+
+smartctl -a /dev/sda                 # S.M.A.R.T. health data
+smartctl -H /dev/sda                 # health status summary
+smartctl -t short /dev/sda           # run short self-test
+```
+
+## Partitioning
+
+### Partition table types
+
+| Type | Max disk size | Max partitions | Standard |
+|---|---|---|---|
+| MBR (DOS) | 2 TB | 4 primary (or 3 + extended) | Legacy |
+| GPT | 9.4 ZB | 128 (by default) | Modern (UEFI) |
+
+### fdisk (MBR and GPT)
+
+```bash
+fdisk /dev/sdb                       # interactive partitioning
+
+# Interactive commands within fdisk:
+#   m     - help
+#   p     - print partition table
+#   n     - new partition
+#   d     - delete partition
+#   t     - change partition type
+#   w     - write changes and exit
+#   q     - quit without saving
+#   g     - create new GPT table
+```
+
+### parted (scriptable)
+
+```bash
+# Create GPT partition table
+parted /dev/sdb mklabel gpt
+
+# Create a single partition using the full disk
+parted /dev/sdb mkpart primary ext4 0% 100%
+
+# Create a 10GB partition
+parted /dev/sdb mkpart primary ext4 1MiB 10GiB
+
+# Set partition flags
+parted /dev/sdb set 1 lvm on
+parted /dev/sdb set 1 boot on
+
+# Print partition info
+parted /dev/sdb print
+```
+
+### sgdisk (GPT-specific, non-interactive)
+
+```bash
+sgdisk -n 1:0:+10G -t 1:8300 /dev/sdb       # create 10GB Linux partition
+sgdisk -p /dev/sdb                            # print partition table
+sgdisk --zap-all /dev/sdb                     # wipe GPT data
+```
+
+## Filesystem creation and management
+
+### Creating filesystems
+
+```bash
+# ext4 (default on most Linux distros)
+mkfs.ext4 /dev/sdb1
+mkfs.ext4 -L "data" /dev/sdb1                 # with label
+
+# XFS (default on RHEL)
+mkfs.xfs /dev/sdb1
+mkfs.xfs -L "data" /dev/sdb1
+
+# Btrfs
+mkfs.btrfs /dev/sdb1
+mkfs.btrfs -L "data" /dev/sdb1
+
+# FAT32 (interoperability with Windows)
+mkfs.vfat -F 32 /dev/sdb1
+
+# exFAT (large files, cross-platform)
+mkfs.exfat /dev/sdb1
+
+# Swap
+mkswap /dev/sdb1
+mkswap -L "swap" /dev/sdb1
+```
+
+### Filesystem inspection and tuning
+
+```bash
+tune2fs -l /dev/sda1                 # ext filesystem parameters
+dumpe2fs -h /dev/sda1                # superblock info (ext)
+xfs_info /dev/sda1                   # XFS filesystem info
+btrfs filesystem show                # Btrfs filesystems
+btrfs filesystem df /mount/point     # Btrfs usage
+
+# e2label and tune2fs (ext only)
+e2label /dev/sda1                    # show label
+e2label /dev/sda1 "rootfs"           # set label
+tune2fs -L "rootfs" /dev/sda1        # set label
+tune2fs -U random /dev/sda1          # randomize UUID
+
+# Checking and repairing
+fsck /dev/sda1                       # check (must be unmounted)
+fsck -n /dev/sda1                    # check without repair (read-only)
+fsck -y /dev/sda1                    # auto-repair
+xfs_repair /dev/sda1                 # XFS check and repair
+btrfs check /dev/sda1                # Btrfs check
+```
+
+## Mounting
+
+### Temporary mounts
+
+```bash
+mount /dev/sdb1 /mnt/data
+mount -t ext4 /dev/sdb1 /mnt/data    # specify filesystem type
+mount -o ro /dev/sdb1 /mnt/data      # read-only
+mount -o remount,rw /                # remount root as read-write
+```
+
+### Persistent mounts (fstab)
+
+```bash
+# /etc/fstab
+# <device>          <mount point>  <type>  <options>         <dump>  <pass>
+UUID=abc123         /              ext4    defaults          0       1
+UUID=def456         /home          ext4    defaults          0       2
+UUID=ghi789         /mnt/data      ext4    defaults,noatime  0       2
+/dev/sdb1           swap           swap    sw                0       0
+LABEL=data          /mnt/data      ext4    nofail,defaults   0       2
+```
+
+### Common mount options
+
+| Option | Effect |
+|---|---|
+| `defaults` | rw, suid, dev, exec, auto, nouser, async |
+| `noatime` | Don't update file access timestamps (performance boost). |
+| `nofail` | Don't halt boot if device is missing. |
+| `ro` | Read-only. |
+| `rw` | Read-write. |
+| `noexec` | Prevent binary execution on this filesystem. |
+| `nosuid` | Ignore suid/sgid bits. |
+| `nodev` | Don't interpret device nodes. |
+| `sync` | Synchronous writes (slower, safer). |
+| `relatime` | Update access time only when older than modify time or 24h. |
+
+### Mount verification
+
+```bash
+mount                                # show all mounts
+mount | grep /mnt/data               # check specific mount
+findmnt                              # tree view of mounts
+findmnt /mnt/data                    # check specific mount
+df -h                                # disk usage overview
+df -hT                               # include filesystem type
+du -sh /mnt/data/*                   # usage by subdirectory
+
+cat /proc/mounts                     # raw kernel mount table
+```
+
+### Unmounting
+
+```bash
+umount /mnt/data                     # unmount by path
+umount /dev/sdb1                     # unmount by device
+umount -l /mnt/data                  # lazy unmount (detach after pending ops finish)
+umount -f /mnt/data                  # force unmount (NFS/unresponsive)
+fuser -m /mnt/data                   # find processes using a mount
+lsof /mnt/data                       # find open files on mount
+```
+
+## Logical Volume Management (LVM)
+
+LVM abstracts physical disks into logical volumes, enabling flexible resizing, snapshots, and pooling.
+
+### LVM concepts
+
+| Layer | Description |
+|---|---|
+| PV (Physical Volume) | A disk or partition initialized for LVM. |
+| VG (Volume Group) | A pool of PVs, treated as one storage pool. |
+| LV (Logical Volume) | A virtual partition carved from a VG. |
+
+### LVM workflow
+
+```bash
+# 1. Create Physical Volumes
+pvcreate /dev/sdb /dev/sdc
+pvdisplay                            # show all PVs
+pvscan                               # scan for PVs
+
+# 2. Create Volume Group
+vgcreate vg_data /dev/sdb /dev/sdc
+vgdisplay                            # show all VGs
+vgscan                               # scan for VGs
+
+# 3. Create Logical Volume
+lvcreate -L 50G -n lv_app vg_data    # 50GB volume
+lvcreate -l 100%FREE -n lv_bulk vg_data  # use all remaining space
+lvcreate -L 10G -s -n lv_app_snap /dev/vg_data/lv_app  # snapshot
+lvdisplay                            # show all LVs
+lvscan                               # scan for LVs
+
+# 4. Create filesystem and mount
+mkfs.ext4 /dev/vg_data/lv_app
+mount /dev/vg_data/lv_app /mnt/app
+```
+
+### LVM management commands
+
+```bash
+# Extend a VG (add a new PV)
+vgextend vg_data /dev/sdd
+
+# Extend an LV and filesystem
+lvextend -L +10G /dev/vg_data/lv_app
+resize2fs /dev/vg_data/lv_app        # ext2/3/4
+xfs_growfs /mnt/app                  # XFS
+
+# Reduce an LV (risky — must unmount and shrink fs first for ext)
+umount /mnt/app
+e2fsck -f /dev/vg_data/lv_app
+resize2fs /dev/vg_data/lv_app 40G
+lvreduce -L 40G /dev/vg_data/lv_app
+
+# Remove an LV
+lvremove /dev/vg_data/lv_app
+
+# Rename an LV
+lvrename vg_data lv_app lv_web
+
+# Snapshot management
+lvcreate -L 5G -s -n lv_snap /dev/vg_data/lv_app
+lvremove /dev/vg_data/lv_snap
+```
+
+### Display summary
+
+```bash
+pvs                                  # PV summary (compact)
+vgs                                  # VG summary (compact)
+lvs                                  # LV summary (compact)
+```
+
+## Disk usage analysis
+
+```bash
+df -h                                # filesystem usage
+df -i                                # inode usage (can fill up even with free space)
+du -sh /var/*                        # summarize subdirectory sizes
+du -h --max-depth=2 /                # drill down 2 levels
+ncdu /                               # interactive disk usage (install ncdu)
+
+# Find large files
+find / -type f -size +500M -exec ls -lh {} \; 2>/dev/null
+find / -type f -size +1G 2>/dev/null
+
+# Find largest directories
+du -h /var --max-depth=1 | sort -hr | head -10
+```
+
+## Disk commands for debugging
+
+```bash
+# I/O statistics
+iostat -x 1                          # extended disk stats, every 1 second
+iostat -x -m 1                       # in megabytes
+iostat -p sda 1                      # per-partition
+vmstat 1                             # includes I/O wait
+
+# Process I/O
+iotop -o                             # I/O per process (only showing active)
+pidstat -d 1                         # I/O stats per process
+
+# Disk throughput test
+dd if=/dev/zero of=/tmp/testfile bs=1M count=1024 conv=fdatasync   # write test
+dd if=/tmp/testfile of=/dev/null bs=1M                             # read test
+
+# Check for stalled I/O
+ps aux | awk '{if($8 ~ /D/) print}'  # find processes in D (uninterruptible sleep) state
+dmesg | grep -i "I/O error\|hung\|timeout"
+```
+
+### S.M.A.R.T. monitoring
+
+```bash
+smartctl -a /dev/sda                 # full report
+smartctl -H /dev/sda                 # health check
+smartctl -l error /dev/sda           # error log
+smartctl -l selftest /dev/sda        # self-test log
+smartctl -t short /dev/sda           # start short test
+smartctl -t long /dev/sda            # start extended test
+```
+
+## Wiping and secure erasure
+
+```bash
+# Wipe filesystem signatures
+wipefs -a /dev/sdb                   # remove all filesystem signatures
+wipefs /dev/sdb                      # preview signatures first
+
+# Zero-fill a disk (DESTRUCTIVE)
+dd if=/dev/zero of=/dev/sdb bs=1M status=progress
+
+# Random data fill (DESTRUCTIVE)
+dd if=/dev/urandom of=/dev/sdb bs=1M status=progress
+
+# Secure erase (SSD/ATA drives)
+hdparm --user-master u --security-set-pass p /dev/sdb
+hdparm --user-master u --security-erase p /dev/sdb
+```
+
+## See also
+
+- [Device Management](./devices.mdx)
+- [Linux Kernel](./kernel.mdx)
+- [Common Configuration Locations](./common-configs.mdx)

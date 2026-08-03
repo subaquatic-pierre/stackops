@@ -1,0 +1,383 @@
+---
+title: 'Testing Terraform Code'
+description: 'Testing infrastructure code with Terratest: unit tests via plan validation, integration tests, end-to-end tests, OPA policy validation, and staged test patterns.'
+tags: [terraform, testing, terratest, go, opa, integration, reference]
+last_updated: '2026-08-03'
+---
+
+# Testing Terraform Code
+
+## Overview
+
+Infrastructure bugs can be expensive — a typo in a security group can expose a database, and recovering from a bad deployment is harder than rolling back application code. Testing Terraform configurations catches mistakes before they hit production. This reference covers testing strategies from static analysis to end-to-end deployment tests.
+
+## The infrastructure testing pyramid
+
+| Level | What it tests | Speed | Confidence |
+|---|---|---|---|
+| **Static analysis** | `terraform fmt`, `validate`, linting rules | Seconds | Syntax and structure |
+| **Unit tests** | Plan output: resource counts, attribute values | Seconds to minutes | Configuration correctness |
+| **Policy tests** | OPA/Rego rules: tags, encryption, security | Seconds | Compliance and security |
+| **Integration tests** | Deploy a real module, verify it works | Minutes | Module behavior |
+| **End-to-end tests** | Deploy full stack, verify from user perspective | 10–30 minutes | System-level correctness |
+
+## Static analysis
+
+Start with the built-in checks — no extra tooling needed:
+
+```bash
+# Formatting check
+terraform fmt -check -recursive -diff
+
+# Syntax and provider validation
+terraform init -backend=false
+terraform validate
+```
+
+**In CI:**
+
+```yaml
+- name: Terraform Format
+  run: terraform fmt -check -recursive
+
+- name: Terraform Validate
+  run: terraform validate
+```
+
+## Unit tests with Terratest
+
+Terratest is a Go testing framework for infrastructure. It uses Terraform's plan output to verify configurations without deploying anything.
+
+### Basic plan test
+
+```go
+package test
+
+import (
+    "testing"
+    "github.com/gruntwork-io/terratest/modules/terraform"
+    "github.com/stretchr/testify/assert"
+)
+
+func TestAlbModulePlan(t *testing.T) {
+    t.Parallel()
+
+    opts := &terraform.Options{
+        TerraformDir: "../modules/networking/alb",
+        Vars: map[string]interface{}{
+            "name":        "test-alb",
+            "server_port": 8080,
+            "subnet_ids":  []string{"subnet-abc", "subnet-def"},
+            "vpc_id":      "vpc-abc123",
+        },
+    }
+
+    // Initialize and generate plan only (no apply)
+    plan := terraform.InitAndPlanAndShowWithStructNoLogTempPlanFile(t, opts)
+
+    // Verify expected resource counts
+    planStruct := plan.ResourcePlannedValuesMap
+    assert.Equal(t, 4, len(planStruct)) // ALB, listener, target group, security group
+}
+```
+
+### Verifying plan attributes
+
+```go
+func TestAsgModulePlan(t *testing.T) {
+    t.Parallel()
+
+    opts := &terraform.Options{
+        TerraformDir: "../modules/cluster/asg-rolling-deploy",
+        Vars: map[string]interface{}{
+            "cluster_name":  "test-asg",
+            "instance_type": "t2.micro",
+            "min_size":      1,
+            "max_size":      3,
+            "server_port":   8080,
+            "subnet_ids":    []string{"subnet-abc"},
+        },
+    }
+
+    // Expect: 1 launch config, 1 ASG, 2 security group rules, 1 security group
+    plan := terraform.InitAndPlanAndShowWithStructNoLogTempPlanFile(t, opts)
+    assert.Equal(t, 5, len(plan.ResourcePlannedValuesMap))
+
+    // Verify a specific resource attribute
+    launchConfig, exists := plan.ResourcePlannedValuesMap["aws_launch_configuration.app"]
+    assert.True(t, exists)
+    assert.Equal(t, "t2.micro", launchConfig.AttributeValues["instance_type"])
+}
+```
+
+## Integration tests: deploy and verify
+
+Integration tests deploy real infrastructure, verify it works, then clean up.
+
+### Deploy and validate
+
+```go
+func TestAlbExample(t *testing.T) {
+    t.Parallel()
+
+    opts := &terraform.Options{
+        TerraformDir: "../examples/alb",
+        Vars: map[string]interface{}{
+            "environment": "test",
+        },
+        // Retry transient failures
+        MaxRetries: 3,
+        RetryableTerraformErrors: map[string]string{
+            ".*unable to verify the SSL certificate.*": "Retry intermittent SSL errors",
+        },
+    }
+
+    // Always clean up
+    defer terraform.Destroy(t, opts)
+
+    // Deploy
+    terraform.InitAndApply(t, opts)
+
+    // Get output
+    albDnsName := terraform.OutputRequired(t, opts, "alb_dns_name")
+
+    // Verify with HTTP request (retry — ALB can take a moment)
+    url := fmt.Sprintf("http://%s", albDnsName)
+    http_helper.HttpGetWithRetryWithCustomValidation(
+        t, url, nil, 10, 5*time.Second,
+        func(status int, body string) bool {
+            return status == 404 // Default ALB response
+        },
+    )
+
+    // Or check for a specific response
+    // status, body := http_helper.HttpGet(t, url)
+    // assert.Equal(t, 200, status)
+    // assert.Contains(t, body, "Hello, World")
+}
+```
+
+### Testing a composed module
+
+```go
+func TestHelloWorldApp(t *testing.T) {
+    t.Parallel()
+
+    opts := &terraform.Options{
+        TerraformDir: "../examples/hello-world-app",
+        Vars: map[string]interface{}{
+            "environment":   "test",
+            "instance_type": "t2.micro",
+            "min_size":      1,
+            "max_size":      1,
+        },
+    }
+
+    defer terraform.Destroy(t, opts)
+    terraform.InitAndApply(t, opts)
+
+    albDnsName := terraform.OutputRequired(t, opts, "alb_dns_name")
+
+    // Wait for the app to respond (instances need time to bootstrap)
+    http_helper.HttpGetWithRetry(
+        t,
+        fmt.Sprintf("http://%s", albDnsName),
+        nil,
+        200,             // expected status
+        "Hello, World",  // expected body substring
+        30,              // retries
+        10*time.Second,   // time between retries
+    )
+}
+```
+
+### Generating unique resource names
+
+Use `random.UniqueId()` to avoid collision between test runs:
+
+```go
+import "github.com/gruntwork-io/terratest/modules/random"
+
+func TestMySqlModule(t *testing.T) {
+    t.Parallel()
+
+    uniqueId := random.UniqueId()
+    dbName := fmt.Sprintf("testdb-%s", uniqueId)
+
+    opts := &terraform.Options{
+        TerraformDir: "../modules/data-stores/mysql",
+        Vars: map[string]interface{}{
+            "db_name":     dbName,
+            "db_username": "admin",
+            "db_password": "testpassword123",
+        },
+    }
+
+    defer terraform.Destroy(t, opts)
+    terraform.InitAndApply(t, opts)
+}
+```
+
+## Staged tests (partial re-runs)
+
+For expensive tests that take a long time to set up infrastructure, use the `test_structure` module to run in stages:
+
+```go
+import "github.com/gruntwork-io/terratest/modules/test-structure"
+
+func TestHelloWorldAppStaged(t *testing.T) {
+    t.Parallel()
+
+    exampleDir := "../examples/hello-world-app"
+
+    // Stage 1: Deploy the database
+    test_structure.RunTestStage(t, "deploy_db", func() {
+        opts := createDbOptions(t)
+        test_structure.SaveTerraformOptions(t, exampleDir, opts)
+        terraform.InitAndApply(t, opts)
+    })
+
+    // Stage 2: Deploy the application
+    test_structure.RunTestStage(t, "deploy_app", func() {
+        opts := createAppOptions(t)
+        test_structure.SaveTerraformOptions(t, exampleDir, opts)
+        terraform.InitAndApply(t, opts)
+    })
+
+    // Stage 3: Validate
+    test_structure.RunTestStage(t, "validate", func() {
+        opts := test_structure.LoadTerraformOptions(t, exampleDir)
+        albDnsName := terraform.OutputRequired(t, opts, "alb_dns_name")
+
+        http_helper.HttpGetWithRetry(
+            t,
+            fmt.Sprintf("http://%s", albDnsName),
+            nil, 200, "Hello, World", 30, 10*time.Second,
+        )
+    })
+
+    // Stage 4: Teardown
+    test_structure.RunTestStage(t, "teardown", func() {
+        opts := test_structure.LoadTerraformOptions(t, exampleDir)
+        defer terraform.Destroy(t, opts)
+    })
+}
+```
+
+**Why staged tests:**
+- If validation fails, you can re-run only the validation stage without redeploying everything.
+- Faster iteration — skip deployment when the infrastructure is already up.
+- Better CI integration: separate stages can report separately.
+
+## OPA policy tests
+
+Open Policy Agent (OPA) validates infrastructure against organizational policies:
+
+### Rego policy
+
+```rego
+# enforce_tagging.rego
+package terraform.analysis
+
+import rego.v1
+
+deny_tags[msg] {
+    resource := input.resource_changes[_]
+    resource.type == "aws_instance"
+    not resource.change.after.tags
+    msg := sprintf("EC2 instance %s must have tags", [resource.address])
+}
+
+deny_encryption[msg] {
+    resource := input.resource_changes[_]
+    resource.type == "aws_s3_bucket"
+    not resource.change.after.server_side_encryption_configuration
+    msg := sprintf("S3 bucket %s must have server-side encryption enabled", [resource.address])
+}
+```
+
+### Testing with OPA
+
+```bash
+# Generate a Terraform plan in JSON format
+terraform plan -out=tfplan.binary
+terraform show -json tfplan.binary > tfplan.json
+
+# Evaluate against policy
+opa eval --data enforce_tagging.rego \
+  --input tfplan.json \
+  "data.terraform.analysis.deny"
+
+# Expect output: [] (empty = all resources pass the policy)
+```
+
+### Go test with OPA
+
+```go
+func TestOpaTaggingPolicy(t *testing.T) {
+    t.Parallel()
+
+    opts := &terraform.Options{
+        TerraformDir: "../examples/alb",
+    }
+
+    // Run plan but don't apply
+    terraform.InitAndPlan(t, opts)
+
+    // Evaluate OPA rules against the plan
+    results := terraform.OPAEval(
+        t, opts,
+        terraform.OPAEvalOpts{
+            RulePath: "../opa/enforce_tagging.rego",
+            RuleName: "data.terraform.analysis.deny",
+        },
+    )
+
+    // Expect no policy violations
+    // If violations exist, results will contain the error messages
+    assert.Empty(t, results)
+}
+```
+
+## Testing in CI
+
+```yaml
+# GitHub Actions example
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Run Terratest
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          cd test
+          go test -v -timeout 60m -parallel 4
+```
+
+**CI considerations:**
+- Tests run against real AWS resources — costs money. Use `-timeout` to prevent runaway costs.
+- Parallel execution reduces CI time but increases concurrent resource count.
+- Always run a destroy step or use `defer terraform.Destroy` so orphaned resources don't accumulate.
+- Use a dedicated test AWS account, never the production account.
+
+## Best practices
+
+1. **Write a test for every module** — at minimum, a plan-level test that validates resource counts.
+2. **Use OPA for security policies** — enforce tagging, encryption, and public access restrictions across all modules.
+3. **Retry HTTP checks** — cloud resources (especially ALBs) take time to become available. Use `HttpGetWithRetry`.
+4. **Use unique names** — `random.UniqueId()` prevents test run collisions.
+5. **Clean up aggressively** — `defer terraform.Destroy` in every test. Monitor your test account for orphaned resources.
+6. **Stage expensive tests** — separate deploy, validate, and teardown phases so failures don't waste setup time.
+
+## See also
+
+- [Production-Grade Infrastructure](./terraform-production.mdx) — preconditions and validation
+- [Terraform Modules](./terraform-modules.mdx) — designing testable modules
+- [Team Collaboration](./terraform-teams.mdx) — testing in team workflows

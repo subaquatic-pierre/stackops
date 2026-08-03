@@ -1,0 +1,246 @@
+---
+title: 'Cron Jobs & Scheduled Tasks'
+description: 'Complete reference for scheduling and managing recurring tasks with cron, systemd timers, and at jobs on Linux.'
+tags: [linux, cron, scheduling, automation, reference]
+last_updated: '2026-08-03'
+---
+
+# Cron Jobs & Scheduled Tasks
+
+## Overview
+
+Cron is the standard job scheduler on Linux — it runs commands, scripts, or pipelines at fixed times, dates, or intervals. Alongside cron, `systemd` timers provide a modern alternative with better logging and dependency control, while `at` handles one-off scheduled tasks.
+
+## Cron basics
+
+### Crontab syntax
+
+Each crontab entry has five time fields followed by the command:
+
+```
+*  *  *  *  *  command
+│  │  │  │  │
+│  │  │  │  └── day of week (0-7, 0=Sun, 7=Sun)
+│  │  │  └───── month (1-12)
+│  │  └───────── day of month (1-31)
+│  └───────────── hour (0-23)
+└───────────────── minute (0-59)
+```
+
+### Special characters
+
+| Character | Meaning | Example |
+|---|---|---|
+| `*` | Any value | `*` in hour = every hour |
+| `,` | List separator | `1,15,45` = at minutes 1, 15, 45 |
+| `-` | Range | `1-5` = 1 through 5 |
+| `/` | Step interval | `*/15` = every 15 (minutes, hours, etc.) |
+| `@` | Shorthand macro (see below) | `@daily` = once per day |
+
+### Shorthand macros
+
+```bash
+@reboot      → Run once at startup
+@yearly      → 0 0 1 1 *      (once per year)
+@annually    → 0 0 1 1 *      (same as @yearly)
+@monthly     → 0 0 1 * *      (once per month)
+@weekly      → 0 0 * * 0      (once per week)
+@daily       → 0 0 * * *      (once per day)
+@midnight    → 0 0 * * *      (same as @daily)
+@hourly      → 0 * * * *      (once per hour)
+```
+
+### Common schedule examples
+
+```bash
+0 2 * * *          # Every day at 2:00 AM
+0 9-17 * * 1-5     # Every hour 9 AM–5 PM, Mon–Fri
+*/5 * * * *        # Every 5 minutes
+0 0 1,15 * *       # 1st and 15th of every month at midnight
+30 4 * * 6         # Every Saturday at 4:30 AM
+0 0 * * 0,3        # Every Sunday and Wednesday at midnight
+```
+
+## Managing crontabs
+
+### Commands
+
+```bash
+crontab -e                  # edit current user's crontab
+crontab -l                  # list current user's crontab
+crontab -r                  # remove current user's crontab
+crontab -u postgres -e      # edit another user's crontab (root only)
+sudo crontab -e             # edit root's crontab
+```
+
+### Environment
+
+Cron runs with a minimal environment. Set variables at the top of the crontab:
+
+```bash
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=ops@example.com
+HOME=/home/app
+
+0 2 * * * /opt/backup/run.sh
+```
+
+Always use absolute paths in cron commands. The working directory is the user's home directory.
+
+### Redirecting output
+
+```bash
+# Log everything
+0 3 * * * /opt/scripts/cleanup.sh >> /var/log/cleanup.log 2>&1
+
+# Log only errors, discard stdout
+0 3 * * * /opt/scripts/cleanup.sh > /dev/null 2>> /var/log/cleanup-errors.log
+
+# Discard all output
+0 * * * * /opt/scripts/heartbeat.sh > /dev/null 2>&1
+```
+
+Cron emails cron job output to the user by default (requires a local MTA). Use `MAILTO=""` at the top of the crontab to suppress emails.
+
+## System-level cron directories
+
+```bash
+/etc/crontab                    # system crontab (includes username field)
+/etc/cron.d/                    # drop-in crontab files (include username field)
+/etc/cron.hourly/               # scripts run every hour
+/etc/cron.daily/                # scripts run once per day
+/etc/cron.weekly/               # scripts run once per week
+/etc/cron.monthly/              # scripts run once per month
+
+/etc/anacrontab                 # anacron configuration (handles missed jobs)
+```
+
+The `run-parts` utility executes all executable scripts in a directory:
+
+```bash
+run-parts /etc/cron.daily       # manually run all daily jobs
+```
+
+### System crontab vs user crontab
+
+The system crontab (`/etc/crontab`) and files in `/etc/cron.d/` include an extra field for the username:
+
+```
+# /etc/crontab
+0 2 * * *   backup   /opt/backup/run.sh
+#            ^^^^^^
+#            username field
+```
+
+## systemd timers
+
+`systemd` timers are the modern alternative to cron, offering better logging, dependency management, and execution guarantees.
+
+### Timer unit structure
+
+A timer is defined by two unit files: a **service** (what to run) and a **timer** (when to run it).
+
+```ini
+# /etc/systemd/system/cleanup.service
+[Unit]
+Description=Daily log cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/scripts/cleanup.sh
+User=app
+```
+
+```ini
+# /etc/systemd/system/cleanup.timer
+[Unit]
+Description=Run cleanup daily at 3 AM
+Requires=cleanup.service
+
+[Timer]
+OnCalendar=daily
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+### Timer expressions
+
+```ini
+OnCalendar=daily                       # every day at midnight
+OnCalendar=*-*-* 03:00:00             # every day at 3 AM
+OnCalendar=Mon..Fri *-*-* 09:00:00   # weekdays at 9 AM
+OnCalendar=*-*-01 00:00:00           # first of each month
+OnBootSec=5min                         # 5 minutes after boot
+OnUnitActiveSec=1h                     # 1 hour after the unit last became active
+```
+
+### Timer commands
+
+```bash
+systemctl list-timers                              # list all active timers
+systemctl list-timers --all                        # include inactive timers
+systemctl status cleanup.timer                     # inspect a specific timer
+systemctl start cleanup.timer                      # activate immediately
+systemctl enable --now cleanup.timer               # enable and start
+journalctl -u cleanup.service                      # view timer job output
+```
+
+## The `at` command (one-off tasks)
+
+```bash
+# Schedule a one-time command
+echo "apt-get update && apt-get upgrade -y" | at 02:00
+
+# Interactive scheduling
+at 14:30
+at> /opt/scripts/deploy.sh
+at> Ctrl+D
+
+# Schedule relative times
+at now + 5 minutes
+at now + 2 hours
+at now + 3 days
+at teatime                            # 4:00 PM
+
+# Manage jobs
+atq                                   # list pending at jobs
+atrm 3                                # remove job number 3
+```
+
+## Best practices
+
+1. **Use absolute paths** — cron has a limited `PATH`. Always spell out full paths to executables and files.
+2. **Log output** — redirect stdout and stderr to log files. You'll need them when things fail.
+3. **Lock files** — use `flock` to prevent overlapping runs of the same job.
+4. **Test manually first** — run the exact command from the shell before adding it to cron.
+5. **Schedule thoughtfully** — avoid clustering heavy jobs at the top of the hour; stagger by a few minutes.
+6. **Set `MAILTO`** — or explicitly discard output if you don't want email notifications.
+7. **Prefer `systemd` timers** for new services — they provide better logging and lifecycle management.
+
+## Troubleshooting
+
+```bash
+# Check if cron daemon is running
+systemctl status cron             # Debian/Ubuntu
+systemctl status crond            # RHEL-based
+
+# View cron logs
+grep CRON /var/log/syslog         # Debian/Ubuntu
+grep CRON /var/log/cron           # RHEL-based
+
+# Test cron environment
+* * * * * env > /tmp/cron-env.txt
+
+# Verify crontab syntax (run-cron only — dry run via parsing)
+cat /etc/crontab | grep -v '^#' | grep -v '^$'
+```
+
+## See also
+
+- [Logging & Log Management](./logging.mdx)
+- [Bash & Shell Scripting](./bash.mdx)
+- [Process Management](./processes.mdx)

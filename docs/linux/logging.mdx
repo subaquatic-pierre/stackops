@@ -1,0 +1,298 @@
+---
+title: 'Logging & Log Management'
+description: 'Reference for Linux logging: journald, syslog, logrotate, common log locations, and log analysis commands.'
+tags: [linux, logging, journald, syslog, troubleshooting, reference]
+last_updated: '2026-08-03'
+---
+
+# Logging & Log Management
+
+## Overview
+
+Linux systems generate logs from the kernel, system services, applications, and user sessions. Understanding where logs live, how to query them, and how to manage their growth is essential for operations, debugging, and security auditing.
+
+## Log locations
+
+### System and daemon logs
+
+| Location | Contents |
+|---|---|
+| `/var/log/syslog` | General system messages (Debian/Ubuntu) |
+| `/var/log/messages` | General system messages (RHEL-based) |
+| `/var/log/auth.log` | Authentication events (Debian/Ubuntu) |
+| `/var/log/secure` | Authentication events (RHEL-based) |
+| `/var/log/kern.log` | Kernel messages |
+| `/var/log/dmesg` | Kernel ring buffer messages |
+| `/var/log/cron` | Cron job execution records |
+| `/var/log/daemon.log` | Background daemon messages |
+| `/var/log/boot.log` | System boot messages |
+
+### Application logs
+
+| Location | Contents |
+|---|---|
+| `/var/log/nginx/` | Nginx access and error logs |
+| `/var/log/apache2/` | Apache access and error logs |
+| `/var/log/postgresql/` | PostgreSQL server logs |
+| `/var/log/mysql/` | MySQL/MariaDB logs |
+| `/var/log/docker.log` or `journald` | Docker container output |
+
+### User and debug
+
+| Location | Contents |
+|---|---|
+| `~/.bash_history` | Shell command history |
+| `~/.xsession-errors` | X session errors |
+| `/var/log/faillog` | Failed login attempts |
+| `/var/log/lastlog` | Last login times per user |
+| `/var/log/wtmp` | Login/logout history (binary; use `last`) |
+| `/var/log/btmp` | Failed login attempts (binary; use `lastb`) |
+
+## journald (systemd journal)
+
+`journald` is the logging component of `systemd`. It stores structured logs in binary format and provides unified access via `journalctl`.
+
+### Querying the journal
+
+```bash
+# Basic viewing
+journalctl                                    # all logs (paginated)
+journalctl --no-pager                         # no pager (for piping)
+journalctl -n 50                              # last 50 entries
+journalctl -f                                 # follow (tail -f equivalent)
+
+# Time-based filtering
+journalctl --since "2026-08-01 10:00:00"
+journalctl --since "1 hour ago"
+journalctl --since "2026-08-01" --until "2026-08-03"
+
+# Unit and service filtering
+journalctl -u nginx.service                   # logs for a specific unit
+journalctl -u nginx.service --since today
+journalctl -u nginx.service -u postgresql.service    # multiple units
+
+# Priority and boot filtering
+journalctl -p err                             # only errors and above
+journalctl -p warning..emerg                  # range: warning through emergency
+journalctl -b                                 # current boot
+journalctl -b -1                              # previous boot
+journalctl --list-boots                       # list available boots
+
+# Kernel messages
+journalctl -k                                 # kernel messages only
+journalctl -k -b                              # kernel messages from this boot
+
+# Output formats
+journalctl -o json                            # JSON output (structured)
+journalctl -o json-pretty                     # pretty-printed JSON
+journalctl -o short-full                      # full timestamps
+journalctl -o cat                             # messages only, no metadata
+
+# User-specific
+journalctl --user                             # user service journal
+journalctl --user -u pipewire.service
+```
+
+### Priority levels
+
+| Priority | Name | Description |
+|---|---|---|
+| 0 | `emerg` | System is unusable |
+| 1 | `alert` | Immediate action required |
+| 2 | `crit` | Critical conditions |
+| 3 | `err` | Error conditions |
+| 4 | `warning` | Warning conditions |
+| 5 | `notice` | Normal but significant |
+| 6 | `info` | Informational messages |
+| 7 | `debug` | Debug-level messages |
+
+### journald configuration
+
+```bash
+# /etc/systemd/journald.conf
+
+[Journal]
+Storage=persistent              # persist logs to disk (auto by default)
+Compress=yes                    # compress rotated journals
+SystemMaxUse=500M               # max disk space for journals
+SystemMaxFileSize=100M          # max size per journal file
+MaxRetentionSec=2week           # max age of journal entries
+```
+
+After editing:
+
+```bash
+systemctl restart systemd-journald
+```
+
+## rsyslog / syslog-ng
+
+Traditional syslog daemons route log messages from applications and services to files, remote servers, or other destinations.
+
+### rsyslog configuration
+
+```bash
+# /etc/rsyslog.conf or /etc/rsyslog.d/50-custom.conf
+
+# Log by facility and priority to file
+auth.*                              /var/log/auth.log
+*.emerg                             :omusrmsg:*
+
+# Log to remote server via TCP
+*.* @@log-server.example.com:514
+
+# Filter by program name
+if $programname == 'nginx' then /var/log/nginx/error.log
+
+# Rate limiting
+$SystemLogRateLimitInterval 5
+$SystemLogRateLimitBurst 1000
+```
+
+### Common facilities
+
+| Facility | Purpose |
+|---|---|
+| `auth`, `authpriv` | Authentication and authorization |
+| `cron` | Cron daemon |
+| `daemon` | Background daemons |
+| `kern` | Kernel messages |
+| `mail` | Mail subsystem |
+| `syslog` | syslogd internal |
+| `user` | User-level messages |
+| `local0`–`local7` | Custom application facilities |
+
+### logger command
+
+```bash
+logger "Deployment started"
+logger -p local0.info -t "deploy-script" "Backup completed"
+logger -n log-server.local -P 514 "Remote log message"
+```
+
+## Log rotation with logrotate
+
+The `logrotate` utility compresses, archives, and prunes log files to prevent disk exhaustion.
+
+### Configuration files
+
+```bash
+/etc/logrotate.conf              # global defaults
+/etc/logrotate.d/                # per-application configurations
+```
+
+### Example configuration
+
+```
+# /etc/logrotate.d/nginx
+
+/var/log/nginx/*.log {
+    daily                        # rotate every day
+    missingok                    # don't error if log is missing
+    rotate 14                    # keep 14 rotated files
+    compress                     # gzip rotated files
+    delaycompress                # wait one cycle before compressing
+    notifempty                   # don't rotate empty files
+    create 640 www-data adm      # create new file with permissions
+    sharedscripts                # run postrotate once for all logs
+    postrotate
+        [ -s /run/nginx.pid ] && kill -USR1 $(cat /run/nginx.pid)
+    endscript
+}
+```
+
+### Common logrotate directives
+
+| Directive | Effect |
+|---|---|
+| `daily`/`weekly`/`monthly` | Rotation frequency |
+| `rotate N` | Number of rotated copies to keep |
+| `maxsize 100M` | Rotate when file exceeds size |
+| `compress` / `nocompress` | Compress with gzip |
+| `delaycompress` | Wait one cycle before compress |
+| `missingok` | Don't error if file missing |
+| `notifempty` | Skip empty files |
+| `copytruncate` | Copy then truncate (no service restart needed) |
+| `create mode owner group` | New file permissions |
+| `postrotate` / `endscript` | Commands to run after rotation |
+| `dateext` | Use date as extension instead of number |
+| `sharedscripts` | Run scripts once for all matching files |
+
+### Manual operation
+
+```bash
+logrotate -d /etc/logrotate.conf           # dry-run (debug mode)
+logrotate -f /etc/logrotate.conf           # force rotation
+logrotate -s /var/lib/logrotate/status     # specify state file
+```
+
+## Log analysis commands
+
+### tail and head
+
+```bash
+tail -n 100 /var/log/syslog               # last 100 lines
+tail -f /var/log/nginx/access.log         # follow in real-time
+tail -F /var/log/nginx/access.log         # follow (reopens on rotation)
+tail -f /var/log/syslog | grep ERROR      # follow filtered
+```
+
+### grep patterns
+
+```bash
+grep -i "error" /var/log/syslog                    # case-insensitive match
+grep -c "Failed password" /var/log/auth.log        # count occurrences
+grep -E "(error|warning|critical)" /var/log/syslog # extended regex
+grep "Aug  3" /var/log/syslog                      # filter by date
+grep -B2 -A5 "error" /var/log/syslog               # 2 lines before, 5 after
+```
+
+### awk and sed
+
+```bash
+# Extract a specific column (e.g., IPs from access log)
+awk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -nr | head
+
+# Parse structured logs
+awk -F'|' '{print $2, $4}' app.log
+
+# Remove ANSI escape codes / color
+sed 's/\x1b\[[0-9;]*m//g' colored.log
+```
+
+### Other useful tools
+
+```bash
+# Count log lines per hour
+cut -d' ' -f2 /var/log/syslog | cut -d':' -f1 | sort | uniq -c
+
+# Find events within a time window
+sed -n '/Aug  3 10:/,/Aug  3 11:/p' /var/log/syslog
+
+# Watch file growth
+watch -n 1 'wc -l /var/log/syslog'
+
+# Multitail — view multiple logs simultaneously
+multitail /var/log/syslog /var/log/nginx/error.log
+
+# lnav — log file navigator with syntax highlighting and SQL queries
+lnav /var/log/syslog
+```
+
+## Debugging with dmesg
+
+```bash
+dmesg                       # print kernel ring buffer
+dmesg -H                    # human-readable timestamps
+dmesg -T                    # human-readable timestamps (older format)
+dmesg --level=err,warn      # filter by level
+dmesg | grep -i usb         # filter by keyword
+dmesg -w                    # follow new messages
+dmesg -c                    # print and clear buffer
+```
+
+## See also
+
+- [Cron Jobs & Scheduled Tasks](./cron-jobs.mdx)
+- [Linux Networking](./networking.mdx)
+- [Bash & Shell Scripting](./bash.mdx)

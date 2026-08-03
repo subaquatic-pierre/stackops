@@ -1,0 +1,335 @@
+---
+title: 'Linux Kernel'
+description: 'Reference for working with the Linux kernel: module management, boot parameters, sysctl tuning, GRUB configuration, and kernel debugging.'
+tags: [linux, kernel, modules, sysctl, grub, reference]
+last_updated: '2026-08-03'
+---
+
+# Linux Kernel
+
+## Overview
+
+The Linux kernel is the core of the operating system — it manages hardware, processes, memory, networking, and filesystems. Day-to-day operations touch the kernel through sysctl parameters, loadable modules, boot configuration, and occasionally debugging facilities. This reference covers the interfaces and commands needed to work with the kernel in production environments.
+
+## Kernel information
+
+```bash
+uname -r                             # kernel release version
+uname -a                             # all system info
+cat /proc/version                    # kernel and compiler info
+hostnamectl                          # kernel + distro details
+cat /etc/os-release                  # distribution details
+
+# Check kernel boot parameters
+cat /proc/cmdline
+
+# List available kernels
+ls /boot/vmlinuz-*
+
+# Check booted kernel
+uname -r && ls /boot/vmlinuz-$(uname -r)
+```
+
+## Kernel modules
+
+Kernel modules extend the kernel's capabilities at runtime without rebooting. They handle device drivers, filesystem support, networking protocols, and more.
+
+### Listing and inspecting modules
+
+```bash
+lsmod                                # list all loaded modules
+lsmod | grep -E "Module|nvme"        # filter by name
+modinfo <module>                     # detailed info (path, license, parameters, dependencies)
+modinfo -p <module>                  # list module parameters
+modprobe -c | grep <module>          # show module aliases/configuration
+```
+
+### Module locations
+
+```bash
+/lib/modules/$(uname -r)/            # modules for current kernel
+/lib/modules/$(uname -r)/kernel/     # organized by subsystem
+/etc/modules                         # load at boot (Debian)
+/etc/modules-load.d/*.conf           # load at boot (systemd)
+/etc/modprobe.d/*.conf               # module parameters and blacklists
+```
+
+### Loading and removing modules
+
+```bash
+# Load a module
+modprobe <module>                    # load with dependency resolution
+modprobe nvme                        # example: load NVMe driver
+modprobe -v <module>                 # verbose loading
+
+# Load with parameters
+modprobe <module> param1=value1 param2=value2
+
+# Remove a module
+modprobe -r <module>                 # remove (if not in use)
+modprobe -r --force <module>         # force removal (caution)
+
+# Check if module is in use before removal
+lsmod | grep <module>
+```
+
+### Module blacklisting
+
+```bash
+# Blacklist a single module
+# /etc/modprobe.d/blacklist.conf
+blacklist nouveau
+
+# Prevent a module from auto-loading
+# /etc/modprobe.d/disable-ipv6.conf
+install ipv6 /bin/true
+
+update-initramfs -u                  # apply changes (Debian)
+dracut -f                            # apply changes (RHEL)
+```
+
+### Module parameters
+
+```bash
+# Set module options at boot or modprobe
+# /etc/modprobe.d/options.conf
+options e1000e InterruptThrottleRate=3000,3000,3000
+options kvm_intel nested=1
+
+# View current parameters for a loaded module
+cat /sys/module/<module>/parameters/<param>
+
+# Change module parameter at runtime (if writable)
+echo 1 > /sys/module/kvm_intel/parameters/nested
+```
+
+## Sysctl: kernel parameters at runtime
+
+`sysctl` reads and writes kernel parameters at runtime via `/proc/sys/`.
+
+### Listing and reading
+
+```bash
+sysctl -a                            # show all parameters
+sysctl -a | grep net.ipv4            # filter by subsystem
+sysctl net.ipv4.ip_forward           # read a specific parameter
+cat /proc/sys/net/ipv4/ip_forward    # same via proc
+```
+
+### Changing parameters
+
+```bash
+# Temporary (reset on reboot)
+sysctl -w net.ipv4.ip_forward=1
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# Permanent (persisted)
+# /etc/sysctl.conf or /etc/sysctl.d/99-custom.conf
+net.ipv4.ip_forward = 1
+net.core.somaxconn = 1024
+vm.swappiness = 10
+
+# Apply after editing config files
+sysctl -p /etc/sysctl.d/99-custom.conf
+sysctl --system                       # load all sysctl configs
+```
+
+### Commonly tuned sysctl parameters
+
+| Parameter | Purpose | Common Value |
+|---|---|---|
+| `net.ipv4.ip_forward` | Enable IP forwarding (routing) | `1` |
+| `net.core.somaxconn` | Max TCP accept backlog | `1024` or `4096` |
+| `net.ipv4.tcp_fastopen` | TCP Fast Open | `3` |
+| `vm.swappiness` | Tendency to swap (0–100) | `10` (low) |
+| `vm.overcommit_memory` | Memory overcommit policy | `1` (heuristic) |
+| `fs.file-max` | System-wide file descriptor limit | `2097152` |
+| `fs.inotify.max_user_watches` | Max inotify watches per user | `524288` |
+| `kernel.pid_max` | Maximum PID number | `4194304` |
+| `kernel.threads-max` | Maximum number of threads | Varies |
+| `net.core.netdev_max_backlog` | Max packets in backlog | `5000` |
+
+## Boot parameters and GRUB
+
+### Viewing boot parameters
+
+```bash
+cat /proc/cmdline                    # kernel parameters at current boot
+dmesg | grep "Command line"          # same via kernel log
+```
+
+### GRUB configuration
+
+```bash
+# Main config file
+/etc/default/grub                    # GRUB defaults (edit this)
+
+# Generated file (do not edit directly)
+/boot/grub/grub.cfg                  # Debian/Ubuntu
+/boot/grub2/grub.cfg                 # RHEL-based
+
+# Scripts that generate the config
+/etc/grub.d/                         # numbered scripts
+```
+
+### Common GRUB defaults (`/etc/default/grub`)
+
+```bash
+# Quiet boot
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+
+# Add kernel parameters
+GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"
+
+# Set timeout
+GRUB_TIMEOUT=5
+
+# Enable serial console
+GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8"
+
+# Boot into specific kernel version
+GRUB_DEFAULT="Advanced options for Ubuntu>Ubuntu, with Linux 5.15.0-91-generic"
+
+# Disable recovery mode
+GRUB_DISABLE_RECOVERY="true"
+```
+
+### Applying GRUB changes
+
+```bash
+update-grub                          # Debian/Ubuntu
+grub2-mkconfig -o /boot/grub2/grub.cfg  # RHEL/Fedora
+
+# On EFI systems (Debian)
+grub-install --target=x86_64-efi --efi-directory=/boot/efi
+
+# Check current boot entry
+efibootmgr -v                        # EFI boot manager entries
+```
+
+### Useful kernel boot parameters
+
+```bash
+# Single-user mode (rescue)
+single
+1
+
+# Limit memory
+mem=2G
+
+# Disable specific functionality
+acpi=off
+noapic
+nomodeset
+selinux=0
+
+# Network interface naming
+net.ifnames=0 biosdevname=0
+
+# Systemd targets
+systemd.unit=multi-user.target
+systemd.unit=rescue.target
+```
+
+## Kernel logging and debugging
+
+### dmesg
+
+```bash
+dmesg                                # kernel ring buffer
+dmesg -H                             # human-readable timestamps
+dmesg -w                             # follow new messages
+dmesg -l err                         # errors only
+dmesg -l warn,err                    # warnings and errors
+dmesg -T                             # convert timestamps (legacy)
+dmesg -c                             # print and clear buffer
+```
+
+### Kernel message levels
+
+| Level | Name | Example |
+|---|---|---|
+| 0 | `KERN_EMERG` | "System is unusable" |
+| 1 | `KERN_ALERT` | "Action must be taken immediately" |
+| 2 | `KERN_CRIT` | "Critical conditions" |
+| 3 | `KERN_ERR` | "Error conditions" |
+| 4 | `KERN_WARNING` | "Warning conditions" |
+| 5 | `KERN_NOTICE` | "Normal but significant" |
+| 6 | `KERN_INFO` | "Informational" |
+| 7 | `KERN_DEBUG` | "Debug messages" |
+
+### Tracing and profiling
+
+```bash
+# strace: trace system calls
+strace -p <pid>                      # attach to running process
+strace -c -p <pid>                   # summary of syscall counts
+strace -e trace=open,read,write ls   # filter by syscall
+strace -o output.txt cmd             # write to file
+
+# ltrace: trace library calls
+ltrace -p <pid>
+
+# perf: performance counters and profiling
+perf top                             # live performance counter view
+perf stat ls                         # count events for a command
+perf record ls && perf report        # record and analyze
+
+# bpftrace / bcc: dynamic tracing (eBPF)
+bpftrace -e 'tracepoint:syscalls:sys_enter_openat { printf("%s %s\n", comm, str(args->filename)); }'
+```
+
+### Checking kernel panics and oops
+
+```bash
+# Check for kernel oops/panics in logs
+dmesg | grep -i "oops\|panic\|BUG\|Call Trace"
+journalctl -k --since yesterday | grep -i "oops\|panic"
+
+# Check if kdump is configured (captures crash dumps)
+systemctl status kdump
+
+# View previous crash logs
+ls /var/crash/
+```
+
+## Kernel versions and updates
+
+```bash
+# Debian/Ubuntu
+apt list --installed | grep linux-image
+apt install linux-image-$(uname -r)  # install headers for current kernel
+apt dist-upgrade                     # upgrade all packages including kernels
+
+# RHEL/Fedora
+rpm -qa | grep kernel
+dnf update kernel                    # update kernel only
+
+# Remove old kernels (Debian)
+apt autoremove --purge
+
+# Check which kernel will boot
+grubby --default-kernel              # RHEL
+grep menuentry /boot/grub/grub.cfg   # Debian
+```
+
+## /proc/sys/ structure reference
+
+Key directories under `/proc/sys/` (also accessible via `sysctl`):
+
+| Path | Contains |
+|---|---|
+| `kernel/` | Core kernel settings (panic, hostname, pid_max) |
+| `vm/` | Virtual memory (swappiness, overcommit, dirty_ratio) |
+| `net/core/` | Generic networking (somaxconn, rmem_max) |
+| `net/ipv4/` | IPv4 protocol settings (forwarding, tcp_keepalive) |
+| `net/ipv6/` | IPv6 protocol settings |
+| `fs/` | Filesystem settings (file-max, inotify) |
+| `dev/` | Device-specific settings |
+
+## See also
+
+- [Device Management](./devices.mdx)
+- [Block Storage](./block-storage.mdx)
+- [Process Management](./processes.mdx)
+- [Common Configuration Locations](./common-configs.mdx)
