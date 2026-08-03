@@ -89,6 +89,34 @@ ls -l link.txt                       # see symlink target
 readlink -f link.txt                 # resolve full path of symlink
 ```
 
+### Bind mounts (solving traversal permission errors)
+
+Symlinks resolve through every parent directory in the chain — if any of them are
+inaccessible to a user or process, the link fails. A bind mount sidesteps this by
+attaching the target directory directly at a publicly reachable mount point,
+avoiding the private path entirely.
+
+```bash
+# Create a shared access point and bind-mount the private directory there
+sudo mkdir -p /srv/shared-app
+sudo mount --bind /home/alice/projects/myapp /srv/shared-app
+
+# Verify the mount
+mount | grep /srv/shared-app
+# /home/alice/projects/myapp on /srv/shared-app type none (rw,bind)
+
+# Make it persistent (survives reboot) via /etc/fstab:
+# /home/alice/projects/myapp  /srv/shared-app  none  bind  0  0
+```
+
+Now any user or container that can reach `/srv/shared-app` has access to the contents — no
+`Permission denied` errors from intermediate directories like `/home/alice`.
+
+**Cleanup:**
+```bash
+sudo umount /srv/shared-app
+```
+
 ### File comparison
 
 ```bash

@@ -198,6 +198,37 @@ umask 027                            # set mask: new files get 640, dirs get 750
 
 Common umask values: `022` (group/others read), `027` (group read, others none), `077` (only owner).
 
+### Resolving path permissions with `namei`
+
+`namei` follows a pathname until a terminal point is found, showing the permissions (and symlink targets) of every component along the way. This is invaluable when you need to understand why a user cannot access a file deep inside a directory tree.
+
+```bash
+# Show permissions and ownership at each level of a path
+namei -l /var/www/html/index.html
+# -l: long listing (permission bits, owner, group)
+
+# Machine-readable output (colon-separated fields)
+namei -m /var/log/app/debug.log
+
+# Follow most symbolic links (default)
+namei -l /usr/local/bin/myscript
+
+# Do not follow symlinks — show them as symlinks
+namei -n /usr/local/bin/myscript
+```
+
+**Output columns (long format):**
+```
+f: /var/www/html/index.html
+ drwxr-xr-x root root /
+ drwxr-xr-x root root var
+ drwxr-xr-x root root www
+ drwxrwx--- www  www  html
+ -rw-r--r-- www  www  index.html
+```
+
+The first column (`f:` or `d:` or `l:`) tells you the type. If a component returns "Permission denied", you know exactly which directory in the chain is blocking access.
+
 ## Access Control Lists (ACLs)
 
 ACLs extend the standard owner-group-others model with fine-grained permissions for specific users and groups.
