@@ -15,7 +15,7 @@ const features: FeatureCard[] = [
     description:
       "Goal-oriented recipes, incident response playbooks, and copy-paste commands designed for rapid execution.",
     icon: <Layers className="w-[22px] h-[22px]" color="#3b82f6" />,
-    iconBg: "bg-blue-500/10",
+    iconBg: "bg-accent/10",
   },
   {
     title: "Reference Material",

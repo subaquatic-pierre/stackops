@@ -76,10 +76,10 @@ export default function RowCard({
     <Link
       to={href}
       className={cn(
-        "group flex items-start gap-4 rounded-lg border border-black/5 dark:border-white/[0.06]",
-        "bg-slate-100 dark:bg-surface-2",
-        "p-4 transition-colors hover:border-brand/30 dark:hover:border-brand/30",
-        "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
+        "group flex items-start gap-4 rounded-xl border border-black/5 dark:border-white/[0.08]",
+        "bg-slate-100 dark:bg-white/5",
+        "p-4 transition-colors hover:border-accent/40 dark:hover:border-accent/30",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
         "focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0",
         "no-underline",
         className,
@@ -97,7 +97,7 @@ export default function RowCard({
       {/* Content */}
       <div className="min-w-0 flex-1">
         {/* Title */}
-        <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors">
+        <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-accent transition-colors">
           {title}
         </h3>
 

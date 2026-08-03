@@ -23,10 +23,10 @@ export default function GridCard({
     <Link
       to={href}
       className={cn(
-        "group flex flex-col rounded-xl border border-black/5 dark:border-white/[0.06]",
-        "bg-slate-100 dark:bg-surface-2",
-        "p-6 transition-colors hover:border-brand/30 dark:hover:border-brand/30",
-        "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
+        "group flex flex-col rounded-xl border border-black/5 dark:border-white/[0.08]",
+        "bg-slate-100 dark:bg-white/5",
+        "p-6 transition-colors hover:border-accent/40 dark:hover:border-accent/30",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
         "focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0",
         "no-underline",
         className,
@@ -40,7 +40,7 @@ export default function GridCard({
       )}
 
       {/* Title */}
-      <h3 className="line-clamp-2 text-base font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors">
+      <h3 className="line-clamp-2 text-base font-semibold text-slate-900 dark:text-slate-100 group-hover:text-accent transition-colors">
         {title}
       </h3>
 
@@ -55,14 +55,14 @@ export default function GridCard({
       {tags && tags.length > 0 && (
         <div className="mt-auto flex flex-wrap gap-1.5 pt-4">
           {tags.map((tag) => (
-            <Link
-              key={tag}
-              to={`/tags?tag=${encodeURIComponent(tag)}`}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors no-underline hover:no-underline"
-            >
-              {tag}
-            </Link>
+              <a
+                key={tag}
+                href={`/docs/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline"
+              >
+                {tag}
+              </a>
           ))}
         </div>
       )}

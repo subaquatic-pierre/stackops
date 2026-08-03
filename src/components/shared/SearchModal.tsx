@@ -286,7 +286,7 @@ export default function SearchModal({
                       className={cn(
                         "w-full text-left rounded-lg px-4 py-3 transition-colors",
                         isSelected
-                          ? "bg-brand/10 dark:bg-brand/20"
+                          ? "bg-accent/10 dark:bg-accent/20"
                           : "hover:bg-black/[0.02] dark:hover:bg-white/[0.03]",
                       )}
                     >
@@ -294,7 +294,7 @@ export default function SearchModal({
                         <div
                           className={cn(
                             "mt-0.5 flex-shrink-0 w-5 h-5 flex items-center justify-center rounded text-xs",
-                            isSelected ? "text-brand" : "text-slate-400",
+                            isSelected ? "text-accent" : "text-slate-400",
                           )}
                         >
                           {result.document.s ? (
@@ -370,7 +370,7 @@ export default function SearchModal({
             <Link
               to={`/search?q=${encodeURIComponent(query.trim())}`}
               onClick={onClose}
-              className="text-brand hover:underline text-xs"
+              className="text-accent hover:underline text-xs"
             >
               See all results →
             </Link>

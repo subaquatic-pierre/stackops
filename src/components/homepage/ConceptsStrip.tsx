@@ -35,7 +35,7 @@ export default function ConceptsStrip() {
             <Link
               key={to}
               to={to}
-              className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"
+              className="concept-pill hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{label}</span>

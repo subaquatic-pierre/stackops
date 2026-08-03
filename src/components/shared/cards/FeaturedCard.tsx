@@ -71,8 +71,8 @@ export default function FeaturedCard({
       className={cn(
         "group flex flex-col overflow-hidden rounded-xl border border-black/5 dark:border-white/[0.06]",
         "bg-slate-100 dark:bg-surface-2",
-        "transition-colors hover:border-brand/30 dark:hover:border-brand/30",
-        "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
+        "transition-colors hover:border-accent/30 dark:hover:border-accent/30",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
         "focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0",
         "no-underline",
         className,
@@ -84,7 +84,7 @@ export default function FeaturedCard({
       {/* Content */}
       <div className="flex flex-1 flex-col p-5">
         {/* Title */}
-        <h3 className="line-clamp-2 text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors">
+        <h3 className="line-clamp-2 text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-accent transition-colors">
           {title}
         </h3>
 

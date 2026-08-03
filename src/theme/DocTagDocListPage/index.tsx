@@ -75,7 +75,7 @@ function DocTagDocListPageContent({
         {/* Back link */}
         <Link
           to={tag.allTagsPath}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-brand transition-colors mb-6"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent transition-colors mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
           <Translate
@@ -89,7 +89,7 @@ function DocTagDocListPageContent({
         {/* Header */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 dark:bg-brand/20 px-3 py-1 text-sm font-medium text-brand">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 dark:bg-accent/20 px-3 py-1 text-sm font-medium text-accent">
               <Tag className="h-3.5 w-3.5" />
               {tag.label}
             </span>
@@ -114,11 +114,11 @@ function DocTagDocListPageContent({
               <li key={doc.id}>
                 <Link
                   to={doc.permalink}
-                  className="group flex items-start gap-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-white/5 px-5 py-4 hover:border-brand/50 hover:bg-brand/5 transition-colors"
+                  className="group flex items-start gap-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-white/5 px-5 py-4 hover:border-accent/50 hover:bg-accent/5 transition-colors"
                 >
-                  <FileText className="h-5 w-5 text-brand flex-shrink-0 mt-0.5" />
+                  <FileText className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-accent transition-colors">
                       {doc.title}
                     </p>
                     {doc.description && (

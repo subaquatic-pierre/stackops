@@ -91,7 +91,7 @@ function BlogPostPageContent({
       ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
       : category === "playbook"
         ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-        : "bg-blue-500/10 text-blue-600 dark:text-blue-400";
+        : "bg-accent/10 text-accent dark:text-accent-light";
 
   return (
     <BlogLayout
@@ -167,7 +167,7 @@ function BlogPostPageContent({
                 <Link
                   key={label}
                   to={`/docs/tags/${encodeURIComponent(slug)}`}
-                  className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-brand/10 hover:text-brand hover:border-brand/30 transition-colors no-underline hover:no-underline"
+                  className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline"
                 >
                   {label}
                 </Link>

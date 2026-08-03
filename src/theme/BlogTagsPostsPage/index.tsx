@@ -79,7 +79,7 @@ function BlogTagsPostsPageContent({
         )}
         <Link
           href={tag.allTagsPath}
-          className="text-sm font-medium text-brand dark:text-brand-light hover:text-brand-dim dark:hover:text-brand transition-colors"
+          className="text-sm font-medium text-accent dark:text-accent-light hover:text-accent-dim dark:hover:text-accent transition-colors"
         >
           <Translate
             id="theme.tags.tagsPageLink"

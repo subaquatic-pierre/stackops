@@ -50,7 +50,7 @@ export default function HeroSection({
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden md:pt-16 pt-16 pb-20">
       {/* Ambient orbs */}
       <div className="orb w-[500px] h-[500px] bg-accent/[0.07] -top-60 left-1/4" />
-      <div className="orb w-[400px] h-[400px] bg-brand/[0.05] top-1/3 -right-20" />
+      <div className="orb w-[400px] h-[400px] bg-accent/[0.05] top-1/3 -right-20" />
 
       {/* Floating file labels */}
       {floatingLines.map((fl, i) => (
@@ -105,7 +105,7 @@ export default function HeroSection({
             ref={searchTriggerRef}
             type="button"
             onClick={onSearchOpen}
-            className="w-full flex items-center gap-3 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-surface-2 px-4 py-3 text-left shadow-sm hover:border-brand/30 dark:hover:border-brand/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"
+            className="w-full flex items-center gap-3 rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-surface-2 px-4 py-3 text-left shadow-sm hover:border-accent/30 dark:hover:border-accent/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-0"
             aria-label="Open search"
           >
             <Search

@@ -4,8 +4,11 @@ sidebar_position: 1
 title: Technical Reference
 description: "StackOps technical reference manual for infrastructure, operations, and development workflows."
 tags: [overview]
-last_updated: "2026-07-31"
+last_updated: "2026-08-03"
 ---
+
+import GridCard from "@site/src/components/shared/cards/GridCard";
+import { Cloud, Container, Network, Terminal, Cpu, Globe, Database, Activity, GitBranch, Code, Cog, Bot } from "lucide-react";
 
 <div className="max-w-4xl">
 
@@ -16,65 +19,91 @@ StackOps is a knowledge base for infrastructure, operations, and development wor
 ## Browse by domain
 
 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 not-prose my-8">
-  <a
+
+  <GridCard
     href="/docs/aws"
-    className="group block rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-green-500/40 hover:bg-white/[0.07]"
-  >
-    <h3 className="mb-2 text-lg font-semibold text-green-400">AWS Cloud</h3>
-    <p className="text-sm text-slate-400">
-      Identity, networking, and operational playbooks for Amazon Web Services.
-    </p>
-  </a>
-  <a
+    title="AWS Cloud"
+    description="Identity, networking, operational playbooks, and common architecture patterns for Amazon Web Services."
+    icon={<Cloud size={28} />}
+  />
+
+  <GridCard
     href="/docs/docker"
-    className="group block rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-green-500/40 hover:bg-white/[0.07]"
-  >
-    <h3 className="mb-2 text-lg font-semibold text-green-400">Docker</h3>
-    <p className="text-sm text-slate-400">
-      Container operations, image management, and orchestration patterns.
-    </p>
-  </a>
-  <a
+    title="Docker"
+    description="Container lifecycle, image management, Compose reference, and production project examples."
+    icon={<Container size={28} />}
+  />
+
+  <GridCard
     href="/docs/kubernetes"
-    className="group block rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-green-500/40 hover:bg-white/[0.07]"
-  >
-    <h3 className="mb-2 text-lg font-semibold text-green-400">Kubernetes</h3>
-    <p className="text-sm text-slate-400">
-      Cluster operations, manifests, and troubleshooting workflows.
-    </p>
-  </a>
-  <a
+    title="Kubernetes"
+    description="Cluster operations, manifests, RBAC, Helm, EKS, node setup, and design patterns."
+    icon={<Network size={28} />}
+  />
+
+  <GridCard
     href="/docs/linux"
-    className="group block rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-green-500/40 hover:bg-white/[0.07]"
-  >
-    <h3 className="mb-2 text-lg font-semibold text-green-400">
-      Linux &amp; Systems
-    </h3>
-    <p className="text-sm text-slate-400">
-      System configuration, common locations, and command-line recipes.
-    </p>
-  </a>
-  <a
+    title="Linux &amp; Systems"
+    description="System configuration, common locations, command-line recipes, networking, and kernel."
+    icon={<Terminal size={28} />}
+  />
+
+  <GridCard
     href="/docs/system-architecture"
-    className="group block rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-green-500/40 hover:bg-white/[0.07]"
-  >
-    <h3 className="mb-2 text-lg font-semibold text-green-400">
-      System Architecture
-    </h3>
-    <p className="text-sm text-slate-400">
-      Patterns, principles, and reference material for designing reliable
-      systems.
-    </p>
-  </a>
-  <a
+    title="System Architecture"
+    description="Patterns, principles, and reference material for designing reliable systems."
+    icon={<Cpu size={28} />}
+  />
+
+  <GridCard
     href="/docs/terraform"
-    className="group block rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-green-500/40 hover:bg-white/[0.07]"
-  >
-    <h3 className="mb-2 text-lg font-semibold text-green-400">Terraform</h3>
-    <p className="text-sm text-slate-400">
-      Infrastructure-as-code patterns and reference material for Terraform.
-    </p>
-  </a>
+    title="Terraform"
+    description="Getting started, state, modules, loops, secrets, testing, and team collaboration."
+    icon={<Globe size={28} />}
+  />
+
+  <GridCard
+    href="/docs/runtimes"
+    title="Runtimes"
+    description="Python, Rust, and Node.js / TypeScript — package managers, frameworks, and project patterns."
+    icon={<Code size={28} />}
+  />
+
+  <GridCard
+    href="/docs/databases"
+    title="Databases"
+    description="PostgreSQL and MongoDB — user management, CRUD, backup/restore, and configuration."
+    icon={<Database size={28} />}
+  />
+
+  <GridCard
+    href="/docs/sre"
+    title="SRE &amp; Observability"
+    description="Prometheus, Grafana, Loki, Mimir — architecture tradeoffs and incident management."
+    icon={<Activity size={28} />}
+  />
+
+  <GridCard
+    href="/docs/gitops"
+    title="GitOps"
+    description="ArgoCD application management, progressive delivery, and GitOps deployment patterns."
+    icon={<GitBranch size={28} />}
+  />
+
+  <GridCard
+    href="/docs/editors"
+    title="Editors"
+    description="Vim and VS Code — configuration, keybindings, extensions, and workflow references."
+    icon={<Cog size={28} />}
+  />
+
+  <GridCard
+    href="/docs/agentic-engineering"
+    title="Agentic Engineering"
+    description="OpenCode configuration, Spec Kit workflow, custom agents, and Docker sandboxing."
+    icon={<Bot size={28} />}
+  />
+
 </div>
 
 ## Content types

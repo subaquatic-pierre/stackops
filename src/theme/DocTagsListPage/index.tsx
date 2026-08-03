@@ -75,11 +75,11 @@ function DocTagsListPageContent({
                     <li key={tag.permalink}>
                       <Link
                         to={tag.permalink}
-                        className="group flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-white/5 px-4 py-3 hover:border-brand/50 hover:bg-brand/5 transition-colors"
+                        className="group flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-white/5 px-4 py-3 hover:border-accent/50 hover:bg-accent/5 transition-colors"
                       >
                         <span className="flex items-center gap-3">
-                          <Tag className="h-4 w-4 text-brand flex-shrink-0" />
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors">
+                          <Tag className="h-4 w-4 text-accent flex-shrink-0" />
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-accent transition-colors">
                             {tag.label}
                           </span>
                           {tag.description && (

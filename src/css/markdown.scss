@@ -1,5 +1,18 @@
 /* ── Markdown headings (override Tailwind Preflight reset) ── */
 .markdown {
+  /* Inline links inside doc content — skip cards, buttons, and nav elements */
+  a:not([class*="no-underline"]):not([class*="menu__link"]):not([class*="pagination-nav"]) {
+    color: var(--ifm-color-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--ifm-color-primary);
+    text-underline-offset: 2px;
+
+    &:hover {
+      text-decoration-thickness: 2px;
+      color: var(--ifm-color-primary-darker);
+    }
+  }
+
   h1,
   h2,
   h3,
