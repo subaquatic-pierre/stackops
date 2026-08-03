@@ -1,0 +1,256 @@
+---
+title: 'Kubernetes Configuration Reference'
+description: 'Complete Kubernetes configuration reference: kubectl config, kubelet configuration, static pods, kubeconfig files, context management, and cluster logging.'
+tags: [kubernetes, config, kubectl, kubelet, reference]
+last_updated: '2026-08-03'
+---
+
+# Kubernetes Configuration Reference
+
+## Overview
+
+Kubernetes configuration spans multiple layers: `kubectl` client config (`~/.kube/config`), kubelet config on each node, static pod manifests, and cluster-level audit and logging policies. This reference covers each layer with practical examples.
+
+## kubectl configuration
+
+### kubeconfig file (`~/.kube/config`)
+
+```yaml
+apiVersion: v1
+kind: Config
+current-context: prod-cluster
+clusters:
+  - name: prod-cluster
+    cluster:
+      server: https://k8s-api.prod.example.com:6443
+      certificate-authority-data: LS0tLS... # Base64 CA cert
+users:
+  - name: prod-admin
+    user:
+      client-certificate-data: LS0tLS... # Base64 client cert
+      client-key-data: LS0tLS...          # Base64 client key
+contexts:
+  - name: prod-cluster
+    context:
+      cluster: prod-cluster
+      user: prod-admin
+      namespace: production
+```
+
+### kubectl config commands
+
+```bash
+# View current config
+kubectl config view
+kubectl config view --minify     # current context only
+kubectl config view --raw        # full config with sensitive data
+
+# Context management
+kubectl config get-contexts
+kubectl config current-context
+kubectl config use-context staging-cluster
+kubectl config rename-context old-name new-name
+kubectl config delete-context staging-cluster
+
+# Set namespace for current context
+kubectl config set-context --current --namespace=team-a
+
+# Manage clusters, users, credentials
+kubectl config set-cluster dev --server=https://dev.example.com:6443
+kubectl config set-credentials dev-user --token=eyJhbG...
+kubectl config set-context dev --cluster=dev --user=dev-user
+
+# Merge kubeconfig files
+KUBECONFIG=~/.kube/config:~/other-config kubectl config view --flatten > ~/.kube/merged
+```
+
+### Useful aliases and helpers
+
+```bash
+# kubectl alias (add to .bashrc)
+alias k="kubectl"
+alias kg="kubectl get"
+alias kd="kubectl describe"
+
+# Quick namespace switching (add to .bashrc)
+kns() { kubectl config set-context --current --namespace="$1"; }
+
+# Watch a resource
+kubectl get pods -w
+```
+
+## Kubelet configuration
+
+### Configuration file
+
+```yaml
+# /var/lib/kubelet/config.yaml
+
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+
+# Node identity
+hostnameOverride: "worker-1"
+registerNode: true
+
+# Resource reservation
+systemReserved:
+  cpu: "500m"
+  memory: "512Mi"
+kubeReserved:
+  cpu: "500m"
+  memory: "512Mi"
+
+# Pod settings
+maxPods: 110
+podCIDR: "10.244.1.0/24"
+
+# Logging
+logging:
+  format: json
+  flushFrequency: 5s
+
+# Container runtime
+containerRuntimeEndpoint: "unix:///run/containerd/containerd.sock"
+
+# Image pulling
+imageMinimumGCAge: "2m0s"
+imageGCHighThresholdPercent: 85
+imageGCLowThresholdPercent: 80
+```
+
+### Kubelet startup flags
+
+```bash
+# /etc/systemd/system/kubelet.service or /etc/default/kubelet
+KUBELET_EXTRA_ARGS="--config=/var/lib/kubelet/config.yaml \
+  --kubeconfig=/etc/kubernetes/kubelet.conf \
+  --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
+  --node-ip=10.0.1.50"
+```
+
+### Common kubelet operations
+
+```bash
+systemctl status kubelet
+journalctl -u kubelet -f
+journalctl -u kubelet --since "10 minutes ago"
+
+# Check kubelet version
+kubectl get nodes -o wide
+```
+
+## Static pods
+
+Static pods are managed directly by the kubelet, not the API server. They're defined as YAML manifests in a watched directory.
+
+### Configuration
+
+```bash
+# Default static pod path (configurable in kubelet)
+/etc/kubernetes/manifests/
+
+# Any .yaml file placed here is automatically managed by kubelet
+```
+
+### Static pod example
+
+```yaml
+# /etc/kubernetes/manifests/nginx-static.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-static
+  namespace: kube-system
+  labels:
+    app: nginx-static
+spec:
+  containers:
+    - name: nginx
+      image: nginx:alpine
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+  volumes:
+    - name: html
+      hostPath:
+        path: /var/www/static
+        type: DirectoryOrCreate
+```
+
+### Managing static pods
+
+```bash
+# Restart a static pod (delete the manifest and re-add it)
+mv /etc/kubernetes/manifests/nginx-static.yaml /tmp/
+sleep 5
+mv /tmp/nginx-static.yaml /etc/kubernetes/manifests/
+
+# View static pods via API server (prefixed with node name)
+kubectl get pods -n kube-system | grep <node-name>
+```
+
+## Cluster logging
+
+### Control plane component logs
+
+```bash
+# Via journald (if running as systemd services)
+journalctl -u kube-apiserver -f
+journalctl -u kube-controller-manager -f
+journalctl -u kube-scheduler -f
+journalctl -u etcd -f
+
+# If running as static pods
+kubectl logs -n kube-system kube-apiserver-<node>
+```
+
+### Audit logging
+
+```yaml
+# Kube API server audit policy
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+  # Log all metadata for every request
+  - level: Metadata
+
+  # Log request/response bodies for changes to secrets
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # Don't log read-only requests
+  - level: None
+    verbs: ["get", "list", "watch"]
+    resources:
+      - group: ""
+        resources: ["pods", "services", "configmaps"]
+```
+
+Pass to API server: `--audit-policy-file=/etc/kubernetes/audit-policy.yaml --audit-log-path=/var/log/kube-audit.log`
+
+### Node logs
+
+```bash
+# Container logs (kubectl)
+kubectl logs <pod> -n <namespace>
+kubectl logs <pod> -c <container> -n <namespace>
+kubectl logs --previous <pod> -n <namespace>    # previous crashed container
+kubectl logs --tail=100 <pod> -n <namespace>
+kubectl logs -f <pod> -n <namespace>            # follow
+kubectl logs -l app=nginx --all-containers -n default
+
+# Node-level container logs
+ls /var/log/containers/
+ls /var/log/pods/
+```
+
+## See also
+
+- [Node Setup](./node-setup.mdx) — worker and control plane node configuration
+- [Kubernetes RBAC & User Management](./user-management.mdx)

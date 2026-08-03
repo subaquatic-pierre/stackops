@@ -16,6 +16,7 @@ import BlogPostPageStructuredData from "@theme/BlogPostPage/StructuredData";
 import TOC from "@theme/TOC";
 import ContentVisibility from "@theme/ContentVisibility";
 import { Calendar, Clock, User } from "lucide-react";
+import Link from "@docusaurus/Link";
 import type { Props } from "@theme/BlogPostPage";
 
 function HeroImage({ src, alt }: { src?: string; alt: string }) {
@@ -161,13 +162,15 @@ function BlogPostPageContent({
           <div className="mt-4 flex flex-wrap gap-1.5">
             {tags.map((tag) => {
               const label = typeof tag === "string" ? tag : tag.label || "";
+              const slug = label.toLowerCase().replace(/\s+/g, "-");
               return (
-                <span
+                <Link
                   key={label}
-                  className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400"
+                  to={`/docs/tags/${encodeURIComponent(slug)}`}
+                  className="inline-block rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-brand/10 hover:text-brand hover:border-brand/30 transition-colors no-underline hover:no-underline"
                 >
                   {label}
-                </span>
+                </Link>
               );
             })}
           </div>

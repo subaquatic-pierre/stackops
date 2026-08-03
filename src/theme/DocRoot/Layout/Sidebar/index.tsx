@@ -42,11 +42,11 @@ export default function DocRootLayoutSidebar({
 
       <aside
         className={[
-          ThemeClassNames.docs.docSidebarContainer,
+          // ThemeClassNames.docs.docSidebarContainer,
           "hidden lg:block",
           "flex-shrink-0",
           "transition-[width] duration-200 ease-in-out",
-          "sticky top-0",
+          "sticky top-14",
           "max-h-screen",
           "flex flex-col",
           hiddenSidebarContainer
@@ -64,8 +64,8 @@ export default function DocRootLayoutSidebar({
           }
         }}
       >
-        <div className="flex-1 overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl">
-          <div className="pt-2 pb-6">
+        <div className="flex-1 max-h-[90vh] overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl">
+          <div className="pb-6">
             <DocSidebarDesktop
               sidebar={sidebar}
               path={pathname}

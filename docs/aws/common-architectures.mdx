@@ -1,0 +1,227 @@
+---
+title: 'Common AWS Architectures'
+description: 'Reference of common AWS architecture patterns: web applications, serverless, data pipelines, multi-account, hybrid, with CLI and console workflows for each.'
+tags: [aws, architecture, patterns, cli, reference]
+last_updated: '2026-08-03'
+---
+
+# Common AWS Architectures
+
+## Overview
+
+This reference catalogs frequent AWS architecture patterns — from simple web apps to multi-account setups — with the CLI commands and console workflows needed to provision them.
+
+## Pattern 1: Single-server web application
+
+### Architecture
+
+```
+Internet → ALB → EC2 (web server) → RDS (database)
+              ↘ S3 (static assets)
+```
+
+### CLI workflow
+
+```bash
+# Create VPC
+VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query "Vpc.VpcId" --output text)
+aws ec2 create-tags --resources $VPC_ID --tags Key=Name,Value=app-vpc
+
+# Create subnets (public + private)
+PUBLIC_SUBNET=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 \
+    --availability-zone us-east-2a --query "Subnet.SubnetId" --output text)
+PRIVATE_SUBNET=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.2.0/24 \
+    --availability-zone us-east-2a --query "Subnet.SubnetId" --output text)
+
+# Create Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway --query "InternetGateway.InternetGatewayId" --output text)
+aws ec2 attach-internet-gateway --vpc-id $VPC_ID --internet-gateway-id $IGW_ID
+
+# Create route table for public subnet
+PUBLIC_RT=$(aws ec2 create-route-table --vpc-id $VPC_ID --query "RouteTable.RouteTableId" --output text)
+aws ec2 create-route --route-table-id $PUBLIC_RT --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID
+aws ec2 associate-route-table --subnet-id $PUBLIC_SUBNET --route-table-id $PUBLIC_RT
+
+# Launch EC2 and RDS with security groups...
+```
+
+### Console workflow
+
+1. VPC Dashboard → Create VPC (10.0.0.0/16)
+2. Subnets → Create subnet (10.0.1.0/24 public, 10.0.2.0/24 private)
+3. Internet Gateway → Create and attach to VPC
+4. Route Tables → Associate public subnet with route to IGW
+5. EC2 → Launch instance in public subnet with security group allowing port 80/443
+6. RDS → Launch database in private subnet with security group allowing EC2 to access port 5432/3306
+
+## Pattern 2: Auto-scaling multi-AZ
+
+### Architecture
+
+```
+Internet → ALB
+            ├→ AZ-a: Auto Scaling Group (min 2)
+            └→ AZ-b: Auto Scaling Group (min 2)
+                    ↓
+            RDS Multi-AZ (primary + standby)
+```
+
+### CLI workflow
+
+```bash
+# Create launch template
+aws ec2 create-launch-template \
+  --launch-template-name app-template \
+  --version-description "v1" \
+  --launch-template-data '{
+    "ImageId": "ami-0fb653ca2d3203ac1",
+    "InstanceType": "t3.medium",
+    "SecurityGroupIds": ["sg-abc123"],
+    "UserData": "IyEvYmluL2Jhc2gK..."
+  }'
+
+# Create Auto Scaling group across two AZs
+aws autoscaling create-auto-scaling-group \
+  --auto-scaling-group-name app-asg \
+  --launch-template "LaunchTemplateName=app-template,Version=1" \
+  --min-size 2 --max-size 10 --desired-capacity 2 \
+  --vpc-zone-identifier "subnet-abc,subnet-def" \
+  --target-group-arns "arn:aws:elasticloadbalancing:..."
+
+# Create scaling policy (CPU-based)
+aws autoscaling put-scaling-policy \
+  --auto-scaling-group-name app-asg \
+  --policy-name cpu-target-tracking \
+  --policy-type TargetTrackingScaling \
+  --target-tracking-configuration '{
+    "TargetValue": 70.0,
+    "PredefinedMetricSpecification": {
+      "PredefinedMetricType": "ASGAverageCPUUtilization"
+    }
+  }'
+```
+
+## Pattern 3: Serverless API (API Gateway + Lambda + DynamoDB)
+
+### Architecture
+
+```
+Client → API Gateway → Lambda → DynamoDB
+                      ↘ S3 (file uploads)
+                      ↘ EventBridge (async events)
+```
+
+### CLI workflow
+
+```bash
+# Create Lambda function
+zip function.zip index.js
+aws lambda create-function \
+  --function-name api-handler \
+  --runtime nodejs22.x \
+  --role arn:aws:iam::123456789012:role/lambda-exec-role \
+  --handler index.handler \
+  --zip-file fileb://function.zip
+
+# Create REST API
+API_ID=$(aws apigateway create-rest-api --name "MyAPI" --query "id" --output text)
+ROOT_ID=$(aws apigateway get-resources --rest-api-id $API_ID --query "items[0].id" --output text)
+
+RESOURCE_ID=$(aws apigateway create-resource \
+  --rest-api-id $API_ID \
+  --parent-id $ROOT_ID \
+  --path-part "items" --query "id" --output text)
+
+# Create GET method
+aws apigateway put-method \
+  --rest-api-id $API_ID \
+  --resource-id $RESOURCE_ID \
+  --http-method GET \
+  --authorization-type NONE
+
+# Integrate with Lambda
+aws apigateway put-integration \
+  --rest-api-id $API_ID \
+  --resource-id $RESOURCE_ID \
+  --http-method GET \
+  --type AWS_PROXY \
+  --integration-http-method POST \
+  --uri arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:123456789012:function:api-handler/invocations
+
+# Deploy
+aws apigateway create-deployment --rest-api-id $API_ID --stage-name prod
+```
+
+## Pattern 4: Multi-account organization
+
+### Architecture
+
+```
+AWS Organization
+├── Management Account
+├── Security Account (CloudTrail, Config, GuardDuty)
+├── Shared Services Account (CI/CD, container registry, DNS)
+├── Dev Account
+│   ├── VPC-a
+│   └── VPC-b
+└── Prod Account
+    ├── VPC-a
+    └── VPC-b
+```
+
+### CLI workflow
+
+```bash
+# Create new account in organization
+aws organizations create-account \
+  --email prod-account@company.com \
+  --account-name "Production" \
+  --role-name OrganizationAccountAccessRole
+
+# Enable trusted access for CloudFormation StackSets
+aws organizations enable-aws-service-access \
+  --service-principal member.org.stacksets.cloudformation.amazonaws.com
+
+# Assume role into child account from management account
+aws sts assume-role \
+  --role-arn arn:aws:iam::222222222222:role/OrganizationAccountAccessRole \
+  --role-session-name admin-session
+```
+
+## Pattern 5: Containerized microservices (ECS/EKS)
+
+### Architecture
+
+```
+Internet → ALB
+            ├→ Service A (ECS Fargate / EKS pods)
+            ├→ Service B (ECS Fargate / EKS pods)
+            └→ Service C (ECS Fargate / EKS pods)
+                    ↓
+            RDS (per service or shared) + ElastiCache + SQS
+```
+
+### ECS Fargate CLI workflow
+
+```bash
+# Create ECS cluster
+aws ecs create-cluster --cluster-name app-cluster
+
+# Register task definition
+aws ecs register-task-definition --cli-input-json file://task-def.json
+
+# Create service
+aws ecs create-service \
+  --cluster app-cluster \
+  --service-name api-service \
+  --task-definition api:1 \
+  --desired-count 2 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-abc,subnet-def],securityGroups=[sg-abc]}"
+```
+
+## See also
+
+- [AWS IAM & User Management](./iam-user-management.mdx) — users, roles, and policies
+- [AWS VPC Architecture Overview](./vpc-architecture-overview.mdx) — network design patterns
+- [Amazon EKS](../kubernetes/eks.mdx) — managed Kubernetes on AWS

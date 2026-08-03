@@ -1,0 +1,247 @@
+---
+title: 'SRE Architecture & Deployment Patterns'
+description: 'Site reliability engineering patterns: monolithic vs microservice tradeoffs, deployment strategies, SLOs and error budgets, multi-cluster architectures, and incident management workflows.'
+tags: [sre, architecture, deployment, patterns, reference]
+last_updated: '2026-08-03'
+---
+
+# SRE Architecture & Deployment Patterns
+
+## Overview
+
+Site Reliability Engineering (SRE) bridges development and operations with a focus on reliability, observability, and automation. This reference covers the architectural decisions that shape system reliability — deployment patterns, service architectures, SLOs, and incident management.
+
+## Monolithic vs microservice architecture
+
+### Monolith
+
+A single deployable unit containing all application logic. The database is usually shared.
+
+| Pros | Cons |
+|---|---|
+| Simple development and debugging | Hard to scale independently |
+| Single deployment pipeline | Large blast radius on failure |
+| Low operational overhead | Slow CI/CD as codebase grows |
+| Consistent transactions (same DB) | Technology lock-in |
+| Easier local development | Long startup times |
+
+**When to choose monolith:**
+- Early-stage products with uncertain boundaries
+- Teams of fewer than 10 engineers
+- Applications with strong transactional consistency requirements
+- Internal tools that don't need independent scaling
+
+### Microservices
+
+Independent, loosely coupled services with their own data stores, deployed separately.
+
+| Pros | Cons |
+|---|---|
+| Independent scaling per service | Distributed system complexity |
+| Smaller blast radius on failure | Network latency and partial failures |
+| Independent team ownership | Data consistency challenges |
+| Technology diversity per service | CI/CD pipeline multiplication |
+| Faster CI/CD for individual services | Observability becomes mandatory |
+
+**When to choose microservices:**
+- Multiple teams working on different domains
+- High scale requiring independent resource allocation
+- Clear domain boundaries (bounded contexts)
+- Organizational commitment to DevOps maturity
+
+### The pragmatic middle: modular monolith
+
+Separate logical modules within a single deployment unit:
+
+```
+myapp/
+├── modules/
+│   ├── orders/        # Order domain logic
+│   ├── payments/      # Payment domain logic
+│   ├── catalog/       # Product catalog
+│   └── shipping/      # Shipping calculations
+└── shared/            # Shared utilities
+```
+
+Start here, extract modules into microservices only when independent scaling or team autonomy demands it.
+
+## Deployment patterns
+
+### Blue-green
+
+Two identical environments (blue = active, green = idle). Deploy to green, test, then switch traffic.
+
+```
+                   ┌──────────┐
+    Traffic ──────▶│   ALB    │
+                   └────┬─────┘
+                   ┌────┴─────┐
+         ┌─────────┤ Switch?  ├─────────┐
+         ▼         └──────────┘         ▼
+   ┌──────────┐                    ┌──────────┐
+   │  Blue    │                    │  Green   │
+   │  v1.0    │                    │  v2.0    │
+   └──────────┘                    └──────────┘
+```
+
+**Pros:** Instant rollback (switch back to blue), simple to reason about.
+**Cons:** Double the infrastructure cost during deployment, database schema changes are tricky.
+
+### Canary
+
+Route a small percentage of traffic to the new version, incrementally increase while monitoring.
+
+```
+100% → Stable  ──┐
+                 │
+ 95% → Stable    │  5% → Canary  ──┐  Monitor for errors
+ 90% → Stable    │ 10% → Canary    │
+ 50% → Stable    │ 50% → Canary    │  If healthy, increase
+  0% → Stable    │100% → Canary    │
+                                   │
+                          If unhealthy: roll back immediately
+```
+
+**Pros:** Minimal blast radius, validates under real traffic.
+**Cons:** Requires traffic routing infrastructure, monitoring must detect failures quickly.
+
+### Rolling update
+
+Replace instances one at a time, maintaining minimum healthy count:
+
+```
+[P1][P2][P3] → [P2][P3][N1] → [P3][N1][N2] → [N1][N2][N3]
+ P = old pod, N = new pod
+```
+
+**Pros:** No additional infrastructure, built into most orchestrators.
+**Cons:** Slower rollback, mixed-version window means API compatibility is critical.
+
+### Feature flags
+
+Deploy code behind a flag, enable for specific users or percentages:
+
+```python
+if feature_flag("new-checkout", user.id, rollout_percent=10):
+    return new_checkout_flow()
+else:
+    return current_checkout_flow()
+```
+
+**Pros:** Decouple deployment from release, instant kill switch, targeted rollouts.
+**Cons:** Flag debt (stale flags), testing all flag combinations is combinatorially hard.
+
+## SLOs and error budgets
+
+### Service Level Indicators (SLIs)
+
+Quantitative measures of service health:
+
+| SLI Type | Example | Measurement |
+|---|---|---|
+| Availability | "Service responds to requests" | `successful_requests / total_requests` |
+| Latency | "Requests complete within 200ms" | `p95(latency) < 200ms` |
+| Error rate | "Less than 0.1% errors" | `error_count / total_requests` |
+| Throughput | "1000 requests per second" | `rate(requests[1m])` |
+
+### Service Level Objectives (SLOs)
+
+Target values for SLIs over a time window:
+
+```
+99.9% availability over 30 days
+p95 latency < 200ms over 7 days
+```
+
+### Error budget
+
+The amount of unreliability you're allowed: `100% - SLO target`.
+
+```
+SLO = 99.9% availability
+Error budget = 0.1% = 43.2 minutes per month of allowed downtime
+```
+
+**Use error budgets to make decisions:**
+- Budget remaining > 50%: Ship features freely.
+- Budget remaining 10-50%: Slow down releases, focus on reliability.
+- Budget exhausted: Stop all feature work, only reliability fixes.
+
+## Multi-cluster architectures
+
+### Active-passive
+
+```
+    DNS
+     │
+     ├──▶ Primary Cluster (active)
+     │         ↓
+     │    async replication
+     │         ↓
+     └──▶ Secondary Cluster (passive, standby)
+```
+
+**Use when:** DR requirements, region-level failover.
+**Cost:** Secondary cluster idle most of the time.
+**Failover:** Manual DNS switch or health-check-based automation.
+
+### Active-active
+
+```
+         Global DNS (latency-based routing)
+         │
+    ┌────┴────┐
+    ▼         ▼
+ Cluster A  Cluster B
+ (us-east)  (eu-west)
+    │         │
+    └────┬────┘
+         ▼
+   Global Database (multi-region)
+```
+
+**Use when:** Global user base, low-latency requirements.
+**Complexity:** Data consistency, conflict resolution, distributed transactions.
+
+## Incident management workflow
+
+1. **Detect** — Alert fires or user report comes in. Acknowledge immediately.
+2. **Triage** — Determine severity. `SEV1` (critical, user impact) vs `SEV2` (degraded, limited impact).
+3. **Mitigate** — Stop the bleeding first. Roll back, scale up, fail over. Root cause comes later.
+4. **Communicate** — Status page update, notify stakeholders. Regular updates until resolved.
+5. **Resolve** — Confirm service is restored and stable.
+6. **Postmortem** — Blameless analysis: what happened, what was the impact, how do we prevent it.
+
+### Blameless postmortem template
+
+```markdown
+# Incident Postmortem: [Title]
+
+## Summary
+- **Date**: 2026-08-01
+- **Duration**: 45 minutes (14:00 - 14:45 UTC)
+- **Severity**: SEV1
+- **Impact**: 15% of users saw 500 errors during checkout
+
+## Timeline (UTC)
+- 14:00: Automated alert fired (p95 latency > 2s)
+- 14:03: On-call engineer acknowledged
+- 14:10: Identified database connection pool exhaustion
+- 14:15: Scaled up database connections and added connection pooling
+- 14:30: Latency returned to normal
+- 14:45: Incident resolved
+
+## Root Cause
+A recent deployment doubled the number of application instances without
+increasing the database connection pool, causing connection contention.
+
+## Action Items
+- [ ] Add connection pool monitoring dashboard (Owner: @alice, ETA: 2026-08-08)
+- [ ] Auto-scale DB connections with app instances (Owner: @bob, ETA: 2026-08-15)
+- [ ] Add pre-deployment checklist item for DB connection review (Owner: @carol, ETA: 2026-08-05)
+```
+
+## See also
+
+- [Observability Stack](./observability.mdx) — Prometheus, Grafana, Loki, Mimir
+- [GitOps with ArgoCD](../gitops/argocd.mdx) — deployment patterns for Kubernetes

@@ -1,0 +1,338 @@
+---
+title: 'VS Code'
+description: 'VS Code configuration reference: essential settings, recommended extensions, keyboard shortcuts, and language-specific setups from a production developer workflow.'
+tags: [vscode, editor, configuration, extensions, reference]
+last_updated: '2026-08-03'
+---
+
+# VS Code
+
+## Overview
+
+VS Code is a lightweight but extensible editor that dominates modern development. This reference documents a tuned configuration built for daily full-stack work — covering TypeScript, Rust, Python, Docker, and infrastructure-as-code workflows.
+
+## Essential settings
+
+```json
+{
+  // ── Editor Core ──
+  "editor.fontFamily": "'Fira Code', 'monospace', 'Droid Sans Fallback'",
+  "editor.fontSize": 14,
+  "editor.fontWeight": "600",
+  "editor.fontLigatures": true,
+  "editor.lineNumbers": "on",
+  "editor.cursorStyle": "block",
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "editor.wordWrap": "wordWrapColumn",
+  "editor.wordWrapColumn": 100,
+  "editor.renderWhitespace": "none",
+  "editor.renderControlCharacters": false,
+  "editor.glyphMargin": false,
+  "editor.minimap.enabled": false,
+  "editor.matchBrackets": "always",
+  "editor.guides.bracketPairs": true,
+  "editor.suggestSelection": "first",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.inlayHints.fontFamily": "Courier New",
+  "editor.inlayHints.fontSize": 11,
+  "editor.inlayHints.enabled": "on",
+  "editor.unicodeHighlight.ambiguousCharacters": false,
+
+  // ── Editor Default Formatter ──
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // ── Window ──
+  "window.menuBarVisibility": "toggle",
+  "window.zoomLevel": 1.3,
+  "window.confirmSaveUntitledWorkspace": false,
+  "window.customTitleBarVisibility": "windowed",
+
+  // ── Workbench ──
+  "workbench.colorTheme": "Monokai",
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.startupEditor": "newUntitledFile",
+  "workbench.tips.enabled": false,
+  "workbench.settings.editor": "json",
+  "workbench.settings.useSplitJSON": true,
+  "workbench.list.horizontalScrolling": true,
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "workbench.colorCustomizations": {
+    "[Monokai]": {
+      "editor.background": "#0e0d0d",
+      "sideBar.background": "#0e0d0d",
+      "activityBar.background": "#0e0d0d",
+      "editorLineNumber.foreground": "#434343",
+      "editor.lineHighlightBackground": "#23292f",
+      "editor.selectionBackground": "#3b3b3b",
+      "terminal.background": "#0e0d0d",
+      "statusBar.background": "#0e0d0d",
+      "sideBarSectionHeader.background": "#0e0d0d",
+      "tab.inactiveBackground": "#202020",
+      "tab.border": "#0e0d0d",
+      "titleBar.border": "#0e0d0d",
+      "editorGroupHeader.tabsBackground": "#0e0d0d"
+    }
+  },
+
+  // ── Explorer ──
+  "explorer.confirmDragAndDrop": false,
+  "explorer.confirmDelete": false,
+  "files.exclude": {
+    "**/.classpath": true,
+    "**/.project": true,
+    "**/.settings": true,
+    "**/.factorypath": true
+  },
+  "breadcrumbs.enabled": false,
+
+  // ── Terminal ──
+  "terminal.integrated.fontFamily": "'Fira Code', 'monospace', 'Droid Sans Fallback'",
+  "terminal.integrated.fontSize": 15,
+  "terminal.integrated.lineHeight": 1.3,
+  "terminal.integrated.gpuAcceleration": "on",
+  "terminal.external.linuxExec": "terminator",
+
+  // ── Git ──
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+
+  // ── Files & Associations ──
+  "files.associations": {
+    "*.sh": "shellscript",
+    ".env": "dotenv",
+    ".env.*": "dotenv",
+    "*.env": "dotenv",
+    ".envrc": "dotenv"
+  },
+
+  "material-icon-theme.files.associations": {
+    "**.html": "html"
+  },
+
+  // ── Chat / AI ──
+  "chat.disableAIFeatures": true,
+
+  // ── Spell Check ──
+  "cSpell.useCustomDecorations": true,
+  "cSpell.textDecoration": "underline dashed #FFFFFF2F",
+  "cSpell.enabledFileTypes": {
+    "json": false,
+    "python": true
+  },
+
+  // ── Vim Extension ──
+  "vim.insertModeKeyBindings": [
+    { "before": ["j", "j"], "after": ["<Esc>"] }
+  ],
+  "vim.cursorStylePerMode.insert": "line-thin",
+  "vim.cursorStylePerMode.normal": "block",
+  "vim.handleKeys": {
+    "<C-c>": false,
+    "<C-x>": false,
+    "<C-v>": false,
+    "<C-w>": false,
+    "<C-d>": false,
+    "<C-s>": false,
+    "<C-z>": false,
+    "<C-a>": false
+  },
+
+  // ── Debug ──
+  "debug.console.fontSize": 14.5,
+  "debug.console.fontFamily": "'Fira Code', 'monospace', 'Droid Sans Fallback'",
+  "debug.allowBreakpointsEverywhere": false,
+  "debug.breakpointsView.presentation": "tree",
+
+  // ── YAML ──
+  "yaml.validate": false,
+  "yaml.customTags": [
+    "!And", "!If", "!Not", "!Equals", "!Or", "!FindInMap",
+    "!Base64", "!Join", "!Cidr", "!Ref", "!Sub", "!GetAtt",
+    "!GetAZs", "!ImportValue", "!Select", "!Split"
+  ],
+
+  // ── Diff ──
+  "diffEditor.ignoreTrimWhitespace": false,
+  "json.schemaDownload.trustedDomains": {
+    "https://json.schemastore.org/": true,
+    "https://opencode.ai/config.json": true
+  }
+}
+```
+
+## Language-specific settings
+
+### TypeScript / JavaScript
+
+```json
+{
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "js/ts.updateImportsOnFileMove.enabled": "always",
+  "js/ts.inlayHints.parameterNames.enabled": "all",
+  "js/ts.tsserver.experimental.enableProjectDiagnostics": true
+}
+```
+
+### Python
+
+```json
+{
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 100
+  },
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic"
+}
+```
+
+### Rust
+
+```json
+{
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "rust-analyzer.completion.callable.snippets": "fill_arguments",
+  "rust-analyzer.diagnostics.disabled": ["inactive-code"]
+}
+```
+
+### Go
+
+```json
+{
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.insertSpaces": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "go.toolsManagement.autoUpdate": true
+}
+```
+
+### Terraform
+
+```json
+{
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": {
+      "source.formatAll.terraform": "always"
+    }
+  },
+  "terraform.experimentalFeatures.validateOnSave": true,
+  "terraform.experimentalFeatures.prefillRequiredFields": true
+}
+```
+
+### Docker / Compose
+
+```json
+{
+  "[dockercompose]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "advanced",
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "docker.extension.enableComposeLanguageServer": false
+}
+```
+
+### Shell
+
+```json
+{
+  "[shellscript]": {
+    "editor.defaultFormatter": "mkhl.shfmt",
+    "editor.formatOnSave": true,
+    "shellcheck.enable": true
+  },
+  "shfmt.executablePath": "/usr/bin/shfmt"
+}
+```
+
+### Markdown
+
+```json
+{
+  "[markdown]": {
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 120,
+    "editor.renderWhitespace": "all",
+    "editor.quickSuggestions": { "other": "off", "comments": "off", "strings": "off" },
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}
+```
+
+### SQL
+
+```json
+{
+  "[sql]": {
+    "editor.defaultFormatter": "inferrinizzard.prettier-sql-vscode"
+  },
+  "Prettier-SQL.SQLFlavourOverride": "postgresql"
+}
+```
+
+## Recommended extensions
+
+| Extension | Purpose |
+|---|---|
+| `esbenp.prettier-vscode` | Code formatter |
+| `dbaeumer.vscode-eslint` | ESLint integration |
+| `rust-lang.rust-analyzer` | Rust language server |
+| `golang.go` | Go language support |
+| `ms-python.python` + `ms-python.black-formatter` | Python + formatting |
+| `hashicorp.terraform` | Terraform syntax and validation |
+| `ms-azuretools.vscode-docker` | Docker support |
+| `redhat.vscode-yaml` | YAML language support |
+| `mkhl.shfmt` | Shell script formatting |
+| `inferrinizzard.prettier-sql-vscode` | SQL formatting |
+| `streetsidesoftware.code-spell-checker` | Spell checking |
+| `PKief.material-icon-theme` | File icon theme |
+| `vscodevim.vim` | Vim keybindings |
+| `ahmadalli.vscode-nginx-conf` | Nginx config syntax |
+| `ms-vscode.cpptools` | C/C++ language support |
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+P` | Quick file open |
+| `Ctrl+Shift+P` | Command palette |
+| `Ctrl+\`` | Toggle terminal |
+| `Ctrl+B` | Toggle sidebar |
+| `Ctrl+Shift+E` | Explorer |
+| `Ctrl+Shift+F` | Search across files |
+| `Ctrl+D` | Select next occurrence |
+| `Ctrl+Shift+L` | Select all occurrences |
+| `Alt+Up/Down` | Move line up/down |
+| `Ctrl+/` | Toggle comment |
+| `Ctrl+Shift+K` | Delete line |
+| `Ctrl+Enter` | Insert line below |
+| `F2` | Rename symbol |
+| `F12` | Go to definition |
+| `Ctrl+Shift+F12` | Find all references |
+
+## See also
+
+- [Vim Reference](./vim.mdx) — modal editing and configuration
+- [Bash & Shell Scripting](../linux/bash.mdx) — shell scripting reference

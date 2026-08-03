@@ -1,0 +1,367 @@
+---
+title: 'PostgreSQL'
+description: 'Complete PostgreSQL reference: user management, database operations, configuration, backup/restore, performance tuning, and basic CRUD with SQL examples.'
+tags: [postgresql, databases, sql, reference]
+last_updated: '2026-08-03'
+---
+
+# PostgreSQL
+
+## Overview
+
+PostgreSQL is a powerful, open-source relational database known for reliability, standards compliance, and extensibility. This reference covers user management, database operations, configuration, backup/restore, performance tuning, and essential SQL patterns.
+
+## Connection
+
+```bash
+# Local connection
+psql -U postgres
+psql -U myuser -d mydb
+psql -U myuser -h localhost -p 5432 -d mydb
+
+# Connection string
+psql "postgresql://user:password@host:5432/mydb"
+
+# Set connection defaults via environment
+export PGHOST=localhost
+export PGPORT=5432
+export PGUSER=myuser
+export PGDATABASE=mydb
+psql       # uses env vars
+```
+
+## User management
+
+```sql
+-- Create a user (login role)
+CREATE USER myuser WITH PASSWORD 'secure_password';
+CREATE USER readonly WITH PASSWORD 'readonly_password' NOCREATEDB;
+
+-- Create a role (no login by default — used for grouping privileges)
+CREATE ROLE app_readers;
+CREATE ROLE app_writers;
+
+-- Grant role membership
+GRANT app_readers TO myuser;
+GRANT app_writers TO myuser;
+
+-- Alter a user
+ALTER USER myuser WITH PASSWORD 'new_password';
+ALTER USER myuser WITH SUPERUSER;
+ALTER USER myuser WITH CREATEDB;
+ALTER USER myuser VALID UNTIL '2026-12-31';
+
+-- List users
+\du
+SELECT rolname, rolsuper, rolcanlogin FROM pg_roles;
+
+-- Drop a user
+DROP USER myuser;
+REASSIGN OWNED BY myuser TO postgres;  -- reassign objects before dropping
+DROP OWNED BY myuser;                 -- drop all objects owned
+```
+
+### Authentication (pg_hba.conf)
+
+```
+# /etc/postgresql/<version>/main/pg_hba.conf
+
+# Type  Database  User  Address          Method
+local   all       all                    peer
+host    all       all   127.0.0.1/32    scram-sha-256
+host    mydb      app       10.0.0.0/8   scram-sha-256
+host    all       all   0.0.0.0/0       reject   # deny everything else
+```
+
+After editing, reload:
+
+```bash
+systemctl reload postgresql
+# or
+psql -c "SELECT pg_reload_conf();"
+```
+
+## Database management
+
+```sql
+-- Create database
+CREATE DATABASE mydb;
+CREATE DATABASE mydb OWNER myuser;
+CREATE DATABASE mydb ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8';
+
+-- List databases
+\l
+SELECT datname FROM pg_database;
+
+-- Rename database
+ALTER DATABASE oldname RENAME TO newname;
+
+-- Drop database (disconnect all users first)
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'mydb';
+DROP DATABASE mydb;
+
+-- Size information
+SELECT pg_database_size('mydb');
+SELECT pg_size_pretty(pg_database_size('mydb'));
+```
+
+## Schema and table operations
+
+```sql
+-- Create schema
+CREATE SCHEMA app;
+
+-- Create table
+CREATE TABLE app.users (
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    email       VARCHAR(255) UNIQUE NOT NULL,
+    role        VARCHAR(20) DEFAULT 'user',
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_users_email ON app.users(email);
+CREATE INDEX idx_users_created ON app.users(created_at);
+CREATE UNIQUE INDEX idx_users_email_lower ON app.users(LOWER(email));
+
+-- Alter table
+ALTER TABLE app.users ADD COLUMN active BOOLEAN DEFAULT true;
+ALTER TABLE app.users ALTER COLUMN role SET NOT NULL;
+ALTER TABLE app.users DROP COLUMN active;
+
+-- List tables
+\dt
+\dt app.*
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'app';
+```
+
+## Basic CRUD
+
+### Create
+
+```sql
+INSERT INTO app.users (name, email, role)
+VALUES ('Alice', 'alice@example.com', 'admin');
+
+INSERT INTO app.users (name, email)
+VALUES
+    ('Bob', 'bob@example.com'),
+    ('Carol', 'carol@example.com');
+
+INSERT INTO app.users (name, email)
+VALUES ('Dave', 'dave@example.com')
+RETURNING id, created_at;
+```
+
+### Read
+
+```sql
+-- All columns
+SELECT * FROM app.users;
+
+-- Specific columns with filter
+SELECT id, name, email FROM app.users
+WHERE role = 'admin' AND active = true;
+
+-- Ordering and limiting
+SELECT * FROM app.users ORDER BY created_at DESC LIMIT 10;
+
+-- Aggregation
+SELECT role, COUNT(*) FROM app.users GROUP BY role;
+
+-- Join example (with orders table)
+SELECT u.name, o.total, o.created_at
+FROM app.users u
+JOIN app.orders o ON u.id = o.user_id
+WHERE o.created_at > NOW() - INTERVAL '30 days';
+
+-- Window function
+SELECT name, email,
+    ROW_NUMBER() OVER (ORDER BY created_at DESC) AS row_num
+FROM app.users;
+```
+
+### Update
+
+```sql
+UPDATE app.users
+SET role = 'manager', updated_at = NOW()
+WHERE email = 'bob@example.com';
+
+-- Update with RETURNING
+UPDATE app.users
+SET active = false
+WHERE id = 5
+RETURNING id, name, active;
+```
+
+### Delete
+
+```sql
+DELETE FROM app.users WHERE id = 5;
+
+-- Soft delete (preferred pattern)
+UPDATE app.users SET active = false, updated_at = NOW() WHERE id = 5;
+```
+
+### Transactions
+
+```sql
+BEGIN;
+    INSERT INTO app.orders (user_id, total) VALUES (1, 99.99);
+    UPDATE app.users SET updated_at = NOW() WHERE id = 1;
+COMMIT;
+-- or ROLLBACK;
+```
+
+## Configuration
+
+### Key configuration files
+
+```bash
+/etc/postgresql/<version>/main/postgresql.conf    # main configuration
+/etc/postgresql/<version>/main/pg_hba.conf        # authentication
+/etc/postgresql/<version>/main/pg_ident.conf      # user name mapping
+```
+
+### Essential postgresql.conf settings
+
+```
+# Memory
+shared_buffers = '256MB'           # 25% of system RAM
+effective_cache_size = '1GB'        # 75% of system RAM
+work_mem = '16MB'                  # per-operation sort memory
+maintenance_work_mem = '64MB'      # for VACUUM, CREATE INDEX
+
+# Connections
+max_connections = 100
+
+# WAL (Write-Ahead Log)
+wal_level = replica                # 'minimal', 'replica', or 'logical'
+max_wal_size = '1GB'
+min_wal_size = '80MB'
+
+# Query planning
+random_page_cost = 1.1             # 1.1 if SSD, 4.0 if HDD
+effective_io_concurrency = 200     # SSD: 200, HDD: 2
+
+# Logging
+log_destination = 'stderr'
+logging_collector = on
+log_directory = '/var/log/postgresql'
+log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'
+log_min_duration_statement = 1000  # log queries taking >1s
+log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+```
+
+Apply changes:
+
+```bash
+systemctl reload postgresql
+# or
+psql -c "SELECT pg_reload_conf();"
+
+# Check current settings
+psql -c "SHOW shared_buffers;"
+psql -c "SELECT name, setting, unit, context FROM pg_settings WHERE name LIKE '%memory%';"
+```
+
+## Backup and restore
+
+### pg_dump / pg_restore
+
+```bash
+# Plain SQL dump
+pg_dump mydb > backup.sql
+pg_dump -U myuser -h localhost mydb > backup.sql
+
+# Custom format (compressed, parallel restore support)
+pg_dump -Fc mydb > backup.dump
+pg_dump -Fc -j 4 mydb > backup.dump   # parallel dump
+
+# Schema only
+pg_dump --schema-only mydb > schema.sql
+
+# Data only
+pg_dump --data-only mydb > data.sql
+
+# Single table
+pg_dump -t app.users mydb > users.sql
+
+# Restore
+psql mydb < backup.sql               # plain SQL
+pg_restore -d mydb backup.dump       # custom format
+pg_restore -d mydb -j 4 backup.dump  # parallel restore
+pg_restore -d mydb --clean backup.dump  # drop objects first
+pg_restore -t app.users -d mydb backup.dump  # single table
+```
+
+### pg_dumpall (entire cluster)
+
+```bash
+# Dump all databases and roles
+pg_dumpall > cluster_backup.sql
+
+# Roles only
+pg_dumpall --roles-only > roles.sql
+
+# Restore
+psql -f cluster_backup.sql postgres
+```
+
+## Performance monitoring
+
+```sql
+-- Active queries
+SELECT pid, now() - pg_stat_activity.query_start AS duration,
+    query, state
+FROM pg_stat_activity
+WHERE state != 'idle' AND pid != pg_backend_pid()
+ORDER BY duration DESC;
+
+-- Cancel a query
+SELECT pg_cancel_backend(<pid>);
+-- Terminate a connection
+SELECT pg_terminate_backend(<pid>);
+
+-- Table sizes
+SELECT schemaname, tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS total_size
+FROM pg_tables
+WHERE schemaname = 'app'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- Index usage
+SELECT schemaname, tablename, indexname,
+    idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes
+ORDER BY idx_scan DESC;
+
+-- Missing indexes (tables with sequential scans)
+SELECT schemaname, tablename, seq_scan, seq_tup_read,
+    idx_scan, seq_tup_read / seq_scan AS avg_seq_tup
+FROM pg_stat_user_tables
+WHERE seq_scan > 0
+ORDER BY seq_tup_read DESC;
+```
+
+### VACUUM and ANALYZE
+
+```sql
+-- Manual vacuum
+VACUUM app.users;
+VACUUM FULL app.users;              -- reclaim disk space (locks table)
+VACUUM ANALYZE app.users;           -- vacuum + update statistics
+
+-- Auto-vacuum settings
+SHOW autovacuum;
+SELECT relname, last_vacuum, last_autovacuum, n_dead_tup
+FROM pg_stat_user_tables;
+```
+
+## See also
+
+- [MongoDB Reference](./mongodb.mdx) — document database operations
+- [Databases Overview](./overview.mdx) — quick start and configuration locations

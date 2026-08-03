@@ -1,0 +1,231 @@
+---
+title: 'Vim'
+description: 'Complete Vim reference: essential keybindings, configuration (.vimrc), plugins, window management, and workflow patterns for daily development.'
+tags: [vim, editor, configuration, reference]
+last_updated: '2026-08-03'
+---
+
+# Vim
+
+## Overview
+
+Vim is a modal text editor designed for efficient keyboard-driven editing. It ships by default on virtually every Unix system and, once configured, rivals modern editors in productivity. This reference covers the essential keybindings, a practical `.vimrc`, and workflows for daily development.
+
+## Modes
+
+| Mode | Key to enter | Purpose |
+|---|---|---|
+| Normal | `Esc` (default) | Navigation, commands, manipulation |
+| Insert | `i`, `a`, `o`, `O`, `I`, `A` | Typing text |
+| Visual | `v` (char), `V` (line), `Ctrl+v` (block) | Selecting text |
+| Command | `:` | Ex commands (save, quit, search/replace) |
+| Replace | `R` | Overwrite mode |
+
+## Essential navigation
+
+```vim
+h  j  k  l           " left, down, up, right
+w  b                 " next / previous word start
+e  ge                " next / previous word end
+0  ^  $              " start / first non-blank / end of line
+gg  G                " top / bottom of file
+42G  :42             " go to line 42
+Ctrl+f  Ctrl+b       " page down / up
+Ctrl+d  Ctrl+u       " half-page down / up
+%                    " jump to matching bracket/paren
+f<char>  F<char>     " find char forward / backward on line
+t<char>  T<char>     " find until char forward / backward
+;  ,                 " repeat last f/t forward / backward
+```
+
+## Editing
+
+```vim
+i  a                 " insert before / after cursor
+I  A                 " insert at start / end of line
+o  O                 " new line below / above
+dd  D                " delete (cut) line / to end of line
+dw  d3w              " delete word / 3 words
+yy  Y                " yank (copy) line
+yw                  " yank word
+p  P                 " paste after / before cursor
+u  Ctrl+r            " undo / redo
+.                    " repeat last change
+r<char>             " replace single character
+c<motion>           " change (delete + enter insert)
+x  X                 " delete char under / before cursor
+>>  <<               " indent / un-indent line
+J                    " join next line to current
+~                    " toggle case
+```
+
+## Visual mode
+
+```vim
+v  V  Ctrl+v         " character / line / block select
+d  y  c              " delete / yank / change selection
+>  <                 " indent / un-indent selection
+gv                   " reselect last visual selection
+```
+
+## Search and replace
+
+```vim
+/pattern             " search forward
+?pattern             " search backward
+n  N                 " next / previous match
+*  #                 " search word under cursor forward / backward
+
+:s/old/new/g         " replace in current line
+:%s/old/new/g        " replace in entire file
+:%s/old/new/gc       " replace with confirmation
+:5,10s/old/new/g     " replace in lines 5-10
+:%s/\s\+$//e         " strip trailing whitespace
+```
+
+## Window and buffer management
+
+```vim
+:vsp  :sp            " vertical / horizontal split
+:vsp file.txt        " open file in vertical split
+Ctrl+w w             " cycle between splits
+Ctrl+w h/j/k/l       " move to left/down/up/right split
+Ctrl+w =             " equalize split sizes
+Ctrl+w _             " maximize height
+Ctrl+w |             " maximize width
+Ctrl+w q             " close split
+
+:e file.txt          " open file in current buffer
+:bnext  :bprev       " next / previous buffer
+:ls                  " list buffers
+:b1                  " switch to buffer 1
+:bd                  " delete current buffer
+:bn  :bp             " next / previous buffer
+```
+
+## Marks and jumps
+
+```vim
+ma                   " set mark 'a' at cursor
+'a                   " jump to line of mark 'a'
+`a                   " jump to exact position of mark 'a'
+:marks               " list marks
+''                   " jump back to last position
+
+Ctrl+o  Ctrl+i       " go to older / newer cursor position
+g;  g,               " go to older / newer change position
+```
+
+## Macros
+
+```vim
+qa                   " start recording macro 'a'
+...                  " perform actions
+q                    " stop recording
+@a                   " execute macro 'a'
+5@a                  " execute macro 'a' five times
+@@                   " repeat last macro
+```
+
+## Registers
+
+```vim
+:reg                 " list all registers
+"ayy                 " yank line into register 'a'
+"ap                  " paste from register 'a'
+"+y                  " yank to system clipboard
+"+p                  " paste from system clipboard
+"_dd                 " delete without storing (black hole)
+```
+
+## Configuration (.vimrc)
+
+```vim
+" ── Core ──
+set nocompatible              " use Vim defaults, not vi
+filetype plugin indent on     " enable filetype detection
+syntax on                     " syntax highlighting
+set encoding=utf-8
+
+" ── Appearance ──
+set number                    " line numbers
+set relativenumber            " relative line numbers
+set cursorline                " highlight current line
+set colorcolumn=80,100        " ruler at 80 and 100
+set showmatch                 " highlight matching brackets
+set listchars=tab:→\ ,trail:· " show tabs and trailing spaces
+set list
+
+" ── Search ──
+set hlsearch                  " highlight search results
+set incsearch                 " incremental search
+set ignorecase smartcase      " smart case sensitivity
+nnoremap <leader><space> :noh<CR>   " clear search highlight
+
+" ── Indent ──
+set expandtab                 " spaces instead of tabs
+set tabstop=2
+set shiftwidth=2
+set autoindent
+set smartindent
+
+" ── Behavior ──
+set backspace=indent,eol,start
+set hidden                    " allow switching unsaved buffers
+set history=1000
+set undofile undodir=~/.vim/undo
+set undolevels=1000
+set mouse=a                   " enable mouse
+set clipboard=unnamedplus     " use system clipboard
+set splitbelow splitright     " natural split directions
+
+" ── Key mappings ──
+let mapleader = " "
+nnoremap <leader>w :w<CR>
+nnoremap <leader>q :q<CR>
+nnoremap <leader>x :x<CR>
+nnoremap <leader>h :noh<CR>
+nnoremap <leader>e :Explore<CR>
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
+" Move lines up/down
+vnoremap J :m '>+1<CR>gv=gv
+vnoremap K :m '<-2<CR>gv=gv
+
+" ── File-specific ──
+autocmd FileType python setlocal ts=4 sw=4
+autocmd FileType yaml setlocal ts=2 sw=2
+autocmd FileType markdown setlocal spell wrap linebreak
+
+" ── Status line ──
+set laststatus=2
+set statusline=%f\ %m%r%h%w\ [%{&ff}]\ [%Y]\ [%l/%L,%c]
+```
+
+## Common workflows
+
+### Find and replace across files
+
+```vim
+" Use :grep then :cdo to replace across matches
+:grep "old_function" src/**/*.ts
+:cdo %s/old_function/new_function/g | update
+:cclose
+
+" Or interactive with :cfdo
+:cfdo %s/old_function/new_function/gc | update
+```
+
+### Editing remote files
+
+```vim
+:e scp://user@host//etc/nginx/nginx.conf
+```
+
+## See also
+
+- [VS Code Reference](./vscode.mdx) — configuration and extensions
+- [Files, Archives & File Editors](../linux/files-and-folders.mdx) — file operations on Linux

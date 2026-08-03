@@ -1,12 +1,9 @@
 ---
-title: 'Spec Kit — Spec-Driven Development'
-description: 'Concise reference for the Spec Kit workflow: constitution, specify, clarify, plan, checklist, tasks, analyze, implement, and converge commands for agentic SDD.'
+title: "Spec Kit — Spec-Driven Development"
+description: "Concise reference for the Spec Kit workflow: constitution, specify, clarify, plan, checklist, tasks, analyze, implement, and converge commands for agentic SDD."
 tags: [agentic-engineering, spec-kit, sdd, ai, workflow, reference]
-last_updated: '2026-08-03'
+last_updated: "2026-08-03"
 ---
-
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
 
 # Spec Kit — Spec-Driven Development
 
@@ -35,7 +32,7 @@ No additional installation is needed — the `/speckit.*` commands are available
 
 The commands are designed to run in order, forming a pipeline:
 
-```
+```bash
 /speckit.constitution → /speckit.specify → /speckit.clarify → /speckit.plan →
 /speckit.checklist → /speckit.tasks → /speckit.analyze → /speckit.implement →
 /speckit.converge
@@ -47,7 +44,7 @@ Only `/speckit.specify` is strictly required before `/speckit.plan`. The clarify
 
 Creates or updates the project **constitution** — the guiding principles evaluated against in every later phase. Run once up front and update when principles change.
 
-```
+```bash
 /speckit.constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
 ```
 
@@ -57,13 +54,14 @@ Creates or updates the project **constitution** — the guiding principles evalu
 
 Creates or updates a feature **specification** from a natural-language description. Focus on the **what** and **why** — user-facing behavior and goals — not the tech stack.
 
-```
+```bash
 /speckit.specify Build an application that helps me organize photos into albums grouped by date, re-orderable by drag-and-drop on the main page, with a tile preview inside each album.
 ```
 
 **Output:** `specs/<prefix>-<short-name>/spec.md`
 
 The spec captures:
+
 - User scenarios and acceptance criteria
 - Functional requirements
 - Success criteria (measurable, technology-agnostic)
@@ -73,7 +71,7 @@ The spec captures:
 
 Asks up to five targeted questions about underspecified areas of the current spec and encodes your answers back into `spec.md`. Run as many times as needed before planning.
 
-```
+```bash
 /speckit.clarify Focus on the task card behavior: status changes, comment limits, and who can be assigned.
 ```
 
@@ -83,7 +81,7 @@ Asks up to five targeted questions about underspecified areas of the current spe
 
 Runs the planning process to generate design artifacts from the spec. Provide your tech stack, architecture, and technical constraints as arguments.
 
-```
+```bash
 /speckit.plan Use .NET Aspire with Postgres. The frontend is Blazor Server with drag-and-drop boards and real-time updates. Expose REST APIs for projects, tasks, and notifications.
 ```
 
@@ -93,11 +91,11 @@ Runs the planning process to generate design artifacts from the spec. Provide yo
 
 Generates a quality checklist — think of it as **unit tests for your requirements**. It checks whether the spec itself is complete, clear, unambiguous, and consistent.
 
-```
+```bash
 /speckit.checklist
 ```
 
-```
+```bash
 /speckit.checklist Focus on the Kanban board interactions and comment permissions.
 ```
 
@@ -109,16 +107,16 @@ If the checklist surfaces gaps, loop back to `/speckit.clarify` or `/speckit.spe
 
 Generates an actionable, **dependency-ordered** `tasks.md` from the design artifacts. Tasks are organized into phases:
 
-| Phase | Purpose |
-|---|---|
-| **Setup** | Project scaffolding, dependencies, tooling. |
-| **Foundational** | Blocking prerequisites all user stories depend on. |
-| **User Story N** | One phase per user story, in priority order. |
-| **Polish** | Cross-cutting concerns: error handling, logging, docs. |
+| Phase            | Purpose                                                |
+| ---------------- | ------------------------------------------------------ |
+| **Setup**        | Project scaffolding, dependencies, tooling.            |
+| **Foundational** | Blocking prerequisites all user stories depend on.     |
+| **User Story N** | One phase per user story, in priority order.           |
+| **Polish**       | Cross-cutting concerns: error handling, logging, docs. |
 
 Tests are generated within a user story's phase when requested. Tasks are marked for parallel execution where possible.
 
-```
+```bash
 /speckit.tasks
 ```
 
@@ -128,7 +126,7 @@ Tests are generated within a user story's phase when requested. Tasks are marked
 
 Performs a **read-only** cross-artifact consistency and quality analysis across `spec.md`, `plan.md`, and `tasks.md`. It never edits files — it produces a report and can optionally suggest remediations.
 
-```
+```bash
 /speckit.analyze
 ```
 
@@ -138,17 +136,17 @@ Performs a **read-only** cross-artifact consistency and quality analysis across 
 
 Executes the tasks in `tasks.md`, running each phase in dependency order and respecting parallel markers.
 
-```
+```bash
 /speckit.implement
 ```
 
 For large features, scope each run to avoid overwhelming the agent:
 
-```
+```bash
 /speckit.implement Implement only the Setup and Foundational phases: project scaffolding and the project/task data model with basic CRUD. Stop before the user-story features.
 ```
 
-```
+```bash
 /speckit.implement Now implement the Kanban board user story: drag-and-drop between columns.
 ```
 
@@ -158,7 +156,7 @@ Verify each stage works before moving to the next.
 
 Assesses the codebase against the feature's spec, plan, and tasks to confirm nothing was missed. It is **append-only**: it never edits or deletes code. Its only possible write is adding tasks to `tasks.md`.
 
-```
+```bash
 /speckit.converge
 ```
 
@@ -185,13 +183,13 @@ Assesses the codebase against the feature's spec, plan, and tasks to confirm not
 
 Start with a small, well-defined feature:
 
-```
+```bash
 /speckit.specify Add a health check endpoint that returns status of all dependent services
 ```
 
 Then immediately plan and implement:
 
-```
+```bash
 /speckit.plan Use Express.js with a /health route that checks PostgreSQL and Redis connectivity.
 /speckit.tasks
 /speckit.implement

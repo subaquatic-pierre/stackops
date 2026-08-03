@@ -1,7 +1,14 @@
 /* ── Sidebar menu styling ── */
 .theme-doc-sidebar-container > div {
+  min-height: 0; /* required for overflow-y: auto to work in a flex child */
+}
+
+/* Override default Docusaurus padding-top on the sidebar desktop wrapper.
+   Docusaurus injects padding-top: var(--ifm-navbar-height) via a CSS module
+   class like `sidebar_njMd`. The attribute selector matches the hashed class
+   name regardless of DOM depth or CSS layer ordering. */
+[class*="sidebar_"] {
   padding-top: 0 !important;
-  height: auto !important;
 }
 
 .theme-doc-sidebar-menu .menu__list-item {

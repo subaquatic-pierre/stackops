@@ -1,0 +1,335 @@
+---
+title: 'Observability Stack — Prometheus, Grafana, Loki, Mimir'
+description: 'Observability reference: Prometheus for metrics, Loki for logs, Grafana for visualization, Mimir for long-term storage, plus architecture tradeoffs and deployment patterns.'
+tags: [sre, observability, prometheus, grafana, loki, mimir, reference]
+last_updated: '2026-08-03'
+---
+
+# Observability Stack — Prometheus, Grafana, Loki, Mimir
+
+## Overview
+
+The Grafana observability stack provides a unified pipeline for metrics (Prometheus/Mimir), logs (Loki), and visualization (Grafana). This reference covers each component's role, common deployment patterns, and the architectural tradeoffs between monolithic and microservice deployments.
+
+## Component roles
+
+| Component | Purpose | Port |
+|---|---|---|
+| **Prometheus** | Metrics collection, short-term storage, alerting | 9090 |
+| **Grafana** | Dashboards, visualization, alerting UI | 3000 |
+| **Loki** | Log aggregation, storage, querying | 3100 |
+| **Promtail / Alloy** | Log collection agent (ships logs to Loki) | 9080 |
+| **Mimir** | Long-term, horizontally scalable metrics storage | 9009 |
+| **Alertmanager** | Alert routing, grouping, silencing | 9093 |
+
+## Prometheus
+
+### Architecture
+
+Prometheus scrapes metrics from instrumented targets via HTTP, stores them in a local time-series database, and evaluates alerting rules. For high availability, run two identical instances scraping the same targets — use an HA pair, not a cluster.
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "node"
+    static_configs:
+      - targets: ["localhost:9100", "node-2:9100"]
+
+  - job_name: "kubernetes-pods"
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+
+rule_files:
+  - "alerts/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+```
+
+### Alerting rules
+
+```yaml
+# alerts/node.yml
+groups:
+  - name: node
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for 10 minutes (current: {{ $value }}%)"
+
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+```
+
+### PromQL quick reference
+
+```promql
+# Rate (per-second average over time window)
+rate(http_requests_total[5m])
+
+# Increase (total increase over time window)
+increase(http_requests_total[1h])
+
+# Histogram quantile
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# Aggregation
+sum(rate(http_requests_total[5m])) by (status_code)
+avg(node_cpu_seconds_total) by (instance)
+
+# Top K
+topk(5, rate(http_requests_total[5m]))
+
+# Arithmetic
+rate(http_errors_total[5m]) / rate(http_requests_total[5m]) * 100
+```
+
+## Loki
+
+Loki indexes log metadata (labels) but not the log content itself, keeping storage efficient.
+
+### LogQL quick reference
+
+```logql
+# Basic query
+{app="myapp"} |= "error"
+
+# Filter with regex
+{app="myapp"} |~ "ERROR|FATAL"
+
+# Exclude pattern
+{app="myapp"} != "DEBUG"
+
+# Parse JSON logs and filter
+{app="myapp"} | json | status_code >= 500
+
+# Aggregate
+sum(count_over_time({app="myapp"} |= "error" [5m]))
+
+# Rate of errors over time
+rate({app="myapp"} |= "error" [5m])
+```
+
+### Promtail configuration
+
+```yaml
+# promtail-config.yaml
+server:
+  http_listen_port: 9080
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: system
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: varlogs
+          __path__: /var/log/*.log
+
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        target_label: container
+```
+
+## Mimir
+
+Mimir is a horizontally scalable, highly available, long-term storage backend for Prometheus metrics. It accepts Prometheus remote write and serves PromQL queries.
+
+### When to use Mimir
+
+| Need | Prometheus | Mimir |
+|---|---|---|
+| Short-term metrics (hours/days) | ✓ | ✓ |
+| Long-term retention (months/years) | ✗ | ✓ |
+| High availability (multi-node) | HA pair only | ✓ (clustered) |
+| Multi-tenancy | ✗ | ✓ |
+| Global view (multi-cluster) | Federation only | ✓ |
+
+### Key architecture components
+
+| Component | Purpose |
+|---|---|
+| **Distributor** | Validates and distributes incoming samples to ingesters |
+| **Ingester** | Buffers recent data in memory, flushes to object storage |
+| **Querier** | Handles PromQL queries across ingesters and store-gateways |
+| **Store-gateway** | Serves long-term data from object storage (S3, GCS) |
+| **Compactor** | Merges and deduplicates blocks in object storage |
+| **Ruler** | Evaluates recording and alerting rules |
+
+## Architecture tradeoffs
+
+### Monolithic deployment
+
+**Best for:** Small teams, single cluster, simple operations.
+
+| Pros | Cons |
+|---|---|
+| Simple to deploy and debug | No high availability (single points of failure) |
+| Low resource overhead | No horizontal scaling |
+| Single config file | Cannot isolate noisy neighbors |
+
+**Deploy:** Single Prometheus, Loki, Grafana instance per cluster. Use `docker-compose` or a single Helm chart.
+
+### Microservice / HA deployment
+
+**Best for:** Multi-cluster, multi-tenant, production at scale.
+
+| Pros | Cons |
+|---|---|
+| Horizontal scaling per component | Complex deployment and networking |
+| Fault isolation (component failure doesn't take down everything) | Higher resource overhead |
+| Multi-tenancy with isolation | Requires object storage (S3/GCS) |
+| Long-term retention via Mimir | Operational complexity |
+
+**Deploy:** Mimir in microservice mode, Loki in scalable mode (separate read/write paths), Grafana with PostgreSQL backend.
+
+### Recommended production pattern
+
+```
+┌─────────────────────────────────────────────────┐
+│  Kubernetes Cluster                              │
+│                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │ Promtail │  │  Node    │  │   App    │       │
+│  │(DaemonSet)│ │ Exporter │  │  /metrics│       │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘       │
+│       │             │             │              │
+│       ▼             ▼             ▼              │
+│  ┌─────────┐  ┌────────────────────────┐        │
+│  │  Loki   │  │  Prometheus (HA pair)  │        │
+│  │(scalable)│ │  → remote_write → Mimir │       │
+│  └────┬────┘  └────────────────────────┘        │
+│       │                                         │
+└───────┼─────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────┐     ┌──────────────┐
+│  Grafana      │────▶│  Mimir (S3)  │
+│  Dashboards   │     │  Long-term   │
+│  Alerts       │     │  metrics     │
+└───────────────┘     └──────────────┘
+```
+
+## Grafana
+
+### Data source setup
+
+```yaml
+# datasource.yml (provisioning)
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    access: proxy
+    isDefault: true
+
+  - name: Loki
+    type: loki
+    url: http://loki:3100
+    access: proxy
+
+  - name: Mimir
+    type: prometheus
+    url: http://mimir-nginx:9009/prometheus
+    access: proxy
+```
+
+### Dashboard JSON model essentials
+
+```json
+{
+  "panels": [
+    {
+      "title": "Request Rate",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[5m])",
+          "legendFormat": "{{status_code}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "type": "query",
+        "query": "label_values(node_cpu_seconds_total, instance)"
+      }
+    ]
+  }
+}
+```
+
+## Alertmanager
+
+```yaml
+# alertmanager.yml
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 4h
+  receiver: "slack-critical"
+  routes:
+    - match:
+        severity: critical
+      receiver: "pagerduty"
+    - match:
+        severity: warning
+      receiver: "slack-warnings"
+
+receivers:
+  - name: "slack-critical"
+    slack_configs:
+      - channel: "#alerts-critical"
+        api_url: "https://hooks.slack.com/services/..."
+        title: "{{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}"
+
+  - name: "pagerduty"
+    pagerduty_configs:
+      - routing_key: "<pagerduty-key>"
+        severity: critical
+
+  - name: "slack-warnings"
+    slack_configs:
+      - channel: "#alerts-warnings"
+        api_url: "https://hooks.slack.com/services/..."
+```
+
+## See also
+
+- [GitOps with ArgoCD](../gitops/argocd.mdx) — continuous deployment patterns
+- [AWS VPC Architecture Overview](../aws/vpc-architecture-overview.mdx) — network architecture

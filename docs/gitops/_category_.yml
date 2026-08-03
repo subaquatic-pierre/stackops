@@ -1,0 +1,6 @@
+label: GitOps
+link:
+  type: generated-index
+  title: GitOps
+  description: GitOps patterns, ArgoCD, and continuous deployment references.
+  slug: gitops

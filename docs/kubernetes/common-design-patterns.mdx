@@ -1,0 +1,266 @@
+---
+title: 'Kubernetes Common Design Patterns'
+description: 'Kubernetes design patterns: sidecar, ambassador, adapter, init containers, health checks, resource management, pod disruption budgets, and anti-affinity rules.'
+tags: [kubernetes, design-patterns, architecture, reference]
+last_updated: '2026-08-03'
+---
+
+# Kubernetes Common Design Patterns
+
+## Overview
+
+Kubernetes provides powerful primitives that enable common distributed-system design patterns without custom code. This reference catalogs the most useful patterns — from multi-container pod compositions to resource management and availability strategies.
+
+## Multi-container pod patterns
+
+### Sidecar
+
+A helper container that augments the main application — logging, proxying, configuration reloading.
+
+```yaml
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+    - name: log-shipper
+      image: fluentd:latest
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/app
+          readOnly: true
+      env:
+        - name: LOG_DESTINATION
+          value: "elasticsearch.logging.svc:9200"
+  volumes:
+    - name: logs
+      emptyDir: {}
+```
+
+### Ambassador
+
+A proxy container that handles network connections on behalf of the main app — service mesh sidecar, database proxy.
+
+```yaml
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      env:
+        - name: CACHE_HOST
+          value: "localhost"      # Connect through ambassador
+        - name: CACHE_PORT
+          value: "6379"
+    - name: redis-ambassador
+      image: envoyproxy/envoy:latest
+      ports:
+        - containerPort: 6379
+      volumeMounts:
+        - name: envoy-config
+          mountPath: /etc/envoy
+  volumes:
+    - name: envoy-config
+      configMap:
+        name: redis-ambassador-config
+```
+
+### Adapter
+
+Transforms application output (metrics, logs) to a standard interface that monitoring tools expect.
+
+```yaml
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+    - name: metrics-adapter
+      image: prometheus-nginxlog-exporter:latest
+      ports:
+        - containerPort: 9113
+          name: metrics
+      args:
+        - -format=json
+        - -namespace=nginx
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log/nginx
+          readOnly: true
+```
+
+### Init containers
+
+Run before the main container starts — schema migrations, secret fetching, preconditions.
+
+```yaml
+spec:
+  initContainers:
+    - name: check-db
+      image: postgres:16-alpine
+      command: ["sh", "-c", "until pg_isready -h db -U app -d appdb; do sleep 2; done"]
+    - name: migrate
+      image: myapp-migrate:latest
+      env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-creds
+              key: url
+  containers:
+    - name: app
+      image: myapp:latest
+```
+
+## Health checks
+
+### Liveness vs Readiness vs Startup
+
+```yaml
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      # Startup probe: delays liveness until app is ready (protects slow-starting apps)
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 3000
+        initialDelaySeconds: 0
+        periodSeconds: 5
+        failureThreshold: 30       # 30 * 5s = 150s max startup time
+      # Liveness: is the app alive? Restart if failing.
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 3000
+        initialDelaySeconds: 0
+        periodSeconds: 15
+        timeoutSeconds: 5
+        failureThreshold: 3
+      # Readiness: is the app ready to serve traffic? Remove from service if failing.
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 3000
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 3
+```
+
+## Resource management
+
+### Requests and limits
+
+```yaml
+resources:
+  requests:        # What the container is guaranteed
+    cpu: "250m"
+    memory: "256Mi"
+  limits:          # What the container may burst to
+    cpu: "1000m"
+    memory: "512Mi"
+```
+
+| Setting | Effect |
+|---|---|
+| `requests` | Minimum guaranteed resources. Used by the scheduler for placement. |
+| `limits` | Hard cap. CPU throttling above limit; OOMKill for memory above limit. |
+
+**Best practices:**
+- Always set `requests`. They inform the scheduler and prevent node overcommit.
+- Set `limits` for memory (OOM is worse than throttling).
+- CPU limits are debatable — some teams omit them and rely on requests.
+
+### Quality of Service (QoS) classes
+
+| Class | Requests? | Limits? | Priority for eviction |
+|---|---|---|---|
+| **Guaranteed** | Requests = Limits (both set) | | Lowest |
+| **Burstable** | Requests set, Limits not equal | | Medium |
+| **BestEffort** | Neither set | | Highest (evicted first) |
+
+## Pod disruption budgets (PDB)
+
+PDBs protect against voluntary disruptions (node drains, cluster autoscaler):
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-app-pdb
+spec:
+  minAvailable: 2         # At least 2 pods must be running
+  # OR
+  maxUnavailable: 1       # At most 1 pod may be unavailable
+  selector:
+    matchLabels:
+      app: my-app
+```
+
+## Scheduling and affinity
+
+### Pod anti-affinity (spread across nodes)
+
+```yaml
+spec:
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app: my-app
+            topologyKey: kubernetes.io/hostname
+```
+
+### Node affinity
+
+```yaml
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: ["t3.medium", "t3.large"]
+```
+
+### Topology spread constraints
+
+```yaml
+spec:
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app: my-app
+```
+
+## Taints and tolerations
+
+Nodes repel pods that don't tolerate their taints:
+
+```bash
+kubectl taint nodes worker-1 dedicated=database:NoSchedule
+```
+
+```yaml
+spec:
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "database"
+      effect: "NoSchedule"
+```
+
+## See also
+
+- [Deployment Manifest Examples](./deployment-manifest-examples.mdx)
+- [Node Setup](./node-setup.mdx)
+- [Kubernetes RBAC & User Management](./user-management.mdx)

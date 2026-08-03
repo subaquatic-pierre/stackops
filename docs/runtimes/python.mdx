@@ -1,0 +1,387 @@
+---
+title: 'Python'
+description: 'Complete Python reference: FastAPI, bare scripts, package management (uv, pip, venv), project tooling, and production patterns.'
+tags: [python, fastapi, runtime, reference]
+last_updated: '2026-08-03'
+---
+
+# Python
+
+## Overview
+
+Python is the dominant language for backend services, data engineering, and scripting. This reference covers package management (with a focus on the modern `uv` toolchain), FastAPI project patterns, bare-script conventions, and production deployment practices.
+
+## Package management
+
+### uv (modern, recommended)
+
+`uv` is a fast Python package and project manager written in Rust. It replaces `pip`, `pip-tools`, `virtualenv`, and `poetry`.
+
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create a new project
+uv init myproject
+cd myproject
+
+# Add dependencies
+uv add fastapi uvicorn[standard] sqlalchemy
+
+# Add dev dependencies
+uv add --dev pytest ruff mypy
+
+# Sync environment (install all deps from lockfile)
+uv sync
+
+# Run a command in the project environment
+uv run python main.py
+uv run pytest
+uv run ruff check .
+
+# Run a one-off script with dependencies
+uv run --with httpx python -c "import httpx; print(httpx.get('https://api.example.com').json())"
+
+# Update all packages
+uv lock --upgrade
+
+# Export to requirements.txt
+uv export --format requirements-txt > requirements.txt
+```
+
+### pip + venv (traditional)
+
+```bash
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate          # Linux/macOS
+.venv\Scripts\activate             # Windows
+
+# Install packages
+pip install fastapi uvicorn[standard]
+pip install -r requirements.txt
+pip freeze > requirements.txt      # Pin current versions
+
+# Exit venv
+deactivate
+```
+
+### Package tool comparison
+
+| Tool | Speed | Lockfile | Workspace | Use case |
+|---|---|---|---|---|
+| `uv` | Very fast | `uv.lock` | Monorepo support | Modern projects, CI |
+| `pip + venv` | Slow | `requirements.txt` (manual pin) | Manual | Simple projects |
+| `poetry` | Moderate | `poetry.lock` | Workspace support | Library packaging |
+| `pipenv` | Slow | `Pipfile.lock` | Limited | Legacy projects |
+
+## FastAPI patterns
+
+### Minimal server
+
+```python
+# main.py
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: connect to database, load models, etc.
+    print("Starting up...")
+    yield
+    # Shutdown: close connections, flush buffers, etc.
+    print("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/")
+async def root():
+    return {"message": "Hello, World"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+```
+
+```bash
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Structured routes
+
+```python
+# routes/users.py
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+
+@router.post("/", response_model=UserResponse, status_code=201)
+async def create_user(user: UserCreate):
+    # Validate and create user
+    return {"id": 1, "name": user.name, "email": user.email}
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int):
+    if user_id != 1:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"id": user_id, "name": "John", "email": "john@example.com"}
+```
+
+### Dependency injection
+
+```python
+# deps.py
+from typing import Annotated
+from fastapi import Depends, Header, HTTPException
+
+async def get_api_key(x_api_key: Annotated[str, Header()]) -> str:
+    if x_api_key != "expected-secret":
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return x_api_key
+
+async def get_db():
+    # In production: return an async database session
+    db = {"connected": True}
+    try:
+        yield db
+    finally:
+        pass  # Close connection
+
+# Usage in route
+@app.get("/secure-data")
+async def secure_endpoint(
+    api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[dict, Depends(get_db)],
+):
+    return {"data": "sensitive", "db": db}
+```
+
+### Pydantic validation
+
+```python
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
+from datetime import datetime
+
+class OrderCreate(BaseModel):
+    product_id: int = Field(gt=0, description="Product identifier")
+    quantity: int = Field(ge=1, le=100, description="Items to order")
+    email: str = Field(pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("quantity")
+    @classmethod
+    def validate_quantity(cls, v: int) -> int:
+        if v > 50:
+            raise ValueError("Large orders require approval")
+        return v
+```
+
+### Background tasks
+
+```python
+from fastapi import BackgroundTasks
+
+def send_confirmation_email(email: str, order_id: int):
+    # Simulate sending email (use a real email service in production)
+    print(f"Sending confirmation to {email} for order {order_id}")
+
+@app.post("/orders")
+async def create_order(
+    order: OrderCreate,
+    background_tasks: BackgroundTasks,
+):
+    order_id = 42  # Create in database
+    background_tasks.add_task(send_confirmation_email, order.email, order_id)
+    return {"order_id": order_id, "status": "pending"}
+```
+
+### Middleware
+
+```python
+from fastapi import Request
+import time
+
+@app.middleware("http")
+async def add_timing_header(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed = time.perf_counter() - start
+    response.headers["X-Process-Time"] = str(elapsed)
+    return response
+```
+
+## Bare Python scripts
+
+### Shebang and safeties
+
+```python
+#!/usr/bin/env python3
+"""myscript.py — one-line description of what this does."""
+
+import sys
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <input-file>", file=sys.stderr)
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    # ... do work ...
+
+if __name__ == "__main__":
+    main()
+```
+
+### Common recipe: read JSON/CSV
+
+```python
+import json
+import csv
+from pathlib import Path
+
+# Read JSON
+data = json.loads(Path("config.json").read_text())
+
+# Write JSON
+Path("output.json").write_text(json.dumps(data, indent=2))
+
+# Read CSV
+with open("data.csv") as f:
+    reader = csv.DictReader(f)
+    rows = list(reader)
+```
+
+### Common recipe: subprocess commands
+
+```python
+import subprocess
+
+result = subprocess.run(
+    ["git", "log", "--oneline", "-5"],
+    capture_output=True,
+    text=True,
+    check=True,
+)
+print(result.stdout)
+
+# Pipe
+ls = subprocess.Popen(["ls", "/etc"], stdout=subprocess.PIPE)
+grep = subprocess.run(
+    ["grep", "host"],
+    stdin=ls.stdout,
+    capture_output=True,
+    text=True,
+)
+```
+
+### Common recipe: HTTP client
+
+```python
+import httpx
+
+async def fetch_data(url: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+```
+
+## Common project structure
+
+```
+myproject/
+├── pyproject.toml          # Project metadata and dependencies
+├── uv.lock                 # Lockfile (generated)
+├── src/
+│   └── myproject/
+│       ├── __init__.py
+│       ├── main.py         # Application entrypoint
+│       ├── config.py       # Settings / environment
+│       ├── routes/
+│       │   ├── __init__.py
+│       │   └── users.py
+│       ├── models/
+│       │   ├── __init__.py
+│       │   └── user.py
+│       └── deps.py         # Dependencies (DB, auth)
+├── tests/
+│   ├── __init__.py
+│   └── test_users.py
+├── Dockerfile
+└── README.md
+```
+
+## Production deployment
+
+### Dockerfile
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy project files
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+# Copy source
+COPY src/ ./src/
+
+EXPOSE 8000
+CMD ["uv", "run", "uvicorn", "src.myproject.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### systemd service unit
+
+```ini
+[Unit]
+Description=My FastAPI Application
+After=network.target
+
+[Service]
+Type=simple
+User=app
+Group=app
+WorkingDirectory=/opt/myproject
+ExecStart=/usr/local/bin/uv run uvicorn src.myproject.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Environment configuration
+
+```python
+# config.py
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    database_url: str = "postgresql://localhost:5432/mydb"
+    redis_url: str = "redis://localhost:6379"
+    secret_key: str
+    environment: str = "development"
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+settings = Settings()
+```
+
+## See also
+
+- [Rust Reference](./rust.mdx) — systems programming with cargo and axum
+- [Node.js & TypeScript](./nodejs.mdx) — JavaScript/TypeScript runtime reference

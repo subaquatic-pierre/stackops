@@ -1,0 +1,270 @@
+---
+title: 'Amazon EKS'
+description: 'Amazon EKS reference: CSI drivers, AWS VPC CNI networking, load balancer controller with ingress, IAM roles for service accounts, and managed node groups.'
+tags: [kubernetes, eks, aws, networking, csi, reference]
+last_updated: '2026-08-03'
+---
+
+# Amazon EKS
+
+## Overview
+
+Amazon Elastic Kubernetes Service (EKS) is AWS's managed Kubernetes offering. It handles the control plane (API server, etcd, scheduler) while you manage worker nodes, networking, storage, and application deployments. This reference covers the AWS-specific integrations: CSI drivers, VPC CNI, load balancer ingress, and IAM roles.
+
+## EBS CSI driver
+
+The AWS EBS CSI driver provisions persistent block storage for pods using EBS volumes.
+
+### Installation (via EKS add-on or Helm)
+
+```bash
+# Via EKS add-on (recommended)
+aws eks create-addon --cluster-name my-cluster \
+  --addon-name aws-ebs-csi-driver \
+  --service-account-role-arn arn:aws:iam::123456789:role/AmazonEKS_EBS_CSI_DriverRole
+
+# Check status
+aws eks describe-addon --cluster-name my-cluster --addon-name aws-ebs-csi-driver
+```
+
+### IAM role for the CSI driver
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Federated": "arn:aws:iam::123456789:oidc-provider/oidc.eks.us-east-2.amazonaws.com/id/..." },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.us-east-2.amazonaws.com/id/...:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+        }
+      }
+    }
+  ]
+}
+```
+
+### StorageClass and PVC
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp3
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+  iops: "3000"
+  throughput: "125"
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ebs-gp3
+  resources:
+    requests:
+      storage: 50Gi
+```
+
+### Using in a pod
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: app-data
+```
+
+## EFS CSI driver
+
+For shared (ReadWriteMany) filesystem access across pods:
+
+```bash
+# Install via add-on
+aws eks create-addon --cluster-name my-cluster \
+  --addon-name aws-efs-csi-driver \
+  --service-account-role-arn arn:aws:iam::123456789:role/AmazonEKS_EFS_CSI_DriverRole
+```
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-data
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+## AWS VPC CNI
+
+The VPC CNI plugin assigns native VPC IP addresses to pods, enabling direct communication with other AWS services.
+
+### Key features
+
+- Each pod gets an IP from the VPC CIDR range (not an overlay)
+- Pods can directly access RDS, ElastiCache, and other VPC services without NAT
+- Secondary IP addresses are attached to ENIs on worker nodes
+
+### Common configurations
+
+```bash
+# Enable prefix delegation (more pods per node)
+kubectl set env daemonset aws-node -n kube-system ENABLE_PREFIX_DELEGATION=true
+
+# Configure minimum and maximum IPs per ENI
+kubectl set env daemonset aws-node -n kube-system WARM_IP_TARGET=2 MINIMUM_IP_TARGET=10
+
+# Custom networking (pod traffic uses different subnets than node traffic)
+kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG=true
+kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.kubernetes.io/zone
+```
+
+### IP exhaustion troubleshooting
+
+```bash
+# Check available IPs per node
+kubectl describe nodes | grep -A5 "Allocatable"
+
+# View CNI metrics
+kubectl logs -n kube-system daemonset/aws-node | grep "ip address"
+
+# Enable SNAT for pods accessing external services (if running out of IPs)
+kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_EXTERNALSNAT=true
+```
+
+## AWS Load Balancer Controller
+
+Replaces the in-tree cloud provider for provisioning ALBs and NLBs from Kubernetes Ingress and Service resources.
+
+### Installation
+
+```bash
+# Create IAM policy and role (using eksctl or manual)
+eksctl create iamserviceaccount \
+  --cluster my-cluster \
+  --namespace kube-system \
+  --name aws-load-balancer-controller \
+  --attach-policy-arn arn:aws:iam::123456789:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve
+
+# Install via Helm
+helm repo add eks https://aws.github.io/eks-charts
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=my-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller
+```
+
+### Ingress with ALB
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-2:123456789:certificate/abc-123
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+spec:
+  ingressClassName: alb
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app
+                port:
+                  number: 80
+```
+
+### Service with NLB
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-tcp-app
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+spec:
+  type: LoadBalancer
+  selector:
+    app: my-tcp-app
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+```
+
+## IAM Roles for Service Accounts (IRSA)
+
+Assign IAM roles directly to pods without sharing node-level instance profiles:
+
+```bash
+# Create the service account with an IAM role
+eksctl create iamserviceaccount \
+  --name s3-reader \
+  --namespace default \
+  --cluster my-cluster \
+  --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
+  --approve
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: s3-reader-app
+spec:
+  serviceAccountName: s3-reader
+  containers:
+    - name: app
+      image: amazon/aws-cli
+      command: ["aws", "s3", "ls"]
+```
+
+## See also
+
+- [Terraform EKS + Kubernetes](../terraform/terraform-multiple-providers.mdx) — provisioning EKS with Terraform
+- [Helm Reference](./helm.mdx) — package management for Kubernetes
+- [Node Setup](./node-setup.mdx) — worker and control plane node configuration

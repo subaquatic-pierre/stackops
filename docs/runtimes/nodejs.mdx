@@ -1,0 +1,281 @@
+---
+title: 'Node.js & TypeScript'
+description: 'Node.js and TypeScript reference: project setup, ESLint and Prettier configuration, common patterns, and production deployment.'
+tags: [nodejs, typescript, eslint, prettier, runtime, reference]
+last_updated: '2026-08-03'
+---
+
+# Node.js & TypeScript
+
+## Overview
+
+Node.js paired with TypeScript is the dominant stack for full-stack JavaScript development. This reference covers project setup, TypeScript configuration, ESLint and Prettier workflows, and production patterns.
+
+## Project setup
+
+### Package manager choice
+
+```bash
+# npm (default)
+npm init -y
+
+# pnpm (recommended — fast, disk-efficient)
+npm install -g pnpm
+pnpm init
+
+# yarn
+yarn init -y
+```
+
+### TypeScript configuration
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### package.json scripts
+
+```json
+{
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest",
+    "lint": "eslint src/",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "typecheck": "tsc --noEmit"
+  }
+}
+```
+
+## ESLint configuration
+
+### Flat config (modern)
+
+```js
+// eslint.config.js
+import tseslint from "typescript-eslint";
+import prettier from "eslint-config-prettier";
+
+export default tseslint.config(
+  { ignores: ["dist/", "node_modules/"] },
+  { files: ["src/**/*.{ts,tsx}"], extends: [tseslint.configs.recommended] },
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "no-console": "warn",
+      "eqeqeq": ["error", "always"],
+    },
+  },
+  prettier, // must be last to override formatting rules
+);
+```
+
+### Legacy `.eslintrc` format
+
+```json
+{
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-console": "warn",
+    "eqeqeq": "error"
+  }
+}
+```
+
+### Common ESLint commands
+
+```bash
+# Run linter
+eslint src/
+
+# Fix auto-fixable issues
+eslint src/ --fix
+
+# Lint specific file
+eslint src/server.ts
+
+# Quiet mode (errors only)
+eslint src/ --quiet
+```
+
+## Prettier configuration
+
+```json
+// .prettierrc
+{
+  "semi": true,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "arrowParens": "always",
+  "endOfLine": "lf"
+}
+```
+
+```json
+// .prettierignore
+dist/
+node_modules/
+coverage/
+pnpm-lock.yaml
+package-lock.json
+```
+
+### VS Code integration
+
+```json
+// .vscode/settings.json
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.validate": ["typescript", "typescriptreact"]
+}
+```
+
+## Common patterns
+
+### Express with TypeScript
+
+```typescript
+// src/server.ts
+import express, { Request, Response, NextFunction } from "express";
+
+const app = express();
+app.use(express.json());
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+const users: User[] = [];
+
+app.get("/users", (_req: Request, res: Response) => {
+  res.json(users);
+});
+
+app.post("/users", (req: Request, res: Response) => {
+  const { name, email } = req.body;
+  const user: User = { id: users.length + 1, name, email };
+  users.push(user);
+  res.status(201).json(user);
+});
+
+// Centralized error handler
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+app.listen(3000, () => console.log("Server on http://localhost:3000"));
+```
+
+### Environment configuration
+
+```typescript
+// src/config.ts
+import { z } from "zod";
+
+const envSchema = z.object({
+  PORT: z.coerce.number().default(3000),
+  DATABASE_URL: z.string(),
+  REDIS_URL: z.string().optional(),
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+});
+
+export const env = envSchema.parse(process.env);
+```
+
+### Async error wrapper
+
+```typescript
+// src/utils.ts
+import { Request, Response, NextFunction } from "express";
+
+type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+export const asyncHandler = (fn: AsyncHandler) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+};
+
+// Usage
+app.get(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const user = await findUserById(req.params.id);
+    if (!user) return res.status(404).json({ error: "Not found" });
+    res.json(user);
+  }),
+);
+```
+
+### API client with fetch
+
+```typescript
+// src/client.ts
+interface ApiError {
+  status: number;
+  message: string;
+}
+
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    ...options,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const error: ApiError = { status: res.status, message: body.error || res.statusText };
+    throw error;
+  }
+
+  return res.json();
+}
+
+// Usage
+const users = await apiFetch<User[]>("/users");
+await apiFetch("/users", { method: "POST", body: JSON.stringify({ name: "John" }) });
+```
+
+## See also
+
+- [Python Reference](./python.mdx) — FastAPI, uv, and scripting patterns
+- [Rust Reference](./rust.mdx) — systems programming with cargo and axum

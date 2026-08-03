@@ -1,0 +1,283 @@
+---
+title: 'Helm'
+description: 'Helm reference: chart structure, common commands, values overrides, templating functions, hooks, dependency management, and production patterns.'
+tags: [kubernetes, helm, packaging, deployment, reference]
+last_updated: '2026-08-03'
+---
+
+# Helm
+
+## Overview
+
+Helm is the package manager for Kubernetes. It bundles Kubernetes manifests into charts — versioned, shareable, and parameterizable. Helm handles installation, upgrades, rollbacks, and dependency management, making it the standard way to distribute and deploy Kubernetes applications.
+
+## Core commands
+
+```bash
+# Add a chart repository
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+# Search
+helm search repo nginx
+helm search repo bitnami/postgresql --versions
+
+# Install a chart
+helm install my-release bitnami/nginx
+helm install my-release bitnami/nginx --namespace production --create-namespace
+helm install my-release bitnami/nginx -f values-prod.yaml
+helm install my-release bitnami/nginx --set replicaCount=3
+
+# Dry-run (render templates without applying)
+helm install my-release bitnami/nginx --dry-run --debug
+helm template my-release bitnami/nginx -f values.yaml
+
+# List releases
+helm list
+helm list -A                              # all namespaces
+helm list --failed
+helm list --pending
+
+# Upgrade
+helm upgrade my-release bitnami/nginx
+helm upgrade my-release bitnami/nginx -f values-prod.yaml
+helm upgrade my-release bitnami/nginx --set image.tag=1.25
+
+# Rollback
+helm rollback my-release 1                # rollback to revision 1
+helm rollback my-release                  # rollback to previous revision
+helm history my-release                   # list revisions
+
+# Uninstall
+helm uninstall my-release
+helm uninstall my-release --keep-history   # keep release history for rollback
+
+# Inspect
+helm get values my-release                # current values overrides
+helm get manifest my-release              # rendered manifests
+helm get notes my-release                 # release notes
+helm get all my-release                   # all information
+helm show values bitnami/nginx            # chart's default values
+```
+
+## Chart structure
+
+```
+mychart/
+├── Chart.yaml            # Chart metadata
+├── values.yaml           # Default configuration values
+├── values.schema.json    # Optional JSON schema for values validation
+├── charts/               # Chart dependencies (managed by Helm)
+├── templates/            # Kubernetes manifest templates
+│   ├── NOTES.txt         # Post-install notes shown to user
+│   ├── _helpers.tpl      # Reusable template helpers
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   ├── hpa.yaml
+│   └── serviceaccount.yaml
+├── .helmignore           # Files to ignore when packaging
+└── README.md
+```
+
+### Chart.yaml
+
+```yaml
+apiVersion: v2
+name: my-app
+description: A Helm chart for Kubernetes
+type: application          # 'application' or 'library'
+version: 1.2.0             # chart version (SemVer)
+appVersion: "2.5.0"        # application version
+dependencies:
+  - name: postgresql
+    version: "15.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+    tags:
+      - database
+  - name: redis
+    version: "19.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+```
+
+## Templating fundamentals
+
+### _helpers.tpl
+
+```yaml
+{{/* Common labels */}}
+{{- define "my-app.labels" -}}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+app.kubernetes.io/name: {{ .Chart.Name }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{- define "my-app.selectorLabels" -}}
+app.kubernetes.io/name: {{ .Chart.Name }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+```
+
+### Common template patterns
+
+```yaml
+# Conditionals
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+{{- end }}
+
+# Default values
+image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+
+# With block (scopes context)
+{{- with .Values.resources }}
+resources:
+  {{- toYaml . | nindent 10 }}
+{{- end }}
+
+# Ranges
+{{- range .Values.env }}
+- name: {{ .name }}
+  value: {{ .value | quote }}
+{{- end }}
+
+# Named templates
+{{- include "my-app.labels" . | nindent 4 }}
+
+# Using tpl for dynamic values
+value: {{ tpl .Values.dynamicValue . }}
+```
+
+### Values injection (values.yaml)
+
+```yaml
+replicaCount: 3
+
+image:
+  repository: nginx
+  tag: "1.25"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: alb
+  hosts:
+    - host: app.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: app-tls
+      hosts:
+        - app.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+postgresql:
+  enabled: true
+  auth:
+    username: app
+    database: appdb
+```
+
+### Deployment template
+
+```yaml
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "my-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "my-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "my-app.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+```
+
+## Hooks
+
+Helm hooks run Kubernetes jobs at specific lifecycle points:
+
+| Hook | Runs |
+|---|---|
+| `pre-install` | Before resources are created |
+| `post-install` | After all resources are created |
+| `pre-delete` | Before resources are removed |
+| `post-delete` | After all resources are removed |
+| `pre-upgrade` | Before upgrade |
+| `post-upgrade` | After upgrade |
+| `pre-rollback` | Before rollback |
+| `post-rollback` | After rollback |
+| `test` | On `helm test` |
+
+### Database migration hook
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}-migration"
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migration
+          image: "{{ .Values.image.repository }}-migrate:{{ .Values.image.tag }}"
+          env:
+            - name: DATABASE_URL
+              value: {{ .Values.databaseUrl }}
+```
+
+## See also
+
+- [Kubernetes Configuration Reference](./config.mdx) — kubectl and cluster config
+- [Amazon EKS](./eks.mdx) — AWS managed Kubernetes

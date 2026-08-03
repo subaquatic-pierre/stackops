@@ -1,0 +1,405 @@
+---
+title: 'Rust'
+description: 'Comprehensive Rust reference: cargo workflow, Axum web framework, WASM with React, no-std for kernel/OS projects, and production patterns.'
+tags: [rust, axum, wasm, no-std, runtime, reference]
+last_updated: '2026-08-03'
+---
+
+# Rust
+
+## Overview
+
+Rust is a systems programming language that guarantees memory safety without a garbage collector. Its ownership model eliminates entire classes of bugs at compile time. This reference covers the core toolchain (`cargo`), web services with `axum`, WebAssembly with React frontends, and `no_std` patterns for bare-metal and kernel projects.
+
+## cargo workflow
+
+### Project commands
+
+```bash
+# Create a new project
+cargo new myproject
+cargo new --lib mylib           # library crate
+
+# Build and run
+cargo build                     # debug build
+cargo build --release           # optimized build
+cargo run                       # build + run
+cargo run -- --port 8080        # pass args after --
+
+# Testing
+cargo test                      # run all tests
+cargo test test_name            # run a specific test
+cargo test -- --nocapture       # show println output during tests
+
+# Code quality
+cargo check                     # fast compile check (no codegen)
+cargo fmt                       # format code
+cargo fmt --check               # check formatting (CI)
+cargo clippy                    # lint
+cargo clippy -- -D warnings     # treat warnings as errors
+
+# Dependencies
+cargo add axum                  # add latest
+cargo add axum@0.7              # add specific version
+cargo add --dev tokio-test      # add dev dependency
+cargo update                    # update dependencies within semver
+cargo update -p axum --precise 0.7.5  # pin a specific version
+
+# Documentation
+cargo doc --open                # build and open docs in browser
+cargo doc --no-deps             # only your crate, skip dependencies
+```
+
+### Cargo.toml essentials
+
+```toml
+[package]
+name = "myproject"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.7", features = ["runtime-tokio", "postgres"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+tower-http = { version = "0.5", features = ["trace"] }
+reqwest = "0.12"
+
+[profile.release]
+lto = true              # link-time optimization
+codegen-units = 1       # better optimization
+opt-level = "s"         # optimize for size
+strip = true            # strip symbols
+```
+
+## Axum web framework
+
+### Minimal server
+
+```rust
+use axum::{Router, response::Json, routing::get};
+use serde_json::{json, Value};
+
+async fn root() -> Json<Value> {
+    Json(json!({ "message": "Hello, World" }))
+}
+
+async fn health() -> Json<Value> {
+    Json(json!({ "status": "ok" }))
+}
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/", get(root))
+        .route("/health", get(health));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    println!("Listening on http://0.0.0.0:3000");
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### Structured routes with state
+
+```rust
+use axum::{
+    Router,
+    extract::{State, Path},
+    http::StatusCode,
+    response::Json,
+    routing::{get, post},
+};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+// Shared application state
+#[derive(Clone)]
+struct AppState {
+    db: Arc<tokio::sync::RwLock<Vec<User>>>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct User {
+    id: u64,
+    name: String,
+    email: String,
+}
+
+#[derive(Deserialize)]
+struct CreateUser {
+    name: String,
+    email: String,
+}
+
+async fn list_users(State(state): State<AppState>) -> Json<Vec<User>> {
+    Json(state.db.read().await.clone())
+}
+
+async fn create_user(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateUser>,
+) -> (StatusCode, Json<User>) {
+    let mut db = state.db.write().await;
+    let user = User {
+        id: db.len() as u64 + 1,
+        name: payload.name,
+        email: payload.email,
+    };
+    db.push(user.clone());
+    (StatusCode::CREATED, Json(user))
+}
+
+async fn get_user(
+    State(state): State<AppState>,
+    Path(user_id): Path<u64>,
+) -> Result<Json<User>, StatusCode> {
+    state
+        .db
+        .read()
+        .await
+        .iter()
+        .find(|u| u.id == user_id)
+        .cloned()
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+#[tokio::main]
+async fn main() {
+    let state = AppState {
+        db: Arc::new(tokio::sync::RwLock::new(Vec::new())),
+    };
+
+    let app = Router::new()
+        .route("/users", get(list_users).post(create_user))
+        .route("/users/{id}", get(get_user))
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### Middleware with tower
+
+```rust
+use tower_http::{trace::TraceLayer, cors::CorsLayer};
+use std::time::Duration;
+use tower::ServiceBuilder;
+
+let middleware = ServiceBuilder::new()
+    .layer(TraceLayer::new_for_http())
+    .layer(CorsLayer::permissive())
+    .timeout(Duration::from_secs(30));
+
+let app = Router::new()
+    .route("/", get(root))
+    .layer(middleware);
+```
+
+### Error handling
+
+```rust
+use axum::response::{IntoResponse, Response};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+enum AppError {
+    #[error("Not found: {0}")]
+    NotFound(String),
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+    #[error("Internal error")]
+    Internal(#[from] anyhow::Error),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Internal(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            ),
+        };
+        (status, Json(json!({ "error": message }))).into_response()
+    }
+}
+```
+
+## WASM with React frontend
+
+### Cargo.toml for WASM
+
+```toml
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+```
+
+### Rust WASM module
+
+```rust
+use wasm_bindgen::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct ComputationResult {
+    pub result: f64,
+    pub iterations: u32,
+}
+
+#[wasm_bindgen]
+pub fn compute_fibonacci(n: u32) -> ComputationResult {
+    let mut a = 0.0;
+    let mut b = 1.0;
+    for _ in 0..n {
+        let temp = a + b;
+        a = b;
+        b = temp;
+    }
+    ComputationResult {
+        result: b,
+        iterations: n,
+    }
+}
+
+#[wasm_bindgen]
+pub fn process_data(json_input: &str) -> String {
+    let data: Vec<f64> = serde_json::from_str(json_input).unwrap_or_default();
+    let sum: f64 = data.iter().sum();
+    let mean = sum / data.len() as f64;
+    serde_json::to_string(&mean).unwrap()
+}
+```
+
+### Build and integrate with React
+
+```bash
+# Build WASM package
+wasm-pack build --target web --out-dir ../www/src/wasm
+
+# In React component:
+# import init, { compute_fibonacci } from './wasm/my_wasm_lib';
+```
+
+```tsx
+// App.tsx
+import init, { compute_fibonacci } from './wasm/my_wasm_lib';
+import { useEffect, useState } from 'react';
+
+function App() {
+  const [result, setResult] = useState<number | null>(null);
+
+  useEffect(() => {
+    init().then(() => {
+      const fib = compute_fibonacci(40);
+      setResult(fib.result);
+    });
+  }, []);
+
+  return <div>Fibonacci(40) = {result}</div>;
+}
+```
+
+## no_std for kernel / bare-metal projects
+
+```rust
+# Cargo.toml
+[package]
+name = "my-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+```
+
+```rust
+// main.rs — bare-metal entry point
+#![no_std]          // No standard library
+#![no_main]         // No standard main function
+#![feature(asm_experimental_arch)]
+
+use core::panic::PanicInfo;
+
+// Entry point (never returns)
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    // Set up stack pointer, zero BSS, etc.
+
+    loop {
+        // Kernel main loop
+        unsafe {
+            // Example: write to VGA text buffer
+            let vga_buffer = 0xb8000 as *mut u16;
+            vga_buffer.write_volatile(0x0f48); // 'H' in white on black
+        }
+    }
+}
+
+// Panic handler required for no_std
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    loop {} // Halt
+}
+```
+
+### Linker script (kernel.ld)
+
+```ld
+ENTRY(_start)
+
+SECTIONS {
+    . = 1M;           /* Load kernel at 1MB */
+
+    .text : {
+        *(.text*)
+    }
+
+    .rodata : {
+        *(.rodata*)
+    }
+
+    .data : {
+        *(.data*)
+    }
+
+    .bss : {
+        *(.bss*)
+    }
+}
+```
+
+### Building for no_std targets
+
+```bash
+# Install target
+rustup target add thumbv7em-none-eabihf
+
+# Build
+cargo build --target thumbv7em-none-eabihf --release
+
+# For a custom target (use a target spec JSON file)
+cargo build --target x86_64-unknown-none.json --release
+```
+
+## See also
+
+- [Python Reference](./python.mdx) — FastAPI, uv, and scripting patterns
+- [Node.js & TypeScript](./nodejs.mdx) — JavaScript/TypeScript runtime

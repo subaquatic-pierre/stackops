@@ -1,0 +1,329 @@
+---
+title: 'AWS IAM & User Management'
+description: 'AWS IAM reference: users, groups, roles, policies, permission boundaries, assuming roles, and common CLI patterns for identity and access management.'
+tags: [aws, iam, security, users, reference]
+last_updated: '2026-08-03'
+---
+
+# AWS IAM & User Management
+
+## Overview
+
+IAM (Identity and Access Management) is the central access control service for AWS. Every API call passes through IAM for authentication (who are you?) and authorization (what are you allowed to do?). This reference covers users, groups, roles, policies, and the CLI commands to manage them.
+
+## Core concepts
+
+| Entity | Purpose |
+|---|---|
+| **User** | A human or service with long-term credentials (access keys or console password). |
+| **Group** | A collection of users; policies attached to groups flow to members. |
+| **Role** | An identity with temporary credentials; intended for AWS services, cross-account access, or federated users. |
+| **Policy** | A JSON document defining permissions (allow/deny for specific actions/resources). |
+| **Instance Profile** | A container for an IAM role that can be attached to an EC2 instance. |
+
+## Users
+
+### Creating and managing users
+
+```bash
+# Create a user
+aws iam create-user --user-name alice
+
+# List all users
+aws iam list-users
+aws iam list-users --query "Users[].UserName"
+
+# Get user details
+aws iam get-user --user-name alice
+
+# Delete a user
+aws iam delete-user --user-name alice
+
+# Delete a user's login profile (console password)
+aws iam delete-login-profile --user-name alice
+```
+
+### Access keys (for CLI/SDK access)
+
+```bash
+# Create access key
+aws iam create-access-key --user-name alice
+
+# List access keys
+aws iam list-access-keys --user-name alice
+
+# Deactivate an access key
+aws iam update-access-key \
+  --user-name alice \
+  --access-key-id AKIA... \
+  --status Inactive
+
+# Delete an access key
+aws iam delete-access-key \
+  --user-name alice \
+  --access-key-id AKIA...
+
+# Rotate: create a new key, update all services to use it, then deactivate + delete the old one
+```
+
+## Groups
+
+```bash
+# Create a group
+aws iam create-group --group-name Developers
+
+# Add user to group
+aws iam add-user-to-group --group-name Developers --user-name alice
+
+# Remove user from group
+aws iam remove-user-from-group --group-name Developers --user-name alice
+
+# List group members
+aws iam get-group --group-name Developers
+
+# Delete a group
+aws iam delete-group --group-name Developers
+```
+
+## Roles
+
+### Creating a role
+
+```bash
+# Create a role for EC2
+aws iam create-role \
+  --role-name ec2-s3-readonly \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Principal": { "Service": "ec2.amazonaws.com" },
+      "Action": "sts:AssumeRole"
+    }]
+  }'
+```
+
+### Trust policies (who can assume the role)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::123456789012:root" },
+      "Action": "sts:AssumeRole"
+    },
+    {
+      "Effect": "Allow",
+      "Principal": { "Service": "lambda.amazonaws.com" },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+### Instance profiles
+
+```bash
+# Create instance profile
+aws iam create-instance-profile --instance-profile-name ec2-s3-readonly-profile
+
+# Add role to instance profile
+aws iam add-role-to-instance-profile \
+  --instance-profile-name ec2-s3-readonly-profile \
+  --role-name ec2-s3-readonly
+
+# Attach to EC2 (at launch time, or via modification)
+aws ec2 associate-iam-instance-profile \
+  --instance-id i-abc123 \
+  --iam-instance-profile Name=ec2-s3-readonly-profile
+```
+
+### Assuming a role
+
+```bash
+# Use STS to assume a role (returns temporary credentials)
+aws sts assume-role \
+  --role-arn arn:aws:iam::222222222222:role/cross-account-readonly \
+  --role-session-name audit-session
+
+# The output includes AccessKeyId, SecretAccessKey, SessionToken
+# Export them as environment variables to use the assumed role
+export AWS_ACCESS_KEY_ID=ASIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...
+
+aws s3 ls   # Now running as the assumed role
+```
+
+## Policies
+
+### Policy types
+
+| Type | Scope | Use case |
+|---|---|---|
+| **Managed (AWS)** | Available to all accounts | `AmazonS3ReadOnlyAccess` |
+| **Managed (Customer)** | Per-account, reusable | Company-wide `ReadOnlyAccess` |
+| **Inline** | Embedded in a single user/group/role | One-off exceptions |
+
+### IAM policy structure
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowS3List",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::my-bucket",
+        "arn:aws:s3:::my-bucket/*"
+      ]
+    },
+    {
+      "Sid": "DenyProdWithoutMFA",
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Common policy snippets
+
+```json
+// Read-only access to a single S3 bucket
+{
+  "Effect": "Allow",
+  "Action": ["s3:ListBucket", "s3:GetObject"],
+  "Resource": ["arn:aws:s3:::app-logs", "arn:aws:s3:::app-logs/*"]
+}
+
+// Allow EC2 full access in us-east-2 only
+{
+  "Effect": "Allow",
+  "Action": "ec2:*",
+  "Resource": "*",
+  "Condition": { "StringEquals": { "ec2:Region": "us-east-2" } }
+}
+
+// Allow passing only specific roles to EC2
+{
+  "Effect": "Allow",
+  "Action": "iam:PassRole",
+  "Resource": "arn:aws:iam::123456789012:role/ec2-*"
+}
+```
+
+### Managing policies
+
+```bash
+# Attach a managed policy to a user
+aws iam attach-user-policy \
+  --user-name alice \
+  --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+# Attach to a group
+aws iam attach-group-policy \
+  --group-name Developers \
+  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+
+# Attach to a role
+aws iam attach-role-policy \
+  --role-name ec2-s3-readonly \
+  --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+# List attached policies
+aws iam list-attached-user-policies --user-name alice
+aws iam list-attached-group-policies --group-name Developers
+aws iam list-attached-role-policies --role-name ec2-s3-readonly
+
+# Detach policy
+aws iam detach-user-policy \
+  --user-name alice \
+  --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+```
+
+### Inline policies
+
+```bash
+# Create an inline policy from a JSON file
+aws iam put-user-policy \
+  --user-name alice \
+  --policy-name allow-s3-logs \
+  --policy-document file://policy.json
+
+# List inline policies
+aws iam list-user-policies --user-name alice
+
+# Get inline policy document
+aws iam get-user-policy --user-name alice --policy-name allow-s3-logs
+
+# Delete inline policy
+aws iam delete-user-policy --user-name alice --policy-name allow-s3-logs
+```
+
+## Permission boundaries
+
+Permission boundaries define the maximum permissions an IAM entity can have — they act as a ceiling:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:*", "ec2:Describe*", "cloudwatch:*"],
+    "Resource": "*"
+  }]
+}
+```
+
+```bash
+aws iam put-user-permissions-boundary \
+  --user-name alice \
+  --permissions-boundary arn:aws:iam::123456789012:policy/dev-boundary
+```
+
+Even if a user is granted `AdministratorAccess`, the boundary restricts their effective permissions to only S3, EC2 describe, and CloudWatch.
+
+## Best practices
+
+1. **Never use the root account** — create admin users and use root only for account-level tasks requiring root credentials.
+2. **Use groups, not users, for policy assignment** — assign policies to groups, then add users to groups.
+3. **Use roles for services and CI/CD** — never embed IAM user access keys in EC2 instances, Lambda, or CI pipelines.
+4. **Enable MFA** — at minimum for all privileged users. Enforce via policy condition.
+5. **Rotate access keys regularly** — no older than 90 days.
+6. **Grant least privilege** — start with nothing, add specific permissions as needed.
+7. **Use IAM Access Analyzer** — identifies resources shared with external entities.
+
+## Auditing and troubleshooting
+
+```bash
+# View account summary (users, roles, policies, MFA status)
+aws iam get-account-summary
+aws iam get-account-authorization-details
+
+# List users without MFA
+aws iam list-users --query "Users[?length(AccessKeys) > \`0\`].UserName"
+
+# Check effective permissions
+aws iam simulate-principal-policy \
+  --policy-source-arn arn:aws:iam::123456789012:user/alice \
+  --action-names s3:ListBucket s3:GetObject
+
+# View recent IAM events (CloudTrail)
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=CreateUser
+```
+
+## See also
+
+- [Revoke Leaked IAM Keys](./revoke-leaked-iam-keys.mdx) — incident response playbook
+- [VPC Architecture Overview](./vpc-architecture-overview.mdx)

@@ -420,3 +420,30 @@
   - database management commands
   - configs and locations
   - basic crud examples
+
+- /docs/kubernetes/user-management.mdx
+- /docs/kubernetes/common-design-patterns.mdx
+- /docs/kubernetes/config.mdx
+  - user config
+  - kubectl
+  - kubelet
+  - static pods
+  - logging
+- /docs/kubernetes/node-setup.mdx
+  - kernel params
+  - all configs needed to set a worker node
+  - all config needed to set control node
+  - how to update
+  - networking and storage
+- /docs/kubernetes/eks.mdx
+  - CSI drivers
+  - AWS VPC CNI
+  - load balancer ingress
+- /docs/kubernetes/helm.mdx
+  - with examples
+- ArgoCD and GitOps section
+- SRE with Grafana, Loki, Prometheus, Mimir
+  - different architectual tradeoffs the deployment considerations of micro service and monolithic and anything else
+- /docs/aws/\*.mdx
+  - common aws architectures, create manyu docs references with CLI and console workflows
+  - user management, IAM policies etc.

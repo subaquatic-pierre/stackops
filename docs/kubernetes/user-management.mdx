@@ -1,0 +1,287 @@
+---
+title: 'Kubernetes RBAC & User Management'
+description: 'Kubernetes RBAC reference: ServiceAccounts, Roles, ClusterRoles, RoleBindings, ClusterRoleBindings, user certificates, and common permission patterns.'
+tags: [kubernetes, rbac, security, users, reference]
+last_updated: '2026-08-03'
+---
+
+# Kubernetes RBAC & User Management
+
+## Overview
+
+Kubernetes controls access through Role-Based Access Control (RBAC). Identities can be regular users (managed outside the cluster via x509 certificates or OIDC) or ServiceAccounts (managed inside the cluster). This reference covers creating users, ServiceAccounts, Roles, ClusterRoles, and binding them with the appropriate permissions.
+
+## ServiceAccounts
+
+ServiceAccounts are Kubernetes-managed identities for pods and CI/CD tooling.
+
+### Creating and using ServiceAccounts
+
+```bash
+# Create a ServiceAccount
+kubectl create sa my-app
+
+# View details
+kubectl get sa my-app -o yaml
+
+# Use in a pod
+```
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: my-app
+  namespace: default
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app-pod
+spec:
+  serviceAccountName: my-app
+  containers:
+    - name: app
+      image: nginx
+```
+
+### Token access
+
+```bash
+# Create a long-lived token (Kubernetes 1.24+)
+kubectl create token my-app --duration=720h
+
+# Or via a Secret (older method, still works if manually created)
+```
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-token
+  annotations:
+    kubernetes.io/service-account.name: my-app
+type: kubernetes.io/service-account-token
+```
+
+## Roles and ClusterRoles
+
+### Role (namespace-scoped)
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get"]
+```
+
+### ClusterRole (cluster-scoped or cross-namespace)
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/metrics"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+```
+
+### Aggregated ClusterRoles
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: app-monitoring
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    verbs: ["get"]
+```
+
+## Bindings
+
+### RoleBinding (namespace-scoped)
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: my-app
+    namespace: default
+  - kind: User
+    name: jane
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### ClusterRoleBinding (cluster-wide)
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: read-nodes
+subjects:
+  - kind: Group
+    name: ops-team
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: node-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+## User certificates
+
+Since Kubernetes doesn't manage user objects, users authenticate with x509 certificates signed by the cluster CA.
+
+### Creating a user certificate
+
+```bash
+# Generate a private key
+openssl genrsa -out jane.key 2048
+
+# Create a Certificate Signing Request (CSR)
+openssl req -new -key jane.key -out jane.csr -subj "/CN=jane/O=developers"
+
+# Sign the certificate with the cluster CA
+openssl x509 -req -in jane.csr \
+  -CA /etc/kubernetes/pki/ca.crt \
+  -CAkey /etc/kubernetes/pki/ca.key \
+  -CAcreateserial \
+  -out jane.crt -days 365
+
+# Set up kubectl context
+kubectl config set-credentials jane --client-certificate=jane.crt --client-key=jane.key
+kubectl config set-context jane-context --cluster=my-cluster --user=jane
+kubectl config use-context jane-context
+```
+
+### Check access
+
+```bash
+kubectl auth can-i create pods
+kubectl auth can-i delete nodes --as jane
+kubectl auth can-i list deployments --as-group developers
+```
+
+## Common RBAC patterns
+
+### Read-only across all namespaces
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: view-only
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: view-only-binding
+subjects:
+  - kind: Group
+    name: auditors
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: view-only
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### CI/CD deployer (namespace-scoped)
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployer
+  namespace: production
+rules:
+  - apiGroups: ["apps", "extensions"]
+    resources: ["deployments", "deployments/rollback"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployer-binding
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: github-actions
+    namespace: ci
+roleRef:
+  kind: Role
+  name: deployer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### Namespace admin
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: namespace-admin
+  namespace: team-a
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["resourcequotas", "limitranges"]
+    verbs: ["get", "list"]
+```
+
+## Troubleshooting
+
+```bash
+# List all bindings in a namespace
+kubectl get rolebindings,clusterrolebindings -n default
+
+# Describe a binding
+kubectl describe rolebinding read-pods -n default
+
+# Check effective permissions
+kubectl auth can-i --list -n default
+kubectl auth can-i --list --as jane
+
+# Audit RBAC (requires audit logging configured)
+# Check /var/log/kube-apiserver-audit.log for denied requests
+```
+
+## See also
+
+- [Deployment Manifest Examples](./deployment-manifest-examples.mdx)
+- [Common Design Patterns](./common-design-patterns.mdx)
