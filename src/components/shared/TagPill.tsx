@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "@docusaurus/Link";
+import "@site/src/css/tag-pill.scss";
 
 interface TagPillProps {
   label: string;

@@ -1,0 +1,12 @@
+/* Tag pill hover — ensures accent hover wins over Docusaurus .markdown a styles */
+.tag-pill:hover {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+  color: rgb(34, 197, 94) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+[data-theme="dark"] .tag-pill:hover {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+  color: rgb(34, 197, 94) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
