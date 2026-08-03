@@ -1,9 +1,9 @@
 ---
 sidebar_position: 1
-title: 'OpenCode Configuration Guide'
-description: 'Complete reference for configuring OpenCode: providers, agents, skills, Docker sandboxing, shortcuts, and custom tooling.'
+title: "OpenCode Configuration Guide"
+description: "Complete reference for configuring OpenCode: providers, agents, skills, Docker sandboxing, shortcuts, and custom tooling."
 tags: [agentic-engineering, opencode, ai, configuration, reference]
-last_updated: '2026-08-03'
+last_updated: "2026-08-03"
 ---
 
 # OpenCode Configuration Guide
@@ -31,12 +31,12 @@ The main configuration lives at `~/.config/opencode/config.json` (or `opencode.j
 }
 ```
 
-| Key | Purpose |
-|---|---|
-| `model` | Default model for the default agent (provider/model-name). |
-| `default_agent` | Agent used when no specific agent is invoked. |
+| Key                    | Purpose                                                               |
+| ---------------------- | --------------------------------------------------------------------- |
+| `model`                | Default model for the default agent (provider/model-name).            |
+| `default_agent`        | Agent used when no specific agent is invoked.                         |
 | `agent.<name>.disable` | Disable built-in agents (e.g., disable `build` and `plan` if unused). |
-| `provider` | Custom AI provider configurations. |
+| `provider`             | Custom AI provider configurations.                                    |
 
 ### Provider configuration
 
@@ -93,14 +93,14 @@ Define each model provider with its API endpoint, key, and available models:
 }
 ```
 
-| Provider field | Purpose |
-|---|---|
-| `name` | Display name for the provider. |
-| `npm` | SDK package. Use `@ai-sdk/openai-compatible` for OpenAI-compatible APIs. |
-| `options.baseURL` | API endpoint URL. |
-| `options.apiKey` | API key (can also reference environment variables). |
-| `models.<key>.limit` | Token limits: `context` (input), `output` (generation). |
-| `models.<key>.reasoning` | Mark model as reasoning-capable (`true`). |
+| Provider field           | Purpose                                                                  |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `name`                   | Display name for the provider.                                           |
+| `npm`                    | SDK package. Use `@ai-sdk/openai-compatible` for OpenAI-compatible APIs. |
+| `options.baseURL`        | API endpoint URL.                                                        |
+| `options.apiKey`         | API key (can also reference environment variables).                      |
+| `models.<key>.limit`     | Token limits: `context` (input), `output` (generation).                  |
+| `models.<key>.reasoning` | Mark model as reasoning-capable (`true`).                                |
 
 ## Custom agents
 
@@ -134,14 +134,14 @@ and ship production-quality code across any language or framework.
 
 ### Agent frontmatter fields
 
-| Field | Purpose |
-|---|---|
-| `name` | Agent display name. |
-| `description` | Short description shown in agent lists. |
-| `mode` | `primary` (runs by default) or `subagent` (invoked by name). |
-| `model` | Default model for this agent: `provider/model-name`. |
-| `permission.edit` | `allow` or `deny` — can the agent edit files? |
-| `permission.bash` | `allow` or `deny` — can the agent run shell commands? |
+| Field             | Purpose                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| `name`            | Agent display name.                                          |
+| `description`     | Short description shown in agent lists.                      |
+| `mode`            | `primary` (runs by default) or `subagent` (invoked by name). |
+| `model`           | Default model for this agent: `provider/model-name`.         |
+| `permission.edit` | `allow` or `deny` — can the agent edit files?                |
+| `permission.bash` | `allow` or `deny` — can the agent run shell commands?        |
 
 ### Using agents
 
@@ -171,12 +171,12 @@ Skills are loaded automatically at startup. The agent's system prompt references
 
 ## Keyboard shortcuts
 
-| Shortcut | Action |
-|---|---|
+| Shortcut         | Action                                |
+| ---------------- | ------------------------------------- |
 | `Ctrl+Alt+Enter` | Insert a new line at cursor position. |
-| `Ctrl+Shift+V` | Paste multiple lines from clipboard. |
-| `Ctrl+C` | Interrupt the current agent action. |
-| `Ctrl+D` | Exit session (EOF). |
+| `Ctrl+Shift+V`   | Paste multiple lines from clipboard.  |
+| `Ctrl+C`         | Interrupt the current agent action.   |
+| `Ctrl+D`         | Exit session (EOF).                   |
 
 ## Docker sandbox
 
@@ -240,6 +240,8 @@ sudo chown -R oc:oc /workspace 2>/dev/null || true
 exec "$@"
 ```
 
+**Note**: Ensure `oc` user and group created on host system
+
 ### Launch script
 
 Place this at `~/.config/opencode/run.sh`:
@@ -280,17 +282,17 @@ docker run -it --rm \
 Make it executable:
 
 ```bash
-chmod +x ~/.config/opencode/run.sh
+chmod +x ~/.config/opencode/run-opencode.sh
 ```
 
 ### Usage
 
 ```bash
 # Launch in current project directory
-~/.config/opencode/run.sh opencode
+~/.config/opencode/run-opencode.sh
 
 # With custom arguments
-~/.config/opencode/run.sh opencode --model deepseek/deepseek-v4-pro
+~/.config/opencode/run-opencode.sh -s $SESSION_ID
 ```
 
 ## See also

@@ -17,7 +17,7 @@ Whether you are executing an under-pressure incident response playbook or review
 - **Actionable Cookbooks:** Goal-oriented recipes, playbooks, and copy-paste commands designed for rapid execution (e.g., `revoke-aws-keys.mdx`).
 - **Reference Material:** Deep-dive explanations of system architectures, config locations, and theoretical concepts.
 - **Tag-Based Discovery:** A strictly flat directory structure powered by robust front-matter tags, ensuring immediate content retrieval without digging through folders.
-- **Project Showcase:** An integrated professional portfolio built to display past engineering work, homelab setups, and open-source contributions.
+- **Engineering Journal:** A running log of engineering work, homelab experiments, and open-source contributions — captured as dated entries rather than polished portfolio pieces.
 - **Modern UI/UX:** Built with a custom glassmorphism theme, strict Dark/Light mode adherence, dynamic gradient typography, and seamless transitions.
 
 ## Tech Stack
@@ -87,7 +87,7 @@ The project deviates from a standard Docusaurus setup to enforce our flat archit
 │   ├── aws/             # Flat directory for AWS-related MDX files
 │   ├── kubernetes/      # Flat directory for K8s-related MDX files
 │   └── linux/           # Flat directory for Linux-related MDX files
-├── projects/            # Project Showcase (Replaces default '/blog')
+├── journal/             # Engineering Journal (Replaces default '/blog')
 ├── src/
 │   ├── components/      # Custom React & shadcn/ui components
 │   ├── css/             # Tailwind & Custom CSS (custom.css)
@@ -112,9 +112,9 @@ tags: [postgres, sql, user-management, actionable]
 ---
 ```
 
-### Adding to the Project Showcase (`/projects`)
+### Adding to the Journal (`/journal`)
 
-1. Create an `.mdx` file in the `projects/` directory.
+1. Create an `.mdx` file in the `journal/` directory.
 2. Use standard Docusaurus blog front-matter (date, authors, tags).
 
 ```yaml

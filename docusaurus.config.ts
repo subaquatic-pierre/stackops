@@ -61,11 +61,11 @@ const config: Config = {
           breadcrumbs: false,
         },
         blog: {
-          path: "./projects",
+          path: "./journal",
           routeBasePath: "/engineering",
           blogTitle: "Journal",
           blogDescription:
-            "Archive of engineering projects, labs, and journal entries.",
+            "A running log of engineering projects, labs, and journal entries.",
           showReadingTime: true,
           feedOptions: {
             type: ["rss", "atom"],

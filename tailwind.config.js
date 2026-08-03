@@ -9,7 +9,7 @@ module.exports = {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",
     "./docs/**/*.{md,mdx}",
-    "./projects/**/*.{md,mdx}",
+    "./journal/**/*.{md,mdx}",
   ],
   theme: {
     extend: {

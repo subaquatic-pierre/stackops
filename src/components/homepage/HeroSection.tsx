@@ -20,7 +20,7 @@ const floatingLines = [
     top: "30%",
     right: "8%",
     transform: "rotate(1.5deg)",
-    text: "projects/stack-garden.mdx",
+    text: "journal/stack-garden.mdx",
   },
   {
     top: "65%",
