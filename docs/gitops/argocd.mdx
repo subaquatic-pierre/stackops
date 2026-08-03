@@ -1,8 +1,8 @@
 ---
-title: 'ArgoCD & GitOps'
-description: 'ArgoCD reference: application management, sync policies, health checks, progressive delivery, and GitOps patterns for continuous deployment.'
+title: "ArgoCD & GitOps"
+description: "ArgoCD reference: application management, sync policies, health checks, progressive delivery, and GitOps patterns for continuous deployment."
 tags: [gitops, argocd, kubernetes, deployment, reference]
-last_updated: '2026-08-03'
+last_updated: "2026-08-03"
 ---
 
 # ArgoCD & GitOps
@@ -13,14 +13,14 @@ GitOps is an operational model where Git repositories serve as the single source
 
 ## Core concepts
 
-| Concept | Description |
-|---|---|
-| **Application** | A group of Kubernetes resources defined in a Git repo. |
-| **Project** | A logical grouping of applications with access control policies. |
-| **Source** | The Git repository (or Helm repo) containing manifests. |
-| **Destination** | The target cluster + namespace where resources are deployed. |
-| **Sync** | The process of reconciling the live cluster state with the Git state. |
-| **Health** | Whether the application is healthy (all pods running, etc.). |
+| Concept         | Description                                                           |
+| --------------- | --------------------------------------------------------------------- |
+| **Application** | A group of Kubernetes resources defined in a Git repo.                |
+| **Project**     | A logical grouping of applications with access control policies.      |
+| **Source**      | The Git repository (or Helm repo) containing manifests.               |
+| **Destination** | The target cluster + namespace where resources are deployed.          |
+| **Sync**        | The process of reconciling the live cluster state with the Git state. |
+| **Health**      | Whether the application is healthy (all pods running, etc.).          |
 
 ## Installation
 
@@ -73,8 +73,8 @@ spec:
 
   syncPolicy:
     automated:
-      prune: true            # Delete resources removed from Git
-      selfHeal: true         # Auto-fix drift
+      prune: true # Delete resources removed from Git
+      selfHeal: true # Auto-fix drift
       allowEmpty: false
     syncOptions:
       - CreateNamespace=true
@@ -122,8 +122,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    argocd.argoproj.io/sync-wave: "5"       # Deploy order (lower = first)
-    argocd.argoproj.io/hook: PostSync       # Run after sync
+    argocd.argoproj.io/sync-wave: "5" # Deploy order (lower = first)
+    argocd.argoproj.io/hook: PostSync # Run after sync
 ```
 
 ## App of Apps pattern
@@ -274,4 +274,4 @@ git push origin main
 ## See also
 
 - [Helm Reference](../kubernetes/helm.mdx) — package management for Kubernetes
-- [Observability](./sre/observability.mdx) — Prometheus, Grafana, Loki, Mimir
+- [Observability](../sre/observability.mdx) — Prometheus, Grafana, Loki, Mimir
