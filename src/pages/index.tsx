@@ -21,7 +21,7 @@ export default function Home() {
         title="Technical Reference Manual"
         description="Software engineering through an operational lens."
       >
-        <div className="bg-white dark:bg-surface-0 text-slate-900 dark:text-white antialiased bg-grid min-h-screen font-sans transition-colors duration-200">
+        <div className="max-w-none bg-white dark:bg-surface-0 text-slate-900 dark:text-white antialiased bg-grid min-h-screen font-sans transition-colors duration-200">
           <RevealOnScroll />
 
           <HeroSection
