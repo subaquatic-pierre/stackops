@@ -1,0 +1,300 @@
+---
+title: "Raderbot — Rust Trading Bot"
+date: 2026-08-03
+authors:
+  - pierre
+tags:
+  [rust, trading, cryptocurrency, websocket, actix, bingx, binance, algorithms]
+image: /img/journal-placeholder.png
+---
+
+_A Rust-based trading bot connecting to Binance / BingX WebSocket APIs for live market data (kline, ticker, trade streams), position management, and algorithmic strategies — exposed through an Actix Web REST API and static UI on `localhost:3000`._
+
+> **Repo:** [github.com/subaquatic-pierre/raderbot](https://github.com/subaquatic-pierre/raderbot).
+
+{/* truncate */}
+
+---
+
+## Overview
+
+Raderbot is a single-binary Rust app on Actix Web. It maintains WebSocket streams to an exchange, stores incoming market data, runs algorithmic trading strategies, and exposes everything through a REST API. The architecture is trait-based: exchange adapters and storage backends can be swapped at runtime via the `.env` file or an API call.
+
+- **Dry-run by default** — `DRY_RUN=True` routes all trading through a `MockExchangeApi`.
+- **Decoupled account & market layers** — Account uses its own exchange API instance; market data can come from a different source.
+- **Pluggable storage** — file system (default), MongoDB time-series, or InfluxDB.
+- **Dynamic exchange switching** — an endpoint swaps the account adapter between Binance, BingX, and Mock without restart.
+
+---
+
+## Module map
+
+```bash
+src/
+├── main.rs            # Entry point; Actix HttpServer, service registration
+├── app.rs             # AppState — shared Arc<Mutex<...>> for bot, account, market, exchange
+├── bot.rs             # RaderBot core + StrategyManager + async init loop
+│
+├── account/           # Position / TradeTx models, position lifecycle, adapter swap
+├── algo/              # 12+ trading algorithms
+├── analytics/         # Volume analysis (PriceVolume, TimeVolume, TradeVolume)
+├── api/               # 5 route scopes: account, exchange, market, strategy, utils
+├── exchange/          # Trait-based adapters: BinanceApi, BingXApi, MockExchangeApi + streams
+├── market/            # Kline, Ticker, Trade structs + in-memory Market store
+├── storage/           # FsStorage, MongoDbStorage, InfluxStorage behind StorageManager trait
+├── strategy/          # Strategy loop, algorithm binding, SignalHandler, BackTest
+└── utils/             # Channels, json helpers, time helpers
+```
+
+### Root files
+
+```
+Cargo.toml             # tokio, actix-web, reqwest, tokio-tungstenite, serde, ta, mongodb...
+Makefile               # make build / dev / test / fix / clean / docs
+docker-compose.yaml     # InfluxDB 2.7 (MongoDB commented out)
+.env.example            # Exchange keys, DRY_RUN, storage backend, RUST_LOG
+raderbot                # Prebuilt release binary
+static/                 # Frontend assets
+docs/                   # strategies.md
+LICENSE.md              # MIT
+```
+
+---
+
+## Exchange layer
+
+Everything flows through a single async trait, `ExchangeApi` (`src/exchange/api.rs`):
+
+```rust
+#[async_trait]
+pub trait ExchangeApi: Send + Sync {
+    async fn get_account(&self) -> ApiResult<Value>;
+    async fn open_position(&self, symbol, margin, leverage, side, price) -> ApiResult<Position>;
+    async fn close_position(&self, position, close_price) -> ApiResult<TradeTx>;
+    async fn get_kline(&self, symbol, interval) -> ApiResult<Kline>;
+    async fn get_ticker(&self, symbol) -> ApiResult<Ticker>;
+    fn get_stream_manager(&self) -> ArcMutex<Box<dyn StreamManager>>;
+    // ...
+}
+```
+
+Three implementations:
+
+| Adapter           | File                  | Role                                                       |
+| ----------------- | --------------------- | ---------------------------------------------------------- |
+| `BinanceApi`      | `exchange/binance.rs` | Default — real Binance API over REST + WebSocket streams   |
+| `BingXApi`        | `exchange/bingx.rs`   | Alternative BingX adapter                                  |
+| `MockExchangeApi` | `exchange/mock.rs`    | Simulated exchange; used automatically when `DRY_RUN=True` |
+
+**Streams** are managed through a `StreamManager` trait (`exchange/stream.rs`). Each stream has metadata: id, URL, symbol, interval, start/last-update timestamps. Stream IDs follow `<symbol>@kline_<interval>` / `<symbol>@ticker` / `<symbol>@trade`.
+
+**Key detail from `bot.rs`:** on startup the bot creates _two_ exchange API instances — one for market data (hardcoded to `BinanceApi`), one for the account that can differ. When dry-run is on, the account gets a `MockExchangeApi`; otherwise it shares the market's `BinanceApi` or creates its own.
+
+---
+
+## Market data
+
+Models live in `src/market/`:
+
+| Struct     | File          | Fields                                                               |
+| ---------- | ------------- | -------------------------------------------------------------------- |
+| `Kline`    | `kline.rs`    | symbol, interval, open/high/low/close, volume, open_time, close_time |
+| `Ticker`   | `ticker.rs`   | last price, 24h change, high, low, volume                            |
+| `Trade`    | `trade.rs`    | timestamped public market trades                                     |
+| `Interval` | `interval.rs` | 1m, 3m, 5m, 15m, 30m, 1h, 4h, 1d, 1w (string-serializable enum)      |
+
+The **`Market`** (`market/market.rs`) is the in-memory store — it receives data from active WebSocket streams via an async channel (`MarketMessage` in `messages.rs`) and supports range queries against both live and bootstrapped historical data.
+
+---
+
+## Storage backends
+
+All implement the `StorageManager` trait. Selected at boot from `.env`:
+
+| Backend                 | File                | When to use                                       |
+| ----------------------- | ------------------- | ------------------------------------------------- |
+| **FsStorage** (default) | `storage/fs.rs`     | `STORAGE_TYPE=FS` — writes to `~/.raderbot/`      |
+| **MongoDbStorage**      | `storage/mongo.rs`  | `STORAGE_TYPE=MONGO` — time-series collections    |
+| **InfluxStorage**       | `storage/influx.rs` | `STORAGE_TYPE=INFLUX` — InfluxDB 2.7 point writes |
+
+**Fallback behavior** (from `bot.rs`): if Mongo or Influx fail to connect, the bot logs the error and falls back to `FsStorage` — no crash.
+
+**InfluxDB setup** (`docker-compose.yaml`):
+
+```yaml
+influxdb:
+  image: influxdb:2.7
+  ports: ["8086:8086"]
+  environment:
+    DOCKER_INFLUXDB_INIT_MODE: setup
+    DOCKER_INFLUXDB_INIT_ORG: raderbot
+    DOCKER_INFLUXDB_INIT_BUCKET: trade_data
+    DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: myadmintoken
+```
+
+---
+
+## Strategies & algorithms
+
+### Lifecycle
+
+`POST /new-strategy` → `bot.start_strategy(...)` → picks an algorithm from `src/algo/` → spawns a `Strategy` via `tokio::spawn` → tracks handle + settings in `StrategyManager`. A signal handler loop consumes `SignalMessage`s and fires orders through the `Account`.
+
+### Available algorithms (`src/algo/`)
+
+| File                              | Strategy                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| `bollinger_bands.rs`              | Price bands around moving average; volatility envelope                   |
+| `ma_crossover.rs`                 | Short-term MA crosses long-term MA → buy/sell                            |
+| `ma_simple.rs`                    | Simple moving average signal                                             |
+| `ma_three_crossover.rs`           | Three-MA crossover (fast/med/slow)                                       |
+| `macd.rs`                         | MACD (diff of EMAs) vs signal line                                       |
+| `macd_bollinger.rs`               | MACD + Bollinger Bands combined                                          |
+| `rsi.rs`                          | RSI momentum oscillator (overbought more than 70, oversold less than 30) |
+| `rsi_ema_sma.rs`                  | RSI + EMA + SMA mix                                                      |
+| `volume_continuation.rs`          | Volume-confirmed trend continuation                                      |
+| `volume_continuation_reversal.rs` | Volume reversal detection                                                |
+| `volume_profile.rs`               | Volume-weighted price profiling                                          |
+| `builder.rs`                      | Factory — maps algorithm name string → concrete impl                     |
+| `template.rs`                     | Scaffold for writing new algorithms                                      |
+
+### Backtesting
+
+`BackTest` (`strategy/backer.rs`) replays KlineData over a strategy and produces a `StrategySummary` (PnL, trade count, win rate, etc.). Triggered via `POST /run-back-test` with symbol, interval, date range, and algorithm params. Uses the `KlineData` from the market's historical store.
+
+### Trade models
+
+- **`Position`** — symbol, order side (Buy/Sell), open price & time, quantity (`margin × leverage / price`), margin_usd, leverage, optional stop-loss and strategy ID. Uses `uuid::v4` for IDs.
+- **`TradeTx`** — close price, close time, computed `profit` (positive for winning trades on Buy, inverse for Sell), and linked source position with optional associated `SignalMessage` metadata.
+
+---
+
+## REST API
+
+All endpoints under `http://localhost:3000/api`. Full request/response docs at the [Postman collection](https://documenter.getpostman.com/view/22215488/2sA2xfYYa5) — or [download the collection JSON](/assets/RaderBot.postman_collection.json) to import directly into Postman / Insomnia.
+
+### `/api/market`
+
+```
+GET  /info                         Market summary
+GET  /active-streams               Live stream metadata
+POST /open-stream                  {stream_type, symbol, interval?}
+POST /close-stream                 {stream_id}
+POST /last-price                   {symbol}
+POST /kline-data                   {symbol, interval}
+POST /kline-data-range             {symbol, interval, from_ts?, to_ts?, limit?}
+POST /ticker-data                  {symbol}
+POST /trade-data                   {symbol, from_ts?, to_ts?, limit?}
+POST /trade-volume-data            {symbol, ..., bucket_size? | time_interval?}
+```
+
+### `/api/account`
+
+```
+GET  /account-info
+POST /set-exchange-api             {exchange, dry_run}  → swap Binance/BingX/Mock
+GET  /active-positions
+GET  /trades
+POST /open-position                {symbol, margin, leverage, order_side, stop_loss?, strategy_id?}
+POST /close-position               {position_id}
+GET  /close-all-positions
+```
+
+### `/api/strategy`
+
+```
+POST /new-strategy                 {symbol, strategy_name, algorithm_params, interval, margin?, leverage?}
+POST /stop-strategy                {strategy_id, close_positions?}
+POST /stop-all-strategies          {close_positions?}
+POST /set-params                   {strategy_id, params}
+POST /change-settings              {strategy_id, settings}
+GET  /active-strategies
+GET  /historical-strategies
+POST /historical-summary           {strategy_id}
+POST /list-positions               {strategy_id}
+POST /summary                      {strategy_id}
+POST /info                         {strategy_id}
+POST /run-back-test                {symbol, strategy_name, algorithm_params, interval, from_ts, to_ts, ...}
+```
+
+### `/api` (root + static)
+
+```
+GET /api                 → serves static/index.html
+GET /static/*            → frontend assets (actix-files)
+```
+
+---
+
+## Getting started
+
+```bash
+# Prereqs: Rust, cargo, make (Docker optional)
+git clone https://github.com/subaquatic-pierre/raderbot.git
+cd raderbot
+
+# Configure
+cp .env.example .env
+# .env:
+#   BINANCE_API_KEY=...
+#   BINANCE_SECRET_KEY=...
+#   DRY_RUN=True
+#   STORAGE_TYPE=FS
+#   RUST_LOG=info
+
+# Build release binary
+make build
+
+# Run
+./raderbot
+# → Actix on 127.0.0.1:3000
+
+# Dev mode (auto-reload on file changes)
+make dev
+```
+
+### Key `.env` values
+
+```ini
+DRY_RUN=True              # True → MockExchangeApi (no real trades)
+EXCHANGE_API=BINANCE      # BINANCE or BINGX
+STORAGE_TYPE=FS           # FS | MONGO | INFLUX
+MONGO_URI=mongodb://user:pass@localhost:27017/?authSource=admin
+INFLUX_DB_HOST=http://localhost:8086
+INFLUX_TOKEN=myadmintoken
+```
+
+### Optional: InfluxDB for time-series metrics
+
+```bash
+docker-compose up -d influxdb
+# Update .env: STORAGE_TYPE=INFLUX, restart bot
+```
+
+---
+
+## Historical data
+
+For backtests and `BootstrapKlineData`/`BootstrapTradeData` requests, place CSV data from Binance public market data at:
+
+```
+~/Projects/BinanceData/
+├── Kline/
+│   ├── BTCUSDT-5m-2023-12.csv
+│   └── ...
+└── MarketTrade/
+    ├── BTCUSDT-aggTrades-2020-01.csv
+    └── ...
+```
+
+Source: [Binance Public Data](https://www.binance.com/en-AU/landing/data) — K-Line and Aggregated Trades collections.
+
+---
+
+## Notes
+
+- **Experimental** — the bot is still in active development. Many features are undocumented or rough.
+- **Unix only** — build targets Unix systems.
+- **Dry-run only by default** — live trading requires `DRY_RUN=False` and a funded exchange API key.
+- **Market data required for orders** — opening/closing positions requires a live last price from a stream or ticker call. Make sure the symbol has an active stream.
+- **Storage fallback** — if Mongo or InfluxDB can't connect, the bot silently falls back to file-system storage.

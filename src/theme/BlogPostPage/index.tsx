@@ -142,7 +142,7 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
       </header>
 
       {/* Article body */}
-      <div className="blog-post-content prose prose-slate dark:prose-invert max-w-none">
+      <div className="blog-post-content max-w-none">
         <BlogPostItem>{children}</BlogPostItem>
       </div>
 

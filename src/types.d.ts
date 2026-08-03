@@ -1,14 +1,14 @@
 declare module "@theme/searchByWorker" {
   export function fetchIndexesByWorker(
     baseUrl: string,
-    searchContext: string
+    searchContext: string,
   ): Promise<void>;
 
   export function searchByWorker(
     baseUrl: string,
     searchContext: string,
     input: string,
-    limit: number
+    limit: number,
   ): Promise<SearchResult[]>;
 
   export interface SearchResultDocument {
@@ -34,3 +34,6 @@ declare module "@theme/searchByWorker" {
     metadata: Record<string, unknown>;
   }
 }
+
+declare module "*.css" {}
+declare module "*.scss" {}

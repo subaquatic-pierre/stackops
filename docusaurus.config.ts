@@ -151,6 +151,7 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} StackOps.`,
     },
     prism: {
+      defaultLanguage: "bash",
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
       additionalLanguages: [
