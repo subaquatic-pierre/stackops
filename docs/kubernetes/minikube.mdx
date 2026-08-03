@@ -1,0 +1,380 @@
+---
+sidebar_position: 9
+title: 'Minikube'
+description: 'Minikube setup and operations reference: installation, cluster lifecycle, addons, local registries, and common troubleshooting for local Kubernetes development.'
+tags: [kubernetes, minikube, local, development, reference]
+last_updated: '2026-08-03'
+---
+
+# Minikube
+
+## Overview
+
+Minikube runs a single-node Kubernetes cluster locally on macOS, Linux, or Windows. It is the fastest way to get a working cluster for development, testing, and learning — no cloud account needed. It supports most Kubernetes features including DNS, NodePorts, ConfigMaps, Secrets, and dashboards.
+
+## Installation
+
+### Linux (x86-64)
+
+```bash
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+```
+
+### macOS (Intel / Apple Silicon)
+
+```bash
+# Intel
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-darwin-amd64
+sudo install minikube-darwin-amd64 /usr/local/bin/minikube
+
+# Apple Silicon
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-darwin-arm64
+sudo install minikube-darwin-arm64 /usr/local/bin/minikube
+```
+
+### Verify
+
+```bash
+minikube version
+# minikube version: v1.35.0
+```
+
+## Drivers
+
+Minikube supports multiple virtualization drivers. Choose based on your OS:
+
+| Driver | OS | Notes |
+|---|---|---|
+| `docker` | Linux, macOS, Windows | **Recommended.** Uses Docker Engine. |
+| `kvm2` | Linux | Requires KVM/libvirt. Best performance on Linux. |
+| `hyperkit` | macOS | Deprecated — prefer `docker` or `qemu`. |
+| `virtualbox` | All | Works everywhere, moderate performance. |
+| `qemu` | Linux, macOS | Good Apple Silicon support. |
+| `none` | Linux | Runs directly on host. No VM isolation. |
+
+Set the driver permanently:
+
+```bash
+minikube config set driver docker
+```
+
+## Cluster Lifecycle
+
+### Starting a cluster
+
+```bash
+# Basic start
+minikube start
+
+# With specific driver, CPUs, memory
+minikube start --driver=docker --cpus=4 --memory=8192 --disk-size=20g
+
+# With a specific Kubernetes version
+minikube start --kubernetes-version=v1.31.0
+
+# Start with multiple nodes (experimental)
+minikube start --nodes=2
+```
+
+### Cluster status
+
+```bash
+minikube status
+# minikube
+# type: Control Plane
+# host: Running
+# kubelet: Running
+# apiserver: Running
+# kubeconfig: Configured
+```
+
+### Stopping, pausing, deleting
+
+```bash
+minikube stop          # Stop the cluster (preserves state)
+minikube pause         # Pause the VM (fast resume)
+minikube unpause       # Resume paused VM
+minikube delete        # Delete the cluster and all data
+minikube delete --all  # Delete all clusters
+```
+
+### Multiple profiles (clusters)
+
+```bash
+minikube start -p dev-cluster
+minikube start -p test-cluster
+
+minikube profile list    # List all profiles
+minikube profile dev-cluster   # Switch active profile
+```
+
+## Accessing the Cluster
+
+### kubectl
+
+Minikube writes/merges `kubeconfig` automatically:
+
+```bash
+# Verify context
+kubectl config current-context
+# minikube
+
+# Or explicitly
+kubectl get nodes
+# NAME       STATUS   ROLES           AGE   VERSION
+# minikube   Ready    control-plane   5m    v1.31.0
+```
+
+### Dashboard
+
+```bash
+minikube dashboard                        # Opens in browser
+minikube dashboard --url                  # Print URL without opening
+```
+
+### SSH into the node
+
+```bash
+minikube ssh              # SSH into the VM
+minikube ssh "docker ps"  # Run a command inside the VM
+```
+
+## Addons
+
+Minikube ships with built-in addons that enable common Kubernetes ecosystem tools:
+
+```bash
+# List all available addons
+minikube addons list
+
+# Enable an addon
+minikube addons enable ingress
+minikube addons enable metrics-server
+minikube addons enable dashboard
+
+# Disable
+minikube addons disable ingress
+```
+
+### Key addons
+
+| Addon | Purpose |
+|---|---|
+| `ingress` | Deploys nginx-ingress-controller |
+| `ingress-dns` | Local DNS resolution for ingress hosts |
+| `metrics-server` | Resource metrics for `kubectl top` and HPA |
+| `dashboard` | Kubernetes Web UI |
+| `registry` | Local Docker registry accessible from cluster |
+| `storage-provisioner` | Default StorageClass for dynamic PVC provisioning |
+| `volumesnapshots` | CSI snapshot controller |
+| `gvisor` | Run pods with gVisor sandbox |
+| `istio` | Istio service mesh |
+| `metallb` | LoadBalancer IP assignment on bare-metal |
+
+## Local Docker Registry
+
+Minikube provides an integrated registry addon, or you can use the Docker daemon directly.
+
+### Using the Minikube Docker daemon
+
+Point your local Docker client at the Minikube Docker daemon to avoid pushing images to a remote registry:
+
+```bash
+eval $(minikube docker-env)
+docker build -t my-app:v1 .
+# Now the image is available to pods without a push step
+```
+
+### Registry addon
+
+```bash
+minikube addons enable registry
+
+# The registry is available inside the cluster at:
+#   <cluster-ip>:5000
+# Or via port-forward:
+kubectl port-forward --namespace kube-system service/registry 5000:80
+
+# Push to local registry
+docker tag my-app:v1 localhost:5000/my-app:v1
+docker push localhost:5000/my-app:v1
+```
+
+## Networking
+
+### Exposing services
+
+```bash
+# NodePort — accessible on the minikube VM IP
+minikube service my-service           # Opens in browser
+minikube service my-service --url     # Print URL
+
+# LoadBalancer (needs 'minikube tunnel')
+minikube tunnel                       # Running in separate terminal
+kubectl get svc                       # Shows EXTERNAL-IP assigned
+
+# Ingress
+minikube addons enable ingress
+# Add an Ingress resource, then:
+minikube ip                           # Use this IP in /etc/hosts or curl
+```
+
+### Common networking commands
+
+```bash
+minikube ip          # VM IP address
+minikube ssh "ip a"  # All interfaces inside the VM
+minikube service list                   # All exposed services
+kubectl cluster-info                    # Cluster endpoint URLs
+```
+
+## Volumes and Storage
+
+Minikube mounts a host directory into the VM for persistent volumes:
+
+```bash
+# Host-mounted directory (minikube start mounts /data by default)
+minikube ssh "ls /data"
+
+# Dynamic provisioning (requires storage-provisioner addon)
+minikube addons enable storage-provisioner
+
+# Create a PVC — a PV is provisioned automatically
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+```
+
+### Host folder mounts
+
+Mount arbitrary host directories into the VM:
+
+```bash
+minikube mount /home/user/projects:/data
+# /home/user/projects on the host is now /data inside the VM
+# Available to pods via hostPath volumes
+```
+
+## Troubleshooting
+
+### Cluster won't start
+
+```bash
+# Check logs
+minikube logs
+
+# Verbose start
+minikube start --alsologtostderr -v=7
+
+# Delete and recreate
+minikube delete
+minikube start
+
+# Reset Docker environment (if using docker driver)
+docker system prune -a
+minikube start --driver=docker
+```
+
+### kubectl can't connect
+
+```bash
+# Verify kubeconfig
+kubectl config view --minify
+
+# Re-generate
+minikube update-context
+
+# Check VM connectivity
+minikube ssh
+minikube status
+```
+
+### Ingress not resolving
+
+```bash
+# Enable DNS addon for local resolution
+minikube addons enable ingress-dns
+
+# Or add entries to /etc/hosts
+echo "$(minikube ip) myapp.local" | sudo tee -a /etc/hosts
+
+# Verify ingress
+kubectl get ingress
+kubectl describe ingress <name>
+```
+
+### Image pull failures
+
+```bash
+# Check if image is in minikube's Docker
+eval $(minikube docker-env)
+docker images | grep my-app
+
+# If not, rebuild or use imagePullPolicy: Never
+# in the pod spec:
+#   imagePullPolicy: Never
+```
+
+### VM disk full
+
+```bash
+minikube ssh "df -h"
+
+# Increase disk size (requires delete and start)
+minikube delete
+minikube start --disk-size=40g
+
+# Clean unused images inside VM
+eval $(minikube docker-env)
+docker system prune -a
+```
+
+## Quick Reference — Common Commands
+
+```bash
+# Start / Stop
+minikube start                                          # Start cluster
+minikube start --cpus=4 --memory=8192                   # With resources
+minikube stop                                           # Stop (preserve state)
+minikube delete                                         # Tear down
+
+# Info
+minikube status                                         # Cluster health
+minikube ip                                             # VM IP
+minikube service list                                   # Exposed services
+minikube addons list                                    # Available addons
+
+# Access
+minikube dashboard                                      # K8s dashboard
+minikube ssh                                            # SSH into VM
+eval $(minikube docker-env)                            # Use minikube Docker
+
+# Services
+minikube service <name>                                 # Open in browser
+minikube service <name> --url                           # Print URL only
+minikube tunnel                                         # LoadBalancer IPs
+
+# Maintenance
+minikube update-check                                   # Check for updates
+minikube logs                                           # Cluster logs
+minikube config view                                     # Current config
+minikube profile list                                   # All profiles
+```
+
+## See also
+
+- [Kubernetes design patterns](/docs/kubernetes/common-design-patterns) — Deployment, StatefulSet, and DaemonSet patterns
+- [kubectl deployment manifests](/docs/kubernetes/deployment-manifest-examples) — Complete manifest examples
+- [Helm](/docs/kubernetes/helm) — Package manager for Kubernetes
+- [EKS](/docs/kubernetes/eks) — Amazon EKS managed Kubernetes
+- [Kubernetes node setup](/docs/kubernetes/node-setup) — Production node provisioning

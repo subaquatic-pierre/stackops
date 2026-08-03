@@ -14,15 +14,27 @@
   text-decoration-thickness: 2px;
 }
 
+/* Heading styling — matches Docusaurus .markdown heading conventions */
 .blog-post-content h1,
 .blog-post-content h2,
 .blog-post-content h3,
 .blog-post-content h4,
 .blog-post-content h5,
 .blog-post-content h6 {
+  color: var(--ifm-heading-color);
+  font-family: var(--ifm-heading-font-family);
+  font-weight: var(--ifm-heading-font-weight);
+  line-height: var(--ifm-heading-line-height);
   margin-top: 2rem;
   margin-bottom: 0.75rem;
 }
+
+.blog-post-content h1 { font-size: var(--ifm-h1-font-size); }
+.blog-post-content h2 { font-size: var(--ifm-h2-font-size); }
+.blog-post-content h3 { font-size: var(--ifm-h3-font-size); }
+.blog-post-content h4 { font-size: var(--ifm-h4-font-size); }
+.blog-post-content h5 { font-size: var(--ifm-h5-font-size); }
+.blog-post-content h6 { font-size: var(--ifm-h6-font-size); }
 
 .blog-post-content h1:first-child,
 .blog-post-content h2:first-child,
