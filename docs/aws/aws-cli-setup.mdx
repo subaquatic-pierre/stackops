@@ -1,0 +1,370 @@
+---
+sidebar_position: 3
+title: 'AWS CLI Setup & Configuration'
+description: 'Complete AWS CLI reference: installation, credentials, named profiles, SSO, IAM Identity Center, configuration, and common commands.'
+tags: [aws, cli, configuration, reference]
+last_updated: '2026-08-03'
+---
+
+# AWS CLI Setup & Configuration
+
+## Overview
+
+The AWS CLI is the unified command-line tool for interacting with every AWS service. This reference covers installation, credential management, named profiles, SSO-based authentication, and essential configuration patterns.
+
+## Installation
+
+### Linux
+
+```bash
+# Download and install
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Verify
+aws --version
+```
+
+### macOS
+
+```bash
+brew install awscli
+
+# Or the official installer
+curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+sudo installer -pkg AWSCLIV2.pkg -target /
+```
+
+### Windows
+
+```powershell
+msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
+```
+
+## Configuration files
+
+```bash
+~/.aws/config          # Profiles and non-credential settings
+~/.aws/credentials     # Access keys and secret keys
+```
+
+### Minimal config
+
+```ini
+# ~/.aws/config
+[default]
+region = us-east-2
+output = json
+```
+
+```ini
+# ~/.aws/credentials
+[default]
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+```
+
+## Named profiles
+
+Multiple profiles let you switch between accounts, roles, and regions without reconfiguring.
+
+```ini
+# ~/.aws/config
+[default]
+region = us-east-2
+output = json
+
+[profile production]
+region = us-east-1
+output = json
+
+[profile staging]
+region = eu-west-1
+output = table
+```
+
+```ini
+# ~/.aws/credentials
+[default]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+[production]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+[staging]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+```
+
+### Using profiles
+
+```bash
+# Set per-command
+aws s3 ls --profile production
+
+# Set for the session
+export AWS_PROFILE=staging
+aws s3 ls
+
+# Set in a specific command block
+AWS_PROFILE=production terraform plan
+```
+
+## IAM Identity Center (SSO)
+
+AWS SSO (now IAM Identity Center) is the recommended authentication method — no long-lived access keys needed.
+
+### Configure a profile
+
+```bash
+aws configure sso
+
+# Interactive prompts:
+# SSO session name: my-sso
+# SSO start URL: https://d-abc123.awsapps.com/start
+# SSO region: us-east-2
+# SSO registration scopes: sso:account:access
+#
+# The browser opens for authentication. Then:
+# Select account, role, default region, output format.
+```
+
+This writes to `~/.aws/config`:
+
+```ini
+[profile admin]
+sso_session = my-sso
+sso_account_id = 123456789012
+sso_role_name = AdministratorAccess
+region = us-east-2
+output = json
+
+[sso-session my-sso]
+sso_start_url = https://d-abc123.awsapps.com/start
+sso_region = us-east-2
+sso_registration_scopes = sso:account:access
+```
+
+### Login
+
+```bash
+aws sso login --profile admin
+# Opens browser for authentication
+# Credentials cached in ~/.aws/sso/cache/
+```
+
+SSO tokens expire after a configurable period (default 8 hours). Re-run `aws sso login` to refresh.
+
+### Multiple accounts and roles
+
+```ini
+[profile dev-admin]
+sso_session = my-sso
+sso_account_id = 111111111111
+sso_role_name = AdministratorAccess
+
+[profile dev-readonly]
+sso_session = my-sso
+sso_account_id = 111111111111
+sso_role_name = ReadOnlyAccess
+
+[profile prod-admin]
+sso_session = my-sso
+sso_account_id = 222222222222
+sso_role_name = AdministratorAccess
+```
+
+Switch with `--profile` or `AWS_PROFILE`.
+
+## IAM role assumption
+
+Assume a role from an existing profile (cross-account access):
+
+```ini
+# ~/.aws/config
+[profile cross-account]
+role_arn = arn:aws:iam::222222222222:role/ReadOnlyAccess
+source_profile = default
+region = us-east-2
+```
+
+No credentials needed in the file — the CLI calls `sts:AssumeRole` using `source_profile`'s credentials and caches temporary tokens.
+
+To require MFA:
+
+```ini
+[profile cross-account-mfa]
+role_arn = arn:aws:iam::222222222222:role/AdminAccess
+source_profile = default
+mfa_serial = arn:aws:iam::111111111111:mfa/admin-user
+region = us-east-2
+```
+
+## Environment variables
+
+```bash
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...           # required for temporary credentials
+
+export AWS_DEFAULT_REGION=us-east-2    # or AWS_REGION
+export AWS_PROFILE=production
+export AWS_CONFIG_FILE=/custom/path/config
+export AWS_SHARED_CREDENTIALS_FILE=/custom/path/credentials
+
+# Instance metadata (on EC2)
+export AWS_EC2_METADATA_DISABLED=true  # disable IMDS
+```
+
+Precedence: CLI parameters → environment variables → `~/.aws/credentials` → `~/.aws/config` → instance profile (on EC2) → container credentials (on ECS).
+
+## Configuration settings
+
+```ini
+# ~/.aws/config
+[default]
+region = us-east-2
+output = json
+cli_pager = ""                          # disable pager
+cli_auto_prompt = on                    # v2 auto-complete
+cli_timestamp_format = iso8601
+
+# Retry configuration
+max_attempts = 5
+retry_mode = adaptive
+
+# S3-specific
+s3 =
+    max_concurrent_requests = 20
+    max_queue_size = 10000
+    multipart_threshold = 64MB
+    multipart_chunksize = 16MB
+    use_accelerate_endpoint = false
+    addressing_style = path
+```
+
+## Common commands
+
+### Account and identity
+
+```bash
+# Who am I?
+aws sts get-caller-identity
+aws sts get-caller-identity --profile production
+
+# List all configured profiles
+aws configure list-profiles
+
+# View effective configuration
+aws configure list
+aws configure list --profile production
+```
+
+### Configuration management
+
+```bash
+# Interactive setup
+aws configure
+
+# Set individual values
+aws configure set region us-west-2
+aws configure set region us-west-2 --profile staging
+aws configure set aws_access_key_id AKIA... --profile production
+
+# Get a value
+aws configure get region
+aws configure get region --profile production
+
+# Import/export specific profiles
+aws configure import --csv file://credentials.csv
+```
+
+### Credential validation
+
+```bash
+# Test credentials by calling an API
+aws sts get-caller-identity
+aws s3 ls                     # requires S3 permissions
+
+# Decode an authorization error message
+aws sts decode-authorization-message \
+  --encoded-message <message>
+
+# Check if MFA is enabled on a user
+aws iam list-mfa-devices --user-name alice
+```
+
+## CLI v2 features
+
+### Auto-prompt
+
+```bash
+aws configure set cli_auto_prompt on
+
+# Then run and the CLI shows interactive prompts
+aws ec2 describe-instances  # shows available --filters interactively
+```
+
+### Wizard
+
+```bash
+aws configure wizard         # guided setup
+aws dynamodb wizard          # guided table creation
+```
+
+### Binary parameter shorthand
+
+```bash
+# Inline JSON (v1: file:// only, v2: inline supported)
+aws dynamodb put-item \
+  --table-name Users \
+  --item '{"id": {"S": "abc"}, "name": {"S": "Alice"}}'
+```
+
+## Docker usage
+
+```bash
+# Mount ~/.aws into the container
+docker run --rm \
+  -v ~/.aws:/root/.aws:ro \
+  -e AWS_PROFILE=production \
+  amazon/aws-cli s3 ls
+
+# Or pass env vars directly
+docker run --rm \
+  -e AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY \
+  -e AWS_DEFAULT_REGION \
+  amazon/aws-cli s3 ls
+```
+
+## Troubleshooting
+
+```bash
+# Enable debug output
+aws s3 ls --debug
+
+# Check credential chain resolution
+aws sts get-caller-identity --debug 2>&1 | grep -E "credentials|config"
+
+# Verify a specific profile
+aws configure list --profile production
+
+# Clear SSO cache (force re-authentication)
+rm -rf ~/.aws/sso/cache/
+
+# Test connectivity
+aws ec2 describe-regions --region us-east-1
+
+# Check CLI version
+aws --version
+```
+
+## See also
+
+- [AWS IAM & User Management](./iam-user-management.mdx) — users, roles, and policies
+- [AWS Common Architectures](./common-architectures.mdx) — architecture patterns with CLI workflows
+- [Revoke Leaked IAM Keys](./revoke-leaked-iam-keys.mdx) — incident response playbook

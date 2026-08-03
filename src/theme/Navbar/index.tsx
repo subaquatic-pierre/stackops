@@ -110,7 +110,7 @@ export default function Navbar() {
             <div className="flex items-center gap-1">
               <NavbarSearch>{undefined}</NavbarSearch>
               <Link
-                href="https://github.com/subaquatic-pierre"
+                href="https://github.com/subaquatic-pierre/stackops"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="GitHub"
@@ -220,7 +220,7 @@ export default function Navbar() {
             <span>Journal</span>
           </Link>
           <Link
-            href="https://github.com/subaquatic-pierre"
+            href="https://github.com/subaquatic-pierre/stackops"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer hover:no-underline"

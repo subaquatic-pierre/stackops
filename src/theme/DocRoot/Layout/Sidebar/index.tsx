@@ -35,7 +35,7 @@ export default function DocRootLayoutSidebar({
           "hidden lg:block",
           "flex-shrink-0",
           "transition-[width] duration-200 ease-in-out",
-          "sticky top-0",
+          "sticky top-[68px]",
           "max-h-screen",
           "flex flex-col",
           hiddenSidebarContainer
@@ -52,24 +52,11 @@ export default function DocRootLayoutSidebar({
             aria-label="Expand sidebar"
             title="Expand sidebar"
           >
-            <ChevronsRight className="h-4 w-4" />
+            <ChevronsRight className="h-6 w-6" />
           </button>
         ) : (
           <>
-            {/* Collapse button when expanded */}
-            <div className="flex items-center justify-end px-2 pt-2">
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="rounded-md p-1 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
-              >
-                <ChevronsLeft className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 min-h-0 max-h-[89vh] overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl">
+            <div className="flex-1 min-h-0 max-h-[89vh] overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl -mr-2">
               <div className="pb-6">
                 <DocSidebarDesktop
                   sidebar={sidebar}
@@ -81,6 +68,18 @@ export default function DocRootLayoutSidebar({
             </div>
           </>
         )}
+        {/* Collapse button when expanded */}
+        <div className="flex items-center justify-end px-2 pt-2">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="rounded-md p-1 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors w-full justify-center flex ml-4"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+          >
+            <ChevronsLeft className="h-6 w-6" />
+          </button>
+        </div>
       </aside>
     </>
   );
