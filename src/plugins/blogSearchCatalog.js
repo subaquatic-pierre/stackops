@@ -15,7 +15,6 @@ export default function blogSearchCatalogPlugin(context, _options) {
       const journalDir = path.resolve(__dirname, "../../journal");
       const posts = scanJournalPosts(journalDir);
 
-      console.log(posts);
       return { posts };
     },
 
