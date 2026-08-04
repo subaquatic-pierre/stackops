@@ -36,8 +36,11 @@ export function getFrontMatter(
   return fm ?? {};
 }
 
-export function getMetadata(item: Props["items"][number]): Record<string, unknown> {
-  const meta = (item.content as { metadata?: Record<string, unknown> }).metadata;
+export function getMetadata(
+  item: Props["items"][number],
+): Record<string, unknown> {
+  const meta = (item.content as { metadata?: Record<string, unknown> })
+    .metadata;
   return meta ?? {};
 }
 
@@ -59,9 +62,7 @@ export function mapPostToRowCard(item: Props["items"][number]): CardPost {
 
 // ── Sorting ─────────────────────────────────────────────────────────
 
-export function sortFeaturedByOrder(
-  posts: BlogPluginPost[],
-): BlogPluginPost[] {
+export function sortFeaturedByOrder(posts: BlogPluginPost[]): BlogPluginPost[] {
   return [...posts].sort((a, b) => {
     const fa = a.metadata.frontMatter ?? {};
     const fb = b.metadata.frontMatter ?? {};
@@ -72,8 +73,7 @@ export function sortFeaturedByOrder(
     if (orderA != null) return -1;
     if (orderB != null) return 1;
     return (
-      new Date(b.metadata.date).getTime() -
-      new Date(a.metadata.date).getTime()
+      new Date(b.metadata.date).getTime() - new Date(a.metadata.date).getTime()
     );
   });
 }
@@ -92,3 +92,25 @@ export function sortRegularByDate(
     return 0;
   });
 }
+
+export const sortAllPosts = async ({ blogPosts }: any) => {
+  // Pre-sort: featured posts first (by order field, then date),
+  // then regular posts by date descending.
+  const featured = blogPosts.filter(
+    (p: any) => p.metadata.frontMatter?.featured === true,
+  );
+  const regular = blogPosts.filter(
+    (p: any) => p.metadata.frontMatter?.featured !== true,
+  );
+
+  featured.sort((a: any, b: any) => {
+    const oa = a.metadata.frontMatter?.order as number | undefined;
+    const ob = b.metadata.frontMatter?.order as number | undefined;
+    if (oa != null && ob != null) return oa - ob;
+    if (oa != null) return -1;
+    if (ob != null) return 1;
+    return b.metadata.date.getTime() - a.metadata.date.getTime();
+  });
+
+  return [...featured, ...regular];
+};

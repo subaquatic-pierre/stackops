@@ -87,6 +87,10 @@ function BlogListPageContent(props: Props): ReactNode {
     };
   }, []);
 
+  useEffect(() => {
+    console.log(allPosts);
+  }, [allPosts]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const hasActiveFilters = searchQuery !== "";
   const handleSearchChange = useCallback((query: string) => {
@@ -174,8 +178,7 @@ function BlogListPageContent(props: Props): ReactNode {
     };
   }, [items, searchQuery, isFirstPage, hasActiveFilters, allPosts]);
 
-  const isEmpty =
-    regularItems.length === 0 && featuredItems.length === 0;
+  const isEmpty = regularItems.length === 0 && featuredItems.length === 0;
   const showPaginator = !hasActiveFilters && items.length > 0;
 
   // ── Render ───────────────────────────────────────────────────────
@@ -188,7 +191,9 @@ function BlogListPageContent(props: Props): ReactNode {
       {hasActiveFilters && resultCount != null && resultCount > 0 && (
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
           {resultCount} {resultCount === 1 ? "entry" : "entries"} match{" "}
-          {"\u201C"}{searchQuery}{"\u201D"}
+          {"\u201C"}
+          {searchQuery}
+          {"\u201D"}
         </p>
       )}
 
@@ -202,9 +207,7 @@ function BlogListPageContent(props: Props): ReactNode {
       )}
 
       {/* Empty state when page has no posts (non-search) */}
-      {!hasActiveFilters && isEmpty && (
-        <EmptyState reason="empty" />
-      )}
+      {!hasActiveFilters && isEmpty && <EmptyState reason="empty" />}
 
       {showPaginator && <BlogListPaginator metadata={metadata} />}
     </BlogLayout>

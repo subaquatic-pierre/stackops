@@ -1,17 +1,9 @@
 import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
-
-const tailwindPlugin = (context: any, options: any) => {
-  return {
-    name: "docusaurus-tailwindcss",
-    configurePostCss(postcssOptions: any) {
-      postcssOptions.plugins.push(require("tailwindcss"));
-      postcssOptions.plugins.push(require("autoprefixer"));
-      return postcssOptions;
-    },
-  };
-};
+import { sortAllPosts } from "./src/lib/blog-utils";
+import blogSearchCatalogPlugin from "./src/plugins/blogSearchCatalog";
+import tailwindPlugin from "./src/plugins/tailwindPlugin";
 
 const config: Config = {
   title: "StackOps",
@@ -44,7 +36,7 @@ const config: Config = {
   plugins: [
     "docusaurus-plugin-sass",
     tailwindPlugin,
-    require("./src/plugins/blogSearchCatalog").default,
+    blogSearchCatalogPlugin as any,
     [
       "@easyops-cn/docusaurus-search-local",
       {
@@ -69,27 +61,7 @@ const config: Config = {
             "A running log of engineering projects, labs, and journal entries.",
           postsPerPage: 10,
           showReadingTime: true,
-          processBlogPosts: async ({ blogPosts }) => {
-            // Pre-sort: featured posts first (by order field, then date),
-            // then regular posts by date descending.
-            const featured = blogPosts.filter(
-              (p) => p.metadata.frontMatter?.featured === true,
-            );
-            const regular = blogPosts.filter(
-              (p) => p.metadata.frontMatter?.featured !== true,
-            );
-
-            featured.sort((a, b) => {
-              const oa = a.metadata.frontMatter?.order as number | undefined;
-              const ob = b.metadata.frontMatter?.order as number | undefined;
-              if (oa != null && ob != null) return oa - ob;
-              if (oa != null) return -1;
-              if (ob != null) return 1;
-              return b.metadata.date.getTime() - a.metadata.date.getTime();
-            });
-
-            return [...featured, ...regular];
-          },
+          processBlogPosts: sortAllPosts,
           feedOptions: {
             type: ["rss", "atom"],
             xslt: true,
