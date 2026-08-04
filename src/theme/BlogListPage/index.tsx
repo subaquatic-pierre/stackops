@@ -1,11 +1,14 @@
 /**
- * Swizzled BlogListPage — renders featured entries on page 1 (from all posts),
- * followed by date-sorted regular entries for the current page.
+ * Swizzled BlogListPage — renders featured entries on page 1,
+ * followed by date-sorted regular entries.
+ *
+ * Featured ordering is handled at build time by `processBlogPosts`
+ * in docusaurus.config.ts, so this component just splits the
+ * current page's items into featured / regular.
  */
 import React, { type ReactNode, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
-import { usePluginData } from "@docusaurus/useGlobalData";
 import {
   PageMetadata,
   HtmlClassNameProvider,
@@ -23,7 +26,6 @@ import {
   type BlogPluginPost,
   getFrontMatter,
   getMetadata,
-  sortFeaturedByOrder,
   sortRegularByDate,
 } from "@site/src/lib/blog-utils";
 import type { Props } from "@theme/BlogListPage";
@@ -52,59 +54,50 @@ function BlogListPageContent(props: Props): ReactNode {
   const { metadata, items } = props;
   const isFirstPage = metadata.page === 1;
 
-  // All blog posts (not just current page)
-  const pluginData = usePluginData("docusaurus-plugin-content-blog") as
-    | { blogPosts?: BlogPluginPost[] }
-    | undefined;
-  const allPosts = pluginData?.blogPosts ?? [];
-
   const [searchQuery, setSearchQuery] = useState("");
   const hasActiveFilters = searchQuery !== "";
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
 
-  // ── Featured posts (all posts, page-1 only) ──────────────────────
+  // Featured posts are pre-sorted first by processBlogPosts.
+  // On page 1 they appear in the featured grid; on other pages
+  // they flow into the regular list.
+  const { featuredItems, regularItems } = useMemo(() => {
+    const featured: BlogPluginPost[] = [];
+    const regular: Props["items"][number][] = [];
 
-  const featuredItems = useMemo(() => {
-    if (!isFirstPage || hasActiveFilters) return [];
-    return sortFeaturedByOrder(
-      allPosts.filter((p) => p.metadata.frontMatter?.featured === true),
-    );
-  }, [allPosts, isFirstPage, hasActiveFilters]);
-
-  const featuredPermalinks = useMemo(
-    () => new Set(featuredItems.map((p) => p.metadata.permalink)),
-    [featuredItems],
-  );
-
-  // ── Regular posts (current page, search-filtered, minus featured) ─
-
-  const regularItems = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    const matches = items.filter((item) => {
+
+    for (const item of items) {
       const fm = getFrontMatter(item);
       const meta = getMetadata(item);
 
       if (query) {
         const title = ((fm.title as string) || "").toLowerCase();
         const desc = ((fm.description as string) || "").toLowerCase();
-        if (!title.includes(query) && !desc.includes(query)) return false;
+        if (!title.includes(query) && !desc.includes(query)) continue;
       }
 
-      if (
-        isFirstPage &&
-        meta.permalink &&
-        featuredPermalinks.has(meta.permalink as string)
-      ) {
-        return false;
+      if (isFirstPage && fm.featured === true && !hasActiveFilters) {
+        featured.push({
+          content: item.content,
+          metadata: {
+            permalink: (meta.permalink as string) || "#",
+            date: new Date((meta.date || fm.date || new Date()) as string),
+            frontMatter: fm,
+          },
+        });
+      } else {
+        regular.push(item);
       }
+    }
 
-      return true;
-    });
-
-    return sortRegularByDate(matches);
-  }, [items, searchQuery, isFirstPage, featuredPermalinks]);
+    return {
+      featuredItems: featured,
+      regularItems: sortRegularByDate(regular),
+    };
+  }, [items, searchQuery, isFirstPage, hasActiveFilters]);
 
   // ── Render ───────────────────────────────────────────────────────
 
@@ -112,16 +105,12 @@ function BlogListPageContent(props: Props): ReactNode {
     <BlogLayout>
       <FilterBar onSearchChange={handleSearchChange} />
 
-      {/* Search returned nothing */}
       {items.length === 0 && <EmptyState reason="search" />}
 
-      {/* Featured grid (page 1 only) */}
       <FeaturedSection posts={featuredItems} />
 
-      {/* Regular entries grid */}
       <RegularSection items={regularItems} />
 
-      {/* Nothing to show at all */}
       {regularItems.length === 0 &&
         featuredItems.length === 0 &&
         items.length > 0 && <EmptyState reason="empty" />}
