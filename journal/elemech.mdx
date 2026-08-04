@@ -3,8 +3,10 @@ title: "ELE.MECH — MEP Engineering Corporate Site"
 date: 2026-08-03
 authors:
   - pierre
-tags: [nextjs, react, tailwind, typescript, aws-ses, recaptcha, corporate, brochure]
+tags:
+  [nextjs, react, tailwind, typescript, aws-ses, recaptcha, corporate, brochure]
 image: /img/journal/elemech-logo.png
+featured: false
 description: >
   Corporate marketing website for a Dubai-based MEP (Mechanical, Electrical,
   Plumbing), ELV (Extra Low Voltage), and Interior Fit-Out solutions company.
@@ -12,6 +14,7 @@ description: >
   with   contact form lead generation.
 website: https://elemech.ae
 ---
+
 {/* truncate */}
 
 ---
@@ -38,11 +41,12 @@ ELE.MECH takes the simplest architectural approach of all CODATIVITY projects: a
 
 A **single-service, fully static** architecture:
 
-| Service | Role |
-|---------|------|
+| Service           | Role                                       |
+| ----------------- | ------------------------------------------ |
 | **www** (Next.js) | Static corporate website with 2 API routes |
 
 Two minimal Next.js API routes handle all server-side functionality:
+
 - `POST /api/contact` — sends contact form submissions via AWS SES
 - `POST /api/verify-captcha` — verifies Google reCAPTCHA Enterprise tokens
 
@@ -75,10 +79,10 @@ The contact form implements **dual-layer CAPTCHA** — Google reCAPTCHA v3 (invi
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js (App Router), React, TypeScript, Tailwind CSS |
-| **Image Gallery** | Yet Another React Lightbox |
-| **Email** | AWS SES (contact form) |
-| **CAPTCHA** | Google reCAPTCHA v3 + Enterprise |
-| **Social Widget** | Elfsight embedded widget |
+| Layer             | Technology                                            |
+| ----------------- | ----------------------------------------------------- |
+| **Frontend**      | Next.js (App Router), React, TypeScript, Tailwind CSS |
+| **Image Gallery** | Yet Another React Lightbox                            |
+| **Email**         | AWS SES (contact form)                                |
+| **CAPTCHA**       | Google reCAPTCHA v3 + Enterprise                      |
+| **Social Widget** | Elfsight embedded widget                              |

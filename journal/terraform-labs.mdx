@@ -5,6 +5,7 @@ authors:
   - pierre
 tags: [terraform, aws, kubernetes, sre, gitops, ci-cd, serverless, iac]
 image: /img/journal-placeholder.png
+featured: true
 description: >
   A collection of Terraform labs covering EC2, EKS, GitOps, SRE, static sites,
   serverless, and CI/CD on AWS. Pick a directory, `terraform init`, and go.
@@ -17,16 +18,16 @@ repo: "https://github.com/subaquatic-pierre/terraform-labs"
 
 ## Quick index
 
-| Directory | What it builds |
-|---|---|
-| [`basic-webserver/`](#basic-webserver) | VPC + EC2 + Security Groups — bare-bones web hosting |
-| [`eks/`](#eks) | EKS cluster with managed node groups, ALB controller, autoscaler, metrics |
-| [`gitops/`](#gitops) | ArgoCD + Sealed Secrets — declarative cluster management |
-| [`sre/`](#sre) | Grafana LGTM stack (Loki, Mimir, Alloy) — observability for Kubernetes |
-| [`static-website/`](#static-website) | S3 + CloudFront + ACM + Route53 — static site with SSL and CDN |
-| [`serverless-api/`](#serverless-api) | API Gateway + Lambda — REST API with Python handlers |
-| [`aws-ecs-ci-cd/`](#aws-ecs-ci-cd) | ECS Fargate + CodePipeline — full-stack CI/CD (Django + React) |
-| [`pwa-ci-cd/`](#pwa-ci-cd) | S3 + CloudFront + GitHub Actions — PWA deployment pipeline |
+| Directory                              | What it builds                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| [`basic-webserver/`](#basic-webserver) | VPC + EC2 + Security Groups — bare-bones web hosting                      |
+| [`eks/`](#eks)                         | EKS cluster with managed node groups, ALB controller, autoscaler, metrics |
+| [`gitops/`](#gitops)                   | ArgoCD + Sealed Secrets — declarative cluster management                  |
+| [`sre/`](#sre)                         | Grafana LGTM stack (Loki, Mimir, Alloy) — observability for Kubernetes    |
+| [`static-website/`](#static-website)   | S3 + CloudFront + ACM + Route53 — static site with SSL and CDN            |
+| [`serverless-api/`](#serverless-api)   | API Gateway + Lambda — REST API with Python handlers                      |
+| [`aws-ecs-ci-cd/`](#aws-ecs-ci-cd)     | ECS Fargate + CodePipeline — full-stack CI/CD (Django + React)            |
+| [`pwa-ci-cd/`](#pwa-ci-cd)             | S3 + CloudFront + GitHub Actions — PWA deployment pipeline                |
 
 ---
 
@@ -345,14 +346,14 @@ serverless-api/
 - **Modular design** (`main.tf`) — the API and Lambda are separate Terraform modules. The root `main.tf` wires them by passing the API's execution ARN into the Lambda module, and each Lambda's invoke ARN back into the API module. CORS is handled by the `mewa/apigateway-cors/aws` community module (v2.0.1), applied to both the root resource and the `/resource` path.
 - **Endpoints** — six methods across two resources:
 
-| Route | Methods | Lambda Handler |
-|---|---|---|
-| `/` | GET, POST | `index` (root) |
-| `/resource` | GET | `list` |
-| `/resource` | POST | `post` |
-| `/resource/{post_id}` | GET | `get` |
-| `/resource/{post_id}` | PUT | `put` |
-| `/resource/{post_id}` | DELETE | `delete` |
+| Route                 | Methods   | Lambda Handler |
+| --------------------- | --------- | -------------- |
+| `/`                   | GET, POST | `index` (root) |
+| `/resource`           | GET       | `list`         |
+| `/resource`           | POST      | `post`         |
+| `/resource/{post_id}` | GET       | `get`          |
+| `/resource/{post_id}` | PUT       | `put`          |
+| `/resource/{post_id}` | DELETE    | `delete`       |
 
 - **Lambda handlers** — `http_methods.py` exports a `@app.route` decorator pattern. Responses use a `Response.format` class method for consistent JSON structure. No implementation — just the skeleton ready for business logic.
 - **Providers** — uses AWS provider `~> 4.0.0`, plus `random` and `archive` for Lambda packaging.

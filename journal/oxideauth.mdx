@@ -3,8 +3,20 @@ title: "OxideAuth — Centralized Authentication Service"
 date: 2026-08-03
 authors:
   - pierre
-tags: [rust, nextjs, postgresql, jwt, oauth2, authentication, authorization, google-oauth, aws-ses]
+tags:
+  [
+    rust,
+    nextjs,
+    postgresql,
+    jwt,
+    oauth2,
+    authentication,
+    authorization,
+    google-oauth,
+    aws-ses,
+  ]
 image: /img/journal-placeholder.png
+featured: true
 description: >
   A custom-built authentication and authorization service powering all
   CODATIVITY client applications. Rust API backend handling JWT issuance,
@@ -12,6 +24,7 @@ description: >
   email delivery via AWS SES, and file storage via AWS S3.
 website: https://oxideauth.codaweb.co
 ---
+
 {/* truncate */}
 
 ---
@@ -39,11 +52,11 @@ Built with a **Rust backend** for performance and safety, OxideAuth handles JWT 
 
 A two-service system with an external PostgreSQL database:
 
-| Service | Role |
-|---------|------|
-| **oxideauth-api** (Rust) | Core auth API — JWT, OAuth2, email, storage |
+| Service                           | Role                                             |
+| --------------------------------- | ------------------------------------------------ |
+| **oxideauth-api** (Rust)          | Core auth API — JWT, OAuth2, email, storage      |
 | **oxideauth-dashboard** (Next.js) | Admin interface for managing auth configurations |
-| **PostgreSQL** | External database for user accounts and tokens |
+| **PostgreSQL**                    | External database for user accounts and tokens   |
 
 The Rust API's source lives in a separate repository; this project repo contains only the Docker/Kubernetes deployment configuration.
 
@@ -89,12 +102,12 @@ For machine-to-machine communication, backend services use service account JWTs 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Auth API** | Rust (high-performance auth server) |
-| **Admin Dashboard** | Next.js, React |
-| **Database** | PostgreSQL |
-| **Authentication** | JWT (24-hour default expiry), OAuth2 (Google) |
-| **Email** | AWS SES |
-| **Storage** | AWS S3 |
-| **Deployment** | Docker, Kubernetes, Kustomize |
+| Layer               | Technology                                    |
+| ------------------- | --------------------------------------------- |
+| **Auth API**        | Rust (high-performance auth server)           |
+| **Admin Dashboard** | Next.js, React                                |
+| **Database**        | PostgreSQL                                    |
+| **Authentication**  | JWT (24-hour default expiry), OAuth2 (Google) |
+| **Email**           | AWS SES                                       |
+| **Storage**         | AWS S3                                        |
+| **Deployment**      | Docker, Kubernetes, Kustomize                 |

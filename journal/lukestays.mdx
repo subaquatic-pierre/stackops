@@ -3,9 +3,22 @@ title: "Luke Stays — Short-Term Rental & Property Platform"
 date: 2026-08-03
 authors:
   - pierre
-tags: [nextjs, react, mui, azure-functions, wordpress, stripe, i18n, typescript, rental, real-estate, booking]
+tags:
+  [
+    nextjs,
+    react,
+    mui,
+    azure-functions,
+    wordpress,
+    stripe,
+    i18n,
+    typescript,
+    rental,
+    real-estate,
+    booking,
+  ]
 image: /img/journal/lukestays-logo.png
-featured: true
+featured: false
 description: >
   A full-scale online travel agency and property management platform combining
   short-term rental bookings, a landlord/partner portal, and Dubai real estate
@@ -13,6 +26,7 @@ description: >
   property seekers across the UK and Dubai.
 website: https://www.lukestays.com
 ---
+
 {/* truncate */}
 
 ---
@@ -41,12 +55,12 @@ The platform connects to a network of third-party services through Azure Functio
 
 A **serverless-proxy architecture** — the Next.js frontend is the only service in this repository:
 
-| Service | Role |
-|---------|------|
-| **www** (Next.js) | Three portals in one app — guests, partners, real estate |
+| Service             | Role                                                                     |
+| ------------------- | ------------------------------------------------------------------------ |
+| **www** (Next.js)   | Three portals in one app — guests, partners, real estate                 |
 | **Azure Functions** | Serverless proxy layer to Uplisting, Stripe, PriceLabs, Superhog, Goyzer |
-| **WordPress** | Headless blog via GraphQL |
-| **ActiveCampaign** | CRM with 40+ per-city contact tags |
+| **WordPress**       | Headless blog via GraphQL                                                |
+| **ActiveCampaign**  | CRM with 40+ per-city contact tags                                       |
 
 No local database, no Next.js API routes for business logic — all backend operations go through Azure Functions which act as a secure proxy layer between the frontend and third-party services.
 
@@ -80,16 +94,16 @@ The platform supports **English and Russian** through `next-translate-plugin` wi
 
 Eight Azure Functions serve as the serverless backend:
 
-| Function | Purpose |
-|----------|---------|
-| GetUplistingData | Property listings, details, and availability |
-| GetProperties | Aggregated property data |
-| GetCalendar | Real-time availability calendars |
-| CreateBooking | Booking submission and confirmation |
-| CreatePaymentIntent | Stripe payment intent creation |
-| ProductPaymentHandler | Additional product/service purchases |
-| SuperhogHandler | Guest identity verification |
-| Goyzer | Property management operations |
+| Function              | Purpose                                      |
+| --------------------- | -------------------------------------------- |
+| GetUplistingData      | Property listings, details, and availability |
+| GetProperties         | Aggregated property data                     |
+| GetCalendar           | Real-time availability calendars             |
+| CreateBooking         | Booking submission and confirmation          |
+| CreatePaymentIntent   | Stripe payment intent creation               |
+| ProductPaymentHandler | Additional product/service purchases         |
+| SuperhogHandler       | Guest identity verification                  |
+| Goyzer                | Property management operations               |
 
 This serverless architecture keeps credentials server-side (the frontend never sees Uplisting, Stripe, or Superhog API keys) while providing scalable, cost-efficient compute.
 
@@ -103,14 +117,14 @@ ActiveCampaign drives the marketing engine with 40+ per-city contact tags, aband
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js (Pages Router), React, TypeScript, MUI v5, Emotion, SCSS |
-| **Backend** | Azure Functions (serverless proxy layer) |
-| **CMS / Blog** | WordPress (headless, GraphQL) |
-| **Payments** | Stripe (payment intents, checkout sessions) |
-| **PMS** | Uplisting (property management system) |
-| **Pricing** | PriceLabs (dynamic pricing) |
-| **Verification** | Superhog (guest identity) |
-| **CRM** | ActiveCampaign (email marketing, abandoned cart) |
-| **i18n** | `next-translate-plugin` (EN/RU, 173 namespaces) |
+| Layer            | Technology                                                       |
+| ---------------- | ---------------------------------------------------------------- |
+| **Frontend**     | Next.js (Pages Router), React, TypeScript, MUI v5, Emotion, SCSS |
+| **Backend**      | Azure Functions (serverless proxy layer)                         |
+| **CMS / Blog**   | WordPress (headless, GraphQL)                                    |
+| **Payments**     | Stripe (payment intents, checkout sessions)                      |
+| **PMS**          | Uplisting (property management system)                           |
+| **Pricing**      | PriceLabs (dynamic pricing)                                      |
+| **Verification** | Superhog (guest identity)                                        |
+| **CRM**          | ActiveCampaign (email marketing, abandoned cart)                 |
+| **i18n**         | `next-translate-plugin` (EN/RU, 173 namespaces)                  |

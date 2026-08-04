@@ -3,9 +3,22 @@ title: "The Craft Safari — E-Commerce Storefront"
 date: 2026-08-03
 authors:
   - pierre
-tags: [nextjs, react, woocommerce, wordpress, bootstrap, scss, typescript, ecommerce, stripe, geidea, bunny-cdn]
+tags:
+  [
+    nextjs,
+    react,
+    woocommerce,
+    wordpress,
+    bootstrap,
+    scss,
+    typescript,
+    ecommerce,
+    stripe,
+    geidea,
+    bunny-cdn,
+  ]
 image: /img/journal/tcs-logo.svg
-featured: true
+featured: false
 description: >
   A production e-commerce storefront for Indian handcrafted goods and artisan
   products. Headless WordPress + WooCommerce backend with a Next.js 15 frontend
@@ -13,6 +26,7 @@ description: >
   gateway (UAE), and 3D product visualization.
 website: https://thecraftsafari.shop
 ---
+
 {/* truncate */}
 
 ---
@@ -44,11 +58,11 @@ The architecture is **headless WooCommerce** — WordPress handles the product c
 
 A **single Next.js frontend with an external WooCommerce backend**:
 
-| Service | Role |
-|---------|------|
-| **www** (Next.js) | E-commerce storefront with three-layer caching |
+| Service                                | Role                                             |
+| -------------------------------------- | ------------------------------------------------ |
+| **www** (Next.js)                      | E-commerce storefront with three-layer caching   |
 | **WordPress + WooCommerce** (external) | Product catalog, orders, blog, custom post types |
-| **Bunny CDN** | Media delivery with custom WordPress CDN plugin |
+| **Bunny CDN**                          | Media delivery with custom WordPress CDN plugin  |
 
 No database is managed in this repository — all product, order, and customer data lives in the external WordPress/WooCommerce instance at `admin.thecraftsafari.shop`.
 
@@ -104,16 +118,16 @@ A custom WordPress PHP plugin rewrites all attachment URLs from the WordPress or
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js (App Router), React, TypeScript, Bootstrap 5 + SCSS |
-| **Data Fetching** | TanStack Query, Axios |
-| **E-commerce** | WooCommerce (headless, REST API) |
-| **Payments** | Geidea (UAE payment gateway with card + digital wallet) |
-| **CMS** | WordPress (headless, custom post types) |
-| **Search** | Fuse.js (client-side fuzzy search) |
-| **Images** | PhotoSwipe (gallery), `@google/model-viewer` (3D products) |
-| **CDN** | Bunny CDN with custom WordPress offloading plugin |
-| **Analytics** | Google Analytics, Meta Pixel |
-| **CRM** | Zoho (newsletter subscriptions) |
-| **SEO** | Yoast SEO (WordPress) consumed via `yoast_head_json` |
+| Layer             | Technology                                                  |
+| ----------------- | ----------------------------------------------------------- |
+| **Frontend**      | Next.js (App Router), React, TypeScript, Bootstrap 5 + SCSS |
+| **Data Fetching** | TanStack Query, Axios                                       |
+| **E-commerce**    | WooCommerce (headless, REST API)                            |
+| **Payments**      | Geidea (UAE payment gateway with card + digital wallet)     |
+| **CMS**           | WordPress (headless, custom post types)                     |
+| **Search**        | Fuse.js (client-side fuzzy search)                          |
+| **Images**        | PhotoSwipe (gallery), `@google/model-viewer` (3D products)  |
+| **CDN**           | Bunny CDN with custom WordPress offloading plugin           |
+| **Analytics**     | Google Analytics, Meta Pixel                                |
+| **CRM**           | Zoho (newsletter subscriptions)                             |
+| **SEO**           | Yoast SEO (WordPress) consumed via `yoast_head_json`        |

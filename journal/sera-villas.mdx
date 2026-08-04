@@ -3,9 +3,23 @@ title: "Sera Villas — Luxury Villa Booking Platform"
 date: 2026-08-03
 authors:
   - pierre
-tags: [nextjs, react, tailwind, shadcn-ui, directus, cms, postgresql, stripe, typescript, villas, booking, luxury]
+tags:
+  [
+    nextjs,
+    react,
+    tailwind,
+    shadcn-ui,
+    directus,
+    cms,
+    postgresql,
+    stripe,
+    typescript,
+    villas,
+    booking,
+    luxury,
+  ]
 image: /img/journal/sera-villas-logo.svg
-featured: true
+featured: false
 description: >
   A luxury vacation rental marketing website and booking platform for high-end
   villas in Mallorca, Spain. Full booking engine with availability checking,
@@ -13,6 +27,7 @@ description: >
   CMS and Uplisting   property management system.
 website: https://seravillas.com
 ---
+
 {/* truncate */}
 
 ---
@@ -42,14 +57,14 @@ The platform connects to **Uplisting** (a property management system) for real-t
 
 A **headless CMS + external PMS** architecture:
 
-| Service | Role |
-|---------|------|
-| **www** (Next.js) | Luxury villa website + booking engine |
-| **directus** (CMS) | Headless content management |
-| **PostgreSQL** | CMS database |
-| **Uplisting** (PMS) | External property management system |
-| **Stripe** | Payment processing |
-| **AWS SES** | Transactional emails |
+| Service             | Role                                  |
+| ------------------- | ------------------------------------- |
+| **www** (Next.js)   | Luxury villa website + booking engine |
+| **directus** (CMS)  | Headless content management           |
+| **PostgreSQL**      | CMS database                          |
+| **Uplisting** (PMS) | External property management system   |
+| **Stripe**          | Payment processing                    |
+| **AWS SES**         | Transactional emails                  |
 
 The frontend is the sole consumer-facing service. Uplisting, Stripe, and AWS SES are integrated through Next.js API routes that proxy requests — keeping API keys server-side and avoiding browser CORS issues.
 
@@ -90,13 +105,13 @@ Directus manages blog posts, CMS pages, and SEO metadata. Content is fetched via
 
 ## Third-Party Integrations
 
-| Integration | Purpose |
-|-------------|---------|
-| **Uplisting** | Property details, availability calendars, dynamic pricing, cleaning fees, channel commissions |
-| **Stripe** | Payment processing — customer creation, payment intents, checkout sessions, refunds |
-| **AWS SES** | Booking confirmation and contact form emails |
-| **Hetzner S3 + Bunny CDN** | Asset storage and CDN delivery |
-| **CloudFront** | Uplisting property photo delivery |
+| Integration                | Purpose                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| **Uplisting**              | Property details, availability calendars, dynamic pricing, cleaning fees, channel commissions |
+| **Stripe**                 | Payment processing — customer creation, payment intents, checkout sessions, refunds           |
+| **AWS SES**                | Booking confirmation and contact form emails                                                  |
+| **Hetzner S3 + Bunny CDN** | Asset storage and CDN delivery                                                                |
+| **CloudFront**             | Uplisting property photo delivery                                                             |
 
 ### Multi-Channel Commission Tracking
 
@@ -106,14 +121,14 @@ Uplisting provides commission data across booking channels: Airbnb (18.34%), Boo
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui |
-| **Animations** | Motion (Framer Motion successor), Embla Carousel |
-| **Forms** | React Hook Form + Zod (type-safe validation) |
-| **CMS** | Directus (headless), PostgreSQL |
-| **PMS** | Uplisting (property management) |
-| **Payments** | Stripe |
-| **Email** | AWS SES |
-| **Storage** | Hetzner S3 + Bunny CDN |
-| **Server Actions** | `next-safe-action` for type-safe server logic |
+| Layer              | Technology                                                       |
+| ------------------ | ---------------------------------------------------------------- |
+| **Frontend**       | Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui |
+| **Animations**     | Motion (Framer Motion successor), Embla Carousel                 |
+| **Forms**          | React Hook Form + Zod (type-safe validation)                     |
+| **CMS**            | Directus (headless), PostgreSQL                                  |
+| **PMS**            | Uplisting (property management)                                  |
+| **Payments**       | Stripe                                                           |
+| **Email**          | AWS SES                                                          |
+| **Storage**        | Hetzner S3 + Bunny CDN                                           |
+| **Server Actions** | `next-safe-action` for type-safe server logic                    |

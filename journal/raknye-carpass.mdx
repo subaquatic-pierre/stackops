@@ -3,7 +3,23 @@ title: "RAK NYE CarPass — Parking & Access Management System"
 date: 2026-08-03
 authors:
   - pierre
-tags: [nextjs, react, express, dotnet, csharp, python, mongodb, mui, typescript, parking, anpr, iot, qr-code, bilingual]
+tags:
+  [
+    nextjs,
+    react,
+    express,
+    dotnet,
+    csharp,
+    python,
+    mongodb,
+    mui,
+    typescript,
+    parking,
+    anpr,
+    iot,
+    qr-code,
+    bilingual,
+  ]
 image: /img/journal/raknye-carpass-logo.svg
 featured: true
 description: >
@@ -13,6 +29,7 @@ description: >
   management,   and live parking statistics.
 website: https://www.raknye.com
 ---
+
 {/* truncate */}
 
 ---
@@ -44,14 +61,14 @@ The system handles **10 parking locations** across Al Marjan Island with traffic
 
 A **five-service polyglot system** with OxideAuth for authentication:
 
-| Service | Role |
-|---------|------|
-| **www** (Next.js) | Public registration and information site (AR/EN) |
-| **dashboard** (Next.js) | Admin panel with RBAC and live stats |
-| **api** (Express.js) | REST API with MongoDB backend |
-| **anpr-service** (.NET 8) | ANPR camera integration for Hikvision cameras |
-| **etl** (Python) | Batch data pipeline for database migrations |
-| **MongoDB** | Primary database |
+| Service                   | Role                                             |
+| ------------------------- | ------------------------------------------------ |
+| **www** (Next.js)         | Public registration and information site (AR/EN) |
+| **dashboard** (Next.js)   | Admin panel with RBAC and live stats             |
+| **api** (Express.js)      | REST API with MongoDB backend                    |
+| **anpr-service** (.NET 8) | ANPR camera integration for Hikvision cameras    |
+| **etl** (Python)          | Batch data pipeline for database migrations      |
+| **MongoDB**               | Primary database                                 |
 
 ---
 
@@ -106,15 +123,15 @@ A batch ETL pipeline migrates data between database instances. It parses scan da
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend (www)** | Next.js (App Router), React, TypeScript, MUI v7, Redux Toolkit |
-| **Frontend (dashboard)** | Next.js, MUI v7, ApexCharts, Puck CMS |
-| **API Backend** | Express.js, TypeScript, Mongoose (MongoDB) |
-| **ANPR Service** | .NET 8 C#, ASP.NET Core Minimal API |
-| **ETL Pipeline** | Python 3, PyMongo |
-| **Database** | MongoDB |
-| **Auth** | OxideAuth (JWT-based centralized auth) |
-| **Messaging** | Twilio (WhatsApp + SMS fallback) |
-| **Storage** | Azure Blob / Hetzner S3 |
-| **i18n** | `react-intl` / `next-international` (EN/AR + RTL) |
+| Layer                    | Technology                                                     |
+| ------------------------ | -------------------------------------------------------------- |
+| **Frontend (www)**       | Next.js (App Router), React, TypeScript, MUI v7, Redux Toolkit |
+| **Frontend (dashboard)** | Next.js, MUI v7, ApexCharts, Puck CMS                          |
+| **API Backend**          | Express.js, TypeScript, Mongoose (MongoDB)                     |
+| **ANPR Service**         | .NET 8 C#, ASP.NET Core Minimal API                            |
+| **ETL Pipeline**         | Python 3, PyMongo                                              |
+| **Database**             | MongoDB                                                        |
+| **Auth**                 | OxideAuth (JWT-based centralized auth)                         |
+| **Messaging**            | Twilio (WhatsApp + SMS fallback)                               |
+| **Storage**              | Azure Blob / Hetzner S3                                        |
+| **i18n**                 | `react-intl` / `next-international` (EN/AR + RTL)              |
