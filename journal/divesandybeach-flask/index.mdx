@@ -12,7 +12,6 @@ description: >
   course management, and dive site listings, with Flask Blueprints for modular
   component design.
 repo: https://github.com/subaquatic-pierre/divesandybeach-flask
-website: https://divesandybeach-flask.herokuapp.com/
 ---
 
 {/* truncate */}
@@ -45,12 +44,12 @@ The project was structured around **Flask Blueprints** for modular component des
 
 A **modular MVC application** built on Flask Blueprints:
 
-| Blueprint  | Role                                          |
-| ---------- | --------------------------------------------- |
-| **main**   | Core pages and routing                        |
-| **posts**  | Blog post management                          |
-| **users**  | Authentication and user profiles              |
-| **errors** | Custom error handlers                         |
+| Blueprint  | Role                             |
+| ---------- | -------------------------------- |
+| **main**   | Core pages and routing           |
+| **posts**  | Blog post management             |
+| **users**  | Authentication and user profiles |
+| **errors** | Custom error handlers            |
 
 The application is backed by an **SQLAlchemy** ORM over a SQLite database (migratable to PostgreSQL) for production. Passwords are hashed with **Bcrypt**, authentication is handled by **Flask-Login**, and emails are sent through **Flask-Mail**. Forms are validated with **WTForms** and rendered on the frontend with Bootstrap 4 and jQuery.
 
@@ -58,12 +57,12 @@ The application is backed by an **SQLAlchemy** ORM over a SQLite database (migra
 
 ## Tech Stack
 
-| Layer          | Technology                                      |
-| -------------- | ----------------------------------------------- |
-| **Framework**  | Flask (MVC, Blueprints)                         |
-| **ORM**        | Flask-SQLAlchemy (SQLite → PostgreSQL)          |
-| **Auth**       | Flask-Login, Bcrypt                             |
-| **Forms**      | WTForms                                         |
-| **Email**      | Flask-Mail                                      |
-| **Images**     | Pillow (auto-resize profile pictures)           |
-| **Frontend**   | Bootstrap 4, jQuery, Jinja2                     |
+| Layer         | Technology                             |
+| ------------- | -------------------------------------- |
+| **Framework** | Flask (MVC, Blueprints)                |
+| **ORM**       | Flask-SQLAlchemy (SQLite → PostgreSQL) |
+| **Auth**      | Flask-Login, Bcrypt                    |
+| **Forms**     | WTForms                                |
+| **Email**     | Flask-Mail                             |
+| **Images**    | Pillow (auto-resize profile pictures)  |
+| **Frontend**  | Bootstrap 4, jQuery, Jinja2            |

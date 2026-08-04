@@ -23,7 +23,6 @@ description: >
   GraphQL API server, and Terraform-based AWS infrastructure — providing booking
   management, boat scheduling, and a digital diver logbook.
 repo: https://github.com/subaquatic-pierre/diveschedule-project
-website: https://scubadivedubai.com
 ---
 
 {/* truncate */}
@@ -53,10 +52,10 @@ The system powers a production deployment for a real dive operation in Dubai. Th
 
 A **three-repository architecture** decoupling client, server, and infrastructure:
 
-| Repository                    | Role                                        |
-| ----------------------------- | ------------------------------------------- |
-| **client-diveschedule**       | React / TypeScript / Apollo Client frontend |
-| **server-diveschedule**       | Django / Graphene / GraphQL API             |
+| Repository                      | Role                                        |
+| ------------------------------- | ------------------------------------------- |
+| **client-diveschedule**         | React / TypeScript / Apollo Client frontend |
+| **server-diveschedule**         | Django / Graphene / GraphQL API             |
 | **infrastructure-diveschedule** | Terraform / AWS infrastructure              |
 
 On AWS, the infrastructure uses **ECS** for the API and **CloudFront** for frontend hosting. Automated CI/CD pipelines deploy new builds whenever code is pushed to the main branch, with Docker Compose providing a frictionless local development environment.
@@ -65,10 +64,10 @@ On AWS, the infrastructure uses **ECS** for the API and **CloudFront** for front
 
 ## Tech Stack
 
-| Layer               | Technology                                            |
-| ------------------- | ----------------------------------------------------- |
-| **Client**          | React, TypeScript, Apollo Client, Material UI         |
-| **Server**          | Django, Graphene (GraphQL)                            |
-| **Infrastructure**  | Terraform, AWS (ECS, CloudFront)                      |
-| **Local dev**       | Docker Compose                                        |
-| **CI/CD**           | Automated pipelines on push to main                   |
+| Layer              | Technology                                    |
+| ------------------ | --------------------------------------------- |
+| **Client**         | React, TypeScript, Apollo Client, Material UI |
+| **Server**         | Django, Graphene (GraphQL)                    |
+| **Infrastructure** | Terraform, AWS (ECS, CloudFront)              |
+| **Local dev**      | Docker Compose                                |
+| **CI/CD**          | Automated pipelines on push to main           |
