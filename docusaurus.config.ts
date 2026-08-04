@@ -85,7 +85,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: "img/logo-dark-theme.svg",
+    image: "img/logo-dark-theme.png",
     colorMode: {
       defaultMode: "dark",
       disableSwitch: false,
