@@ -87,10 +87,6 @@ function BlogListPageContent(props: Props): ReactNode {
     };
   }, []);
 
-  useEffect(() => {
-    console.log(allPosts);
-  }, [allPosts]);
-
   const [searchQuery, setSearchQuery] = useState("");
   const hasActiveFilters = searchQuery !== "";
   const handleSearchChange = useCallback((query: string) => {
