@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Link from "@docusaurus/Link";
-import { cn } from "../../../lib/utils";
+import { cn, tagToSlug } from "../../../lib/utils";
 import TagPill from "../TagPill";
 
 export interface FeaturedCardProps {
@@ -103,7 +103,7 @@ export default function FeaturedCard({
               <TagPill
                 key={tag}
                 label={tag}
-                permalink={`/journal/tags/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
+                permalink={`/journal/tags/${tagToSlug(tag)}`}
                 stopPropagation
               />
             ))}

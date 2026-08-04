@@ -49,5 +49,9 @@ declare module "@docusaurus/useGlobalData" {
   ): Record<string, unknown> | undefined;
 }
 
+declare module "lodash/kebabCase" {
+  export default function kebabCase(str?: string): string;
+}
+
 declare module "*.css" {}
 declare module "*.scss" {}

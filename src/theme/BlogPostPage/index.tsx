@@ -51,9 +51,9 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
   const repo = frontMatter.repo as string | undefined;
   const website = frontMatter.website as string | undefined;
   const docs = frontMatter.docs as string | undefined;
-  const tags = frontMatter.tags as
-    | (string | { label?: string; permalink?: string })[]
-    | undefined;
+  // Use Docusaurus's pre-computed tag metadata which has correct permalinks
+  const tags = (metadata as { tags?: { label: string; permalink: string }[] })
+    .tags;
   const readingTime = Math.ceil(
     (metadata as { readingTime?: number }).readingTime || 1,
   );
@@ -142,17 +142,13 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
         {/* Tags */}
         {tags && tags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
-            {tags.map((tag) => {
-              const label = typeof tag === "string" ? tag : tag.label || "";
-              const permalink =
-                (typeof tag === "object" && "permalink" in tag
-                  ? (tag as { permalink?: string }).permalink
-                  : `/journal/tags/${encodeURIComponent(label.toLowerCase().replace(/\s+/g, "-"))}`) ||
-                "#";
-              return (
-                <TagPill key={label} label={label} permalink={permalink} />
-              );
-            })}
+            {tags.map((tag) => (
+              <TagPill
+                key={tag.label}
+                label={tag.label}
+                permalink={tag.permalink}
+              />
+            ))}
           </div>
         )}
       </header>

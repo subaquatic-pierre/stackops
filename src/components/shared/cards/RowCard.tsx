@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Link from "@docusaurus/Link";
-import { cn } from "../../../lib/utils";
+import { cn, tagToSlug } from "../../../lib/utils";
 import TagPill from "../TagPill";
 
 export interface RowCardProps {
@@ -118,7 +118,7 @@ export default function RowCard({
               <TagPill
                 key={tag}
                 label={tag}
-                permalink={`${tagBasePath}${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, "-"))}`}
+                permalink={`${tagBasePath}${tagToSlug(tag)}`}
                 stopPropagation
               />
             ))}
