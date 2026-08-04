@@ -66,6 +66,7 @@ const config: Config = {
           blogTitle: "Journal",
           blogDescription:
             "A running log of engineering projects, labs, and journal entries.",
+          // blogPostsPerPage: 20,
           showReadingTime: true,
           feedOptions: {
             type: ["rss", "atom"],
