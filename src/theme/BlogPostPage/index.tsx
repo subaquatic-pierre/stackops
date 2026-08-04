@@ -83,27 +83,31 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
         </h1>
 
         {repo && (
-          <a
-            href={repo}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent dark:hover:text-accent transition-colors no-underline"
-          >
-            <SiGithub className="h-3.5 w-3.5" />
-            {repo.replace("https://github.com/", "")}
-          </a>
+          <div>
+            <a
+              href={repo}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent dark:hover:text-accent transition-colors no-underline"
+            >
+              <SiGithub className="h-3.5 w-3.5" />
+              {repo.replace("https://github.com/", "")}
+            </a>
+          </div>
         )}
 
         {website && (
-          <a
-            href={website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent dark:hover:text-accent transition-colors no-underline"
-          >
-            <Globe className="h-3.5 w-3.5" />
-            {website.replace("https://", "").replace("www.", "")}
-          </a>
+          <div>
+            <a
+              href={website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent dark:hover:text-accent transition-colors no-underline"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              {website.replace("https://", "").replace("www.", "")}
+            </a>
+          </div>
         )}
 
         {/* Metadata row */}

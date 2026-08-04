@@ -1,28 +1,34 @@
 ---
-title: "OxideAuth — Centralized Authentication Service"
-date: 2026-08-03
+title: "OxideAuth — Decentralized Identity & Access Management Platform"
+date: 2026-08-04
 authors:
   - pierre
 tags:
   [
     rust,
-    nextjs,
     postgresql,
+    redis,
     jwt,
     authentication,
     authorization,
-    google-oauth,
-    aws-ses,
+    rbac,
+    multi-tenant,
+    iam,
+    ironstone,
+    axum,
+    sqlx,
   ]
 image: /img/journal/oxideauth-logo.png
+repo: https://github.com/subaquatic-pierre/oxideauth-api
+website: https://oxideauth.codaweb.co
 order: 1
 featured: true
 description: >
-  A custom-built authentication and authorization service powering all
-  CODATIVITY client applications. Rust API backend handling JWT issuance,
-  OAuth2 (Google) social login, service accounts for machine-to-machine auth,
-  email delivery via AWS SES, and file storage via AWS S3.
-website: https://oxideauth.codaweb.co
+  A fully featured, decentralized Identity and Access Management (IAM)
+  platform built in Rust. Multi-tenant workspaces with fine-grained RBAC
+  via roles, permissions, and policies. Stateless JWT authentication with
+  a Redis-backed blacklist pattern. Designed as a general-purpose auth
+  service — not tied to any single product or organization.
 ---
 
 {/* truncate */}
@@ -31,83 +37,218 @@ website: https://oxideauth.codaweb.co
 
 ## Overview
 
-**OxideAuth** is CODATIVITY's centralized identity and access management service. It provides authentication and authorization for all client applications — Booking Clinic, Maven Platform, RAK NYE CarPass, and others — ensuring consistent user identity, permissions, and security policy across the entire portfolio.
+**OxideAuth** (codename: **Ironstone**) is a decentralized, multi-tenant Identity and Access Management platform built in Rust. It offloads the full complexity of authentication and authorization from individual services — allowing developers to focus on business logic rather than identity plumbing.
 
-Built with a **Rust backend** for performance and safety, OxideAuth handles JWT token issuance (with configurable 24-hour default expiry), OAuth2 integration for Google social login, service accounts for machine-to-machine communication between backend services, email delivery through AWS SES, and file storage via AWS S3.
+Unlike the previous Codativity-specific version, this is a **general-purpose, self-contained IAM platform**. Any organization can run it as their central auth service. It supports workspace-level multi-tenancy with complete data isolation, fine-grained RBAC with roles and permissions, stateless JWT tokens with a Redis-backed blacklist pattern, and a composable architecture of services, stores, and caches.
+
+The codebase lives entirely in this repository — Rust source, database migrations, documentation, and Docker infrastructure all in one place.
 
 ---
 
 ## Key Features
 
-- **Centralized auth for all CODATIVITY apps:** Single identity provider across Booking Clinic, Maven, RAK NYE, and more
-- **JWT-based tokens:** Configurable secrets and expiration with standard Bearer token authentication
-- **Google OAuth2:** Social login integration for end-user convenience
-- **Service accounts:** Machine-to-machine authentication for secure backend-to-backend communication
-- **Multi-environment:** Separate configurations for local development and production deployments
-- **Rust performance:** The auth API is built in Rust for speed and memory safety — critical for a service that sits on the hot path of every API request
+- **Multi-tenant workspaces** — Three workspace types (GLOBAL, REGISTRY, STANDARD) with fully isolated data, roles, permissions, and configurations per tenant
+- **Fine-grained RBAC** — Roles bundle permissions; memberships link accounts to workspaces and projects; policies constrain access contextually without granting new abilities
+- **Stateless JWT auth with blacklist** — Tokens are validated by cryptographic signature with a fast Redis cache check for revoked tokens; database fallback ensures durability
+- **Polymorphic token system** — Unified token table supports BLACKLIST (revoked JWTs), REFRESH (session renewal), API_KEY (machine-to-machine), and RESET_PASSWORD tokens
+- **Workspace-scoped login** — Credentials (password, OAuth, SSO, API key) are scoped per workspace; login resolves the correct membership context for the JWT
+- **Embedded background worker** — Tokio-spawned janitor task auto-prunes expired tokens from the database on a schedule
+- **AWS S3 & SES integration** — Object storage for user uploads and transactional email delivery via AWS services
 
 ---
 
 ## Architecture
 
-A two-service system with an external PostgreSQL database:
+A layered, service-oriented Rust application backed by PostgreSQL and Redis:
 
-| Service                           | Role                                             |
-| --------------------------------- | ------------------------------------------------ |
-| **oxideauth-api** (Rust)          | Core auth API — JWT, OAuth2, email, storage      |
-| **oxideauth-dashboard** (Next.js) | Admin interface for managing auth configurations |
-| **PostgreSQL**                    | External database for user accounts and tokens   |
+| Layer               | Role                                                                    |
+| ------------------- | ----------------------------------------------------------------------- |
+| **Web**             | Axum HTTP handlers, routing, middleware (CORS, Ctx, Tracing, Response)  |
+| **Core (Services)** | Business logic — `ServiceFactory`, `TokenService`, `AuthService`, CRUD  |
+| **Store**           | SQLx/PostgreSQL persistence with `StoreManager` and per-entity stores   |
+| **Cache**           | Redis-backed `CacheManager` for session validation and blacklist checks |
+| **Worker**          | Embedded `tokio::spawn` background tasks (token expiry cleanup)         |
 
-The Rust API's source lives in a separate repository; this project repo contains only the Docker/Kubernetes deployment configuration.
+All layers share an `Arc<StoreManager>` and `Arc<CacheManager>` via the `ServiceFactory`, with request-scoped services instantiated per-request to prevent state leakage.
 
----
-
-## oxideauth-api — Rust Backend
-
-The API is the heart of OxideAuth, built in Rust for performance and safety. It handles:
-
-- **JWT token lifecycle** — Issuance, validation, and expiration with configurable secrets and token lifetimes
-- **OAuth2 / Google social login** — Endpoint at `/auth/oauth/google` for Sign In with Google
-- **Owner account seeding** — Automatic provisioning of the platform owner account
-- **Service accounts** — Machine-to-machine authentication for backend services communicating with each other
-- **Email delivery** — Transactional emails via AWS SES from `oxideauth@nebuladev.io` and `projects@codativity.com`
-- **File storage** — User uploads to AWS S3
-- **Database auto-migration** — Schema management with destructive reset capability for development
-- **CORS whitelisting** — Dashboard origin access control
-
-Clients integrate with OxideAuth by sending authentication requests, receiving JWTs, and validating tokens on every API call. This centralized approach means implementing auth in a new application is as simple as adding a token validation middleware.
-
----
-
-## oxideauth-dashboard — Admin Interface
-
-The dashboard is a Next.js/React application that provides an administrative interface for managing OxideAuth configurations. Administrators can view user accounts, manage service account credentials, configure OAuth2 providers, and monitor authentication activity.
-
----
-
-## How Client Apps Use OxideAuth
-
-Client applications (Booking Clinic, Maven, RAK NYE) delegate all authentication to OxideAuth:
+### Architecture Diagram
 
 ```
-Client App  →  POST /auth/login  →  OxideAuth validates credentials
-             ←  JWT returned
-Client App  →  API request with JWT  →  OxideAuth validates token
-             ←  User identity + permissions
+[HTTP Request]
+    ↓
+Axum Handler (web/handlers/*.rs)
+    ↓
+CoreCtx Middleware → builds per-request context (membership, roles, permissions)
+    ↓
+Service Layer (core/services/*.rs) → business logic, hydration, authorization
+    ↓
+Store Layer (store/stores/*.rs) → sea-query + SQLx
+    ↓
+PostgreSQL / Redis
 ```
 
-For machine-to-machine communication, backend services use service account JWTs — long-lived tokens with scoped permissions that allow, for example, the Booking Clinic API to verify a user's identity without exposing OxideAuth's internal API keys.
+---
+
+## Data Model
+
+### Core Entities
+
+| Entity         | Purpose                                                                  |
+| -------------- | ------------------------------------------------------------------------ |
+| **Account**    | A user identity (email, name, verified, enabled)                         |
+| **Workspace**  | A tenant container — isolates projects, memberships, and RBAC            |
+| **Project**    | A sub-area inside a workspace for finer scoping                          |
+| **Membership** | Links an account to a workspace (or project), carries scope and status   |
+| **Credential** | A login method scoped to a workspace (password, OAuth, SSO, API key)     |
+| **Role**       | A named bundle of permissions defined inside a workspace                 |
+| **Permission** | A single capability (e.g., `projects:create`, `members:read`)            |
+| **Token**      | Unified table for blacklisted JWTs, refresh tokens, API keys, and resets |
+
+### RBAC Flow
+
+```
+Account → Membership → Role → Permissions
+```
+
+A user's effective permissions are the union of all permissions granted by all roles assigned to their membership(s). Policies can only **constrain** — they never grant new abilities.
+
+### Workspace Types
+
+| Type         | Purpose                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| **GLOBAL**   | Singleton root — system superuser and bootstrap control          |
+| **REGISTRY** | Discovery/index — lists all workspaces; controls visibility      |
+| **STANDARD** | Normal tenant workspaces — isolated RBAC, projects, and policies |
+
+---
+
+## Token Architecture
+
+### Stateless JWT with Blacklist
+
+The system uses **stateless JWTs** — the server trusts the token's cryptographic signature without a database lookup. To support logout and revocation, a **blacklist pattern** is used over a whitelist:
+
+| Strategy      | Logic                                  | Performance                       |
+| :------------ | :------------------------------------- | :-------------------------------- |
+| **Blacklist** | All signed tokens valid unless revoked | Fast (check Redis for exceptions) |
+| **Whitelist** | Only tokens in DB are valid            | Slow (DB hit every request)       |
+
+Every request: Signature check → Redis cache check (`bl:{jti}`) → Database fallback (if cache miss).
+
+### Token Types
+
+| Type               | Purpose                                                   |
+| :----------------- | :-------------------------------------------------------- |
+| **BLACKLIST**      | A `jti` revoked before expiry (logout, security lockout)  |
+| **REFRESH**        | Long-lived tokens for generating new access tokens        |
+| **API_KEY**        | Permanent/long-lived tokens for machine-to-machine access |
+| **RESET_PASSWORD** | Short-lived, single-use tokens for account recovery       |
+
+---
+
+## API Design
+
+All endpoints use HTTP **POST** with the action in the URL path (JSON-RPC style). This keeps sensitive data (tokens, credentials) in the request body and intentionally disables HTTP caching — a security requirement for real-time authorization.
+
+| Endpoint                   | Purpose                     |
+| -------------------------- | --------------------------- |
+| `POST /accounts/create`    | Register a new user account |
+| `POST /accounts/describe`  | Get account details         |
+| `POST /accounts/list`      | List/filter accounts        |
+| `POST /accounts/update`    | Modify account fields       |
+| `POST /accounts/delete`    | Delete an account           |
+| `POST /workspace/create`   | Create a new workspace      |
+| `POST /workspace/describe` | Get workspace details       |
+| `POST /workspace/list`     | List/filter workspaces      |
+| `POST /workspace/update`   | Modify workspace settings   |
+| `POST /workspace/delete`   | Delete a workspace          |
+
+Projects follow the same pattern at `/projects/create`, `/projects/describe`, etc.
 
 ---
 
 ## Tech Stack
 
-| Layer               | Technology                                    |
-| ------------------- | --------------------------------------------- |
-| **Auth API**        | Rust (high-performance auth server)           |
-| **Admin Dashboard** | Next.js, React                                |
-| **Database**        | PostgreSQL                                    |
-| **Authentication**  | JWT (24-hour default expiry), OAuth2 (Google) |
-| **Email**           | AWS SES                                       |
-| **Storage**         | AWS S3                                        |
-| **Deployment**      | Docker, Kubernetes, Kustomize                 |
+| Layer          | Technology                                            |
+| -------------- | ----------------------------------------------------- |
+| **Language**   | Rust (edition 2024)                                   |
+| **Framework**  | Axum 0.7 + Tower 0.5                                  |
+| **Runtime**    | Tokio                                                 |
+| **Database**   | PostgreSQL 16 + SQLx 0.8 + sea-query 0.32 + modql 0.4 |
+| **Cache**      | Redis 7                                               |
+| **Auth**       | JWT (jsonwebtoken), Argon2 password hashing           |
+| **Email**      | AWS SES (lettre)                                      |
+| **Storage**    | AWS S3                                                |
+| **Logging**    | Tracing + EnvFilter                                   |
+| **Deployment** | Docker, Docker Compose (Postgres + Redis)             |
+| **Migration**  | SQLx CLI with per-environment migration directories   |
+
+---
+
+## Default RBAC
+
+When a new workspace is created, four default roles are seeded:
+
+| Role        | Description                                                               |
+| :---------- | :------------------------------------------------------------------------ |
+| **Owner**   | Full unrestricted access; can delete the workspace and manage billing     |
+| **Admin**   | Manage all resources except workspace deletion and billing                |
+| **Member**  | Standard role — view resources, create projects                           |
+| **Billing** | View members and manage subscription/payment only; no project data access |
+
+Permissions follow a `resource:action` convention (e.g., `projects:create`, `members:invite`, `billing:manage`). Over 20 default permissions are seeded across workspace, members, projects, roles, billing, and audit-log resources.
+
+---
+
+## Development
+
+### Prerequisites
+
+- Rust (latest stable)
+- PostgreSQL 16
+- Redis 7
+- Docker & Docker Compose (optional, for infra)
+
+### Quick Start
+
+```bash
+# Start PostgreSQL and Redis
+docker compose up -d postgres redis
+
+# Copy and fill in the config
+cp ironstone/.cargo/config.example.toml ironstone/.cargo/config.toml
+
+# Run dev migrations
+cargo db-dev-run
+
+# Start the dev server
+cargo run --bin ironstone
+```
+
+The API starts on `http://localhost:8000` by default. Health check at `GET /health-check`.
+
+### Project Structure
+
+```
+oxideauth/
+├── ironstone/              # Main Rust application
+│   ├── src/
+│   │   ├── main.rs         # Entrypoint, tokio runtime
+│   │   ├── app.rs          # AppState, env config, init
+│   │   ├── config.rs       # Config from environment
+│   │   ├── web/            # Axum handlers, router, middleware, DTOs
+│   │   ├── core/           # Services, models, traits, context, worker
+│   │   ├── store/          # StoreManager, entities, stores, query traits
+│   │   ├── cache/          # CacheManager, Redis, cache stores
+│   │   ├── macros/         # Custom derive macros (filters)
+│   │   ├── dev/            # Dev environment fixtures & seeding
+│   │   └── utils/          # Shared utilities
+│   └── sql/
+│       ├── migrations/dev/ # Development schema migrations
+│       ├── migrations/prod/# Production schema migrations
+│       └── fixtures/       # Bootstrap data (accounts, workspaces, roles, etc.)
+├── ironstone-macros/       # Procedural macro crate
+├── docs/                   # Architecture & design documentation (24 docs)
+├── docker-compose.yaml     # PostgreSQL + Redis infra
+└── Dockerfile.dev          # Dev container with cargo-watch
+```
