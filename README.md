@@ -87,7 +87,7 @@ The project deviates from a standard Docusaurus setup to enforce our flat archit
 │   ├── aws/             # Flat directory for AWS-related MDX files
 │   ├── kubernetes/      # Flat directory for K8s-related MDX files
 │   └── linux/           # Flat directory for Linux-related MDX files
-├── journal/             # Engineering Journal (Replaces default '/blog')
+├── journal/             # Engineering Journal — per-project directories with index.mdx + assets
 ├── src/
 │   ├── components/      # Custom React & shadcn/ui components
 │   ├── css/             # Tailwind & Custom CSS (custom.css)

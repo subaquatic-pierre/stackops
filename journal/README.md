@@ -1,8 +1,8 @@
-# Codativity Projects — Project Journal
+# Codativity Projects — Engineering Journal
 
 > 17 entries | 14 client/infrastructure projects + 3 labs/tools
 
-A comprehensive journal of all CODATIVITY client and infrastructure projects, documenting architecture, technology stacks, service components, key features, and deployment approaches. Entries are rendered as Docusaurus blog posts at `/journal`.
+A comprehensive journal of all CODATIVITY client and infrastructure projects, documenting architecture, technology stacks, service components, and key features. Each entry lives in its own directory with its MDX content and assets self-contained. Entries are rendered as Docusaurus blog posts at `/journal`.
 
 ---
 
