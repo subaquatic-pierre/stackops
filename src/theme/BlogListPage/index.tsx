@@ -5,6 +5,7 @@
 import React, { type ReactNode, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
+import { usePluginData } from "@docusaurus/useGlobalData";
 import {
   PageMetadata,
   HtmlClassNameProvider,
@@ -62,44 +63,91 @@ function BlogListPageContent(props: Props): ReactNode {
   const { metadata, items } = props;
   const isFirstPage = metadata.page === 1;
 
+  // Access all blog posts from the plugin data store (not just current page)
+  const pluginData = usePluginData(
+    "docusaurus-plugin-content-blog",
+  ) as { blogPosts?: Array<{ content: unknown; metadata: { permalink: string; date: Date; frontMatter?: Record<string, unknown> } }> } | undefined;
+  const allPosts = pluginData?.blogPosts ?? [];
+
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Apply search filter to items
-  const filteredItems = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    return items.filter((item) => {
-      const fm = (item.content as { frontMatter?: Record<string, unknown> })
-        .frontMatter;
-
-      // Text search (title + description)
-      if (query) {
-        const title = ((fm?.title as string) || "").toLowerCase();
-        const desc = ((fm?.description as string) || "").toLowerCase();
-        if (!title.includes(query) && !desc.includes(query)) return false;
-      }
-
-      return true;
-    });
-  }, [items, searchQuery]);
-
   const hasActiveFilters = searchQuery !== "";
-
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
 
-  // Separate featured items from regular items
-  const featuredItems: Array<Props["items"][number]> = [];
-  const regularItems: Array<Props["items"][number]> = [];
-  for (const item of filteredItems) {
-    const fm = (item.content as { frontMatter?: Record<string, unknown> })
-      .frontMatter;
-    if (isFirstPage && fm?.featured === true && !hasActiveFilters) {
-      featuredItems.push(item);
-    } else {
-      regularItems.push(item);
+  // Featured posts: drawn from ALL blog posts (not just current page)
+  // so they always appear on page 1 regardless of date or pagination
+  const featuredItems = useMemo(() => {
+    if (!isFirstPage || hasActiveFilters) return [];
+
+    const featured: Array<typeof allPosts[number]> = [];
+    for (const post of allPosts) {
+      const fm = post.metadata.frontMatter;
+      if (fm?.featured === true) {
+        featured.push(post);
+      }
     }
-  }
+
+    featured.sort((a, b) => {
+      const fa = a.metadata.frontMatter;
+      const fb = b.metadata.frontMatter;
+      const orderA = fa?.order as number | undefined;
+      const orderB = fb?.order as number | undefined;
+      if (orderA != null && orderB != null) return orderA - orderB;
+      if (orderA != null) return -1;
+      if (orderB != null) return 1;
+      return new Date(b.metadata.date).getTime() - new Date(a.metadata.date).getTime();
+    });
+
+    return featured;
+  }, [allPosts, isFirstPage, hasActiveFilters]);
+
+  // Build a set of featured permalinks to exclude from regular list
+  const featuredPermalinks = useMemo(
+    () => new Set(featuredItems.map((p) => p.metadata.permalink)),
+    [featuredItems],
+  );
+
+  // Regular posts: current page items, search-filtered, minus featured
+  const regularItems = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    const regular: Array<Props["items"][number]> = [];
+
+    for (const item of items) {
+      const fm = (item.content as { frontMatter?: Record<string, unknown> })
+        .frontMatter;
+      const meta = (item.content as { metadata?: Record<string, unknown> })
+        .metadata as { permalink?: string } | undefined;
+
+      // Text search
+      if (query) {
+        const title = ((fm?.title as string) || "").toLowerCase();
+        const desc = ((fm?.description as string) || "").toLowerCase();
+        if (!title.includes(query) && !desc.includes(query)) continue;
+      }
+
+      // Skip if already shown as featured
+      if (isFirstPage && meta?.permalink && featuredPermalinks.has(meta.permalink)) {
+        continue;
+      }
+
+      regular.push(item);
+    }
+
+    regular.sort((a, b) => {
+      const fa = (a.content as { frontMatter?: Record<string, unknown> }).frontMatter;
+      const fb = (b.content as { frontMatter?: Record<string, unknown> }).frontMatter;
+      const ma = (a.content as { metadata?: Record<string, unknown> }).metadata;
+      const mb = (b.content as { metadata?: Record<string, unknown> }).metadata;
+      const dateA = (ma?.date || fa?.date) as string | undefined;
+      const dateB = (mb?.date || fb?.date) as string | undefined;
+      if (dateA && dateB) return dateB.localeCompare(dateA);
+      return 0;
+    });
+
+    return regular;
+  }, [items, searchQuery, isFirstPage, featuredPermalinks]);
 
   return (
     <BlogLayout>
@@ -107,7 +155,7 @@ function BlogListPageContent(props: Props): ReactNode {
       <FilterBar onSearchChange={handleSearchChange} />
 
       {/* Empty state */}
-      {filteredItems.length === 0 && (
+      {items.length === 0 && (
         <div className="py-16 text-center">
           <p className="text-lg text-slate-500 dark:text-slate-400 mb-2">
             No entries match your search.
@@ -118,24 +166,24 @@ function BlogListPageContent(props: Props): ReactNode {
         </div>
       )}
 
-      {/* Featured section — page 1 only, no filters active */}
+      {/* Featured section — page 1 only, no filters active, drawn from ALL posts */}
       {isFirstPage && featuredItems.length > 0 && (
         <section className="mb-12">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">
             Featured
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredItems.map((item, idx) => {
-              const post = mapPostToRowCard(item);
+            {featuredItems.map((post, idx) => {
+              const fm = post.metadata.frontMatter ?? {};
               return (
                 <FeaturedCard
                   key={idx}
-                  title={post.title}
-                  description={post.description}
-                  tags={post.tags}
-                  href={post.href}
-                  image={post.image || "/img/placeholder-journal.svg"}
-                  date={post.date}
+                  title={(fm.title as string) || "Untitled"}
+                  description={fm.description as string | undefined}
+                  tags={fm.tags as string[] | undefined}
+                  href={post.metadata.permalink}
+                  image={(fm.image as string) || "/img/placeholder-journal.svg"}
+                  date={(fm.date as string) || post.metadata.date.toISOString()}
                 />
               );
             })}
@@ -143,7 +191,7 @@ function BlogListPageContent(props: Props): ReactNode {
         </section>
       )}
 
-      {/* Regular entries — all in a single flat grid, no category grouping */}
+      {/* Regular entries — current page items, sorted, minus featured */}
       {regularItems.length > 0 && (
         <section className="mb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -168,7 +216,7 @@ function BlogListPageContent(props: Props): ReactNode {
 
       {regularItems.length === 0 &&
         featuredItems.length === 0 &&
-        filteredItems.length > 0 && (
+        items.length > 0 && (
           <p className="py-12 text-center text-slate-500 dark:text-slate-400">
             No journal entries yet.
           </p>
