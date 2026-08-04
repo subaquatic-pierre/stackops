@@ -1,0 +1,259 @@
+---
+title: "Rust Chess — Full-Stack Chess Application in Rust"
+date: 2023-11-19
+authors:
+  - pierre
+tags:
+  [
+    rust,
+    webassembly,
+    wasm,
+    gatsby,
+    react,
+    typescript,
+    actix-web,
+    websocket,
+    chess,
+    game,
+    multiplayer,
+  ]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A comprehensive full-stack chess application written entirely in Rust. The
+  chess engine compiles to WebAssembly for high-performance in-browser move
+  generation and validation, while the Actix-web backend provides real-time
+  WebSocket communication for online multiplayer games, chat rooms, and session
+  management. The frontend is built with Gatsby.js and React, consuming the
+  WASM chess library for instant board evaluation.
+repo: https://github.com/subaquatic-pierre/rust-chess-project
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Rust Chess** is a complete chess application where every line of core logic is written in Rust. The project is organised as a monorepo with two sub-repositories: one for the **chess engine + frontend** and one for the **multiplayer backend**.
+
+The chess engine compiles to **WebAssembly** via `wasm-pack`, then links into a **Gatsby.js / React** frontend through npm. This gives the browser native-speed move generation, validation, check/checkmate detection, castling, en passant, and pawn promotion — with zero JavaScript handling game state.
+
+The backend is an **Actix-web** server built on **WebSocket actors**, providing real-time communication for online multiplayer, chat rooms, and session management. A text-based command protocol over WebSockets lets clients create games, join lobbies, and relay moves between opponents.
+
+---
+
+## Key Features
+
+- **Full Rust chess engine compiles to WASM:** Move generation, validation, check/checkmate detection, en passant, castling, and pawn promotion — all running at near-native speed in the browser
+- **Strategy pattern for piece moves:** Each piece type implements a `PieceMoveStrategy` trait, making the engine extensible and testable
+- **Algebraic notation parser and writer:** `MoveParser` / `MoveReader` / `MoveWriter` translate between standard chess notation and internal move results
+- **Online multiplayer via WebSocket:** Real-time game creation, joining, move relay, and opponent notification
+- **Chat rooms and lobby system:** Multiple themed rooms (mountain, ocean, sky, space), lobby for game discovery, and in-game chat
+- **Session management with heartbeat:** `WsSession` actors maintain client connections with ping/pong heartbeats and automatic timeout cleanup
+- **Local single-player support:** Full board playable offline against a local opponent
+- **Self-info and user profiles:** Sessions can query their own room/game state and list available games
+
+---
+
+## Architecture
+
+A **two-repository architecture** splitting the WASM frontend and the WebSocket backend:
+
+| Repository              | Role                                                     |
+| ----------------------- | -------------------------------------------------------- |
+| **chess-frontend**      | Rust chess engine (WASM) + Gatsby.js / React UI          |
+| **chess-api**           | Actix-web WebSocket server + game/room/session management |
+
+The chess engine lives inside the frontend repository: Rust source in `chess-frontend/src/` compiles to `pkg/` via `wasm-pack`. The Gatsby app in `chess-frontend/www/` links the WASM package via npm and calls into Rust bindings for all game logic.
+
+The API server manages no game state of its own — it acts purely as a relay between connected clients. Each `WsSession` actor handles text commands (`/new-game`, `/join-game`, `/game-move`, etc.) and delegates to `ChatServer` and `GameManager` for room and game orchestration.
+
+```
+┌──────────────────────────────────────────┐
+│               Browser                    │
+│  Gatsby.js / React UI                    │
+│       │                                  │
+│       ▼                                  │
+│  chess-lib (WASM) — full chess engine    │
+│  Board → MoveValidator → PieceStrategy   │
+└──────────────┬───────────────────────────┘
+               │ WebSocket
+               ▼
+┌──────────────────────────────────────────┐
+│        chess-api (Actix-web)             │
+│                                          │
+│  WsSession actors                        │
+│       │                                  │
+│       ▼                                  │
+│  ChatServer → rooms, sessions, broadcast │
+│  GameManager → SessionGame state         │
+└──────────────────────────────────────────┘
+```
+
+---
+
+## Chess Engine Detail
+
+The chess engine is the heart of the frontend. Written in pure Rust and exposed to JavaScript via `wasm-bindgen`, it handles every aspect of the game:
+
+### Board (`board.rs`)
+An 8×8 grid of `Tile` structs, each holding an optional `Piece`. The board tracks:
+- **Last en passant coordinate** — set when a pawn moves two squares, cleared after the next move if not captured
+- **King castling state** — a `KingCastleBoardState` struct tracking whether each side's king and rooks have moved
+- **Tile highlighting** — visual move suggestions computed by the engine and rendered by React
+
+The board implements `move_piece(from, to)` as the main entry point, which delegates to `handle_move_piece()` — a complex method handling all move types, checking validity, executing captures, and returning a `MoveResult`.
+
+### Pieces (`pieces/`)
+Each piece type gets its own strategy module implementing the `PieceMoveStrategy` trait:
+- **`PawnMoveStrategy`** — forward moves, double-push from start rank, diagonal captures, en passant detection
+- **`RookMoveStrategy`** — sliding moves in four directions, blocked by first occupied square
+- **`KnightMoveStrategy`** — eight L-shaped moves, ignoring intervening pieces
+- **`BishopMoveStrategy`** — sliding diagonal moves
+- **`QueenMoveStrategy`** — combination of rook and bishop movement
+- **`KingMoveStrategy`** — single-step in any direction, plus castle validation via `KingCastleValidator`
+
+The `StrategyBuilder` factory pattern creates the correct strategy from a piece's type at runtime.
+
+### Move Validation (`strategy.rs`)
+The `MoveValidator` struct runs multiple checks before any move is accepted:
+1. Is the target square in bounds?
+2. Is the move within the piece's legal movement pattern?
+3. Is the target occupied by a friendly piece?
+4. For king moves: does this move expose the king to check?
+5. For castling: are the path squares empty and not under attack?
+6. For en passant: is the target coordinate the correct en passant square?
+
+### Move Parsing (`parser.rs`)
+`MoveReader::parse_move()` converts standard algebraic notation strings (e.g. `"Ng1f3"`, `"e5xd6+"`, `"0-0"`, `"b7b8=Q#"`) into `MoveResult` structs. `MoveWriter::write_move()` does the reverse, enabling the board state to be serialised into displayable move history.
+
+---
+
+## Backend: WebSocket Commands
+
+The API uses a text-based command protocol over WebSockets. Each command is prefixed with `/` and processed by the `WsSession::handle_command()` dispatch:
+
+| Command                  | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `/list-rooms`            | List available chat rooms                            |
+| `/list-users`            | List users in the current room                       |
+| `/join-room <name>`      | Join a chat room                                     |
+| `/new-game`              | Create a new chess game (hosted under your username) |
+| `/join-game <name>`      | Join an existing game by name                        |
+| `/leave-game`            | Leave the current game, return to main room          |
+| `/game-move <notation>`  | Send a move in algebraic notation to the opponent    |
+| `/list-available-games`  | List joinable games (not yet started)                |
+| `/list-all-games`        | List all games regardless of state                   |
+| `/delete-game`           | Delete a game you created                            |
+| `/self-info`             | Get your session profile (username, room, game)      |
+
+### Game Lifecycle
+1. Player A sends `/new-game` — a `SessionGame` is created with Player A as white
+2. Player B sends `/join-game <A's username>` — joins as black, game status flips to "started"
+3. Both players send `/game-move <notation>` to relay moves to each other
+4. Either player sends `/leave-game` — opponent is notified, game is cleaned up if empty
+
+### Session Management
+Each WebSocket connection spawns a `WsSession` actor. A heartbeat ping is sent every 5 seconds; if the client does not respond within 10 seconds, the session is disconnected and cleaned up — removed from its room and any active games.
+
+---
+
+## Frontend: React + WASM Integration
+
+The frontend is a Gatsby.js (v5) single-page application with React 18 and TypeScript. It consumes the WASM chess library as an npm-linked package.
+
+### Pages
+| Route      | Page          | Purpose                                     |
+| ---------- | ------------- | ------------------------------------------- |
+| `/`        | `index.tsx`   | Landing page with sections for online play, local play, chat, and tech showcase |
+| `/game`    | `game.tsx`    | Full-screen chessboard with move controls   |
+| `/lobby`   | `lobby.tsx`   | Game lobby — create/join online games       |
+| `/chat`    | `chat.tsx`    | Chat room interface with room management    |
+| `/contact` | `contact.tsx` | Contact page                                |
+
+### Context Providers
+- **`ConnectionContext`** — Manages the WebSocket connection, exposes `connect()`, `disconnect()`, `sendMoveMsg()`, `joinGame()`, `newGame()`, and session persistence via `sessionStorage`
+- **`GameContext`** — Holds the WASM `Game` instance, manages player turn, move history, and online/local mode
+- **`BoardContext`** — Holds the WASM `Board` instance, handles tile selection, highlighting, and move execution
+- **`ChatContext`** — Message parsing and display for the chat interface
+- **`ModalContext`** — Controls the pawn promotion modal overlay
+
+### Key Components
+| Component                  | Description                                      |
+| -------------------------- | ------------------------------------------------ |
+| `GameContainer`            | Renders the chessboard, move history, and controls |
+| `ChatContainer`            | Chat room with message list and input            |
+| `LobbyContainer`           | Game lobby showing available and active games     |
+| `ConnectControl`           | Username input and connect/disconnect button      |
+| `PromotePieceModal`        | Piece selection modal for pawn promotion          |
+| `TechnologySection`        | Showcases the Rust + WASM + Gatsby tech stack     |
+
+---
+
+## Tech Stack
+
+### Frontend (`chess-frontend`)
+
+| Layer                | Technology                                    |
+| -------------------- | --------------------------------------------- |
+| **Chess Engine**     | Rust (compiled to WASM via `wasm-pack`)       |
+| **JS Bridge**        | `wasm-bindgen`, `serde-wasm-bindgen`          |
+| **UI Framework**     | Gatsby.js 5, React 18                         |
+| **Language**         | TypeScript 4                                  |
+| **Styling**          | SCSS, Bootstrap 5, React Bootstrap, Emotion   |
+| **Build**            | `wasm-pack build` + `gatsby develop`          |
+| **Serialisation**    | `bincode`, `serde`, `serde_json`              |
+
+### Backend (`chess-api`)
+
+| Layer                | Technology                                    |
+| -------------------- | --------------------------------------------- |
+| **HTTP/WS Server**   | Actix-web 4, Actix-web-actors 4.1             |
+| **WebSocket**        | `actix-web-actors` WebSocket actors           |
+| **Concurrency**      | `Arc<Mutex<ChatServer>>`, `AtomicUsize`       |
+| **Serialisation**    | `serde`, `serde_json`                         |
+| **Session IDs**      | `uuid` v4 with fast-rng                       |
+| **CORS**             | `actix-cors` (permissive)                     |
+| **Configuration**    | `dotenv` for .env-based host/port             |
+| **Logging**          | `env_logger`, `log`                           |
+
+---
+
+## Development Workflow
+
+### Chess Engine (WASM rebuild on change)
+```sh
+cd chess-frontend
+cargo watch -i .gitignore -i "pkg/*" -i "www/*" -s "wasm-pack build"
+```
+
+### Frontend Dev Server (hot-reloads on WASM rebuild)
+```sh
+cd chess-frontend/www
+npm run watch          # Gatsby dev server + npm-watch on pkg/ changes
+```
+
+### Backend Dev Server
+```sh
+cd chess-api
+cargo watch -x "run"
+```
+
+Editing Rust files triggers a `wasm-pack` rebuild of the chess engine, which in turn triggers a Gatsby restart since the linked npm package changes. Editing React/TypeScript files hot-reloads as normal through Gatsby's dev server.
+
+---
+
+## Known Improvements & Roadmap
+
+From the project's own [README](https://github.com/subaquatic-pierre/chess-frontend), there is a clear list of planned improvements:
+
+1. **Fix king castle validation** — king should not be allowed to move to castle squares if the castle option is no longer valid
+2. **Refactor board move logic** — the `handle_move_piece` method is too large and should be split into smaller, testable units
+3. **Split GameManager from ChatServer** — introduce a dedicated `RoomManager` for room logic and keep `GameManager` focused on game state
+4. **Better client-side message updates** — current polling-based approach for DOM updates should be replaced with proper reactive state management
+5. **Session persistence across page reloads** — maintain session on the server with heartbeat checks, allowing clients to resume after a page refresh
+6. **User profile creation** — proper user accounts with persistent profiles
+7. **Persistent game storage** — save games in backend storage for long-running or paused games
+8. **Game timer** — add chess clock functionality
+9. **Chat box between opponents** — direct messaging during active games
