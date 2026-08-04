@@ -1,0 +1,75 @@
+---
+title: "Hack Assembler — Two-Pass Assembler in Rust"
+date: 2026-02-07
+authors:
+  - pierre
+tags: [rust, assembler, hack, nand2tetris, systems-programming, binary-translation]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A robust two-pass assembler written in Rust that translates symbolic Hack
+  Assembly (.asm) into 16-bit binary machine code (.hack). Demonstrates
+  foundational knowledge of deterministic translation, symbol table management,
+  lexical analysis, and bit-level instruction encoding — all with zero external
+  dependencies.
+repo: https://github.com/subaquatic-pierre/hack-assembler
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Hack Assembler** is a two-pass assembler that converts Hack Assembly language programs into binary machine code for the Hack computer platform (from the nand2tetris course). Written in Rust with zero external dependencies, it is an exercise in deterministic translation — parsing symbolic instructions, resolving labels and variables, and encoding mnemonic combinations into precise 16-bit machine words.
+
+The assembler processes assembly source through two distinct passes: the first pass collects label addresses and strips comments, while the second pass resolves symbols and emits binary instructions. The output is a `.hack` file containing one 16-bit binary string per line.
+
+---
+
+## Key Features
+
+- **Two-pass translation:** Labels collected in pass 1, addresses resolved in pass 2 — classic assembler architecture
+- **Symbol table management:** Six internal lookup tables — built-in symbols (R0–R15, SCREEN, KBD, SP/LCL/ARG/THIS/THAT), user-defined labels, auto-allocated variables, computation mnemonics, destination mnemonics, and jump mnemonics
+- **Lexical analysis:** Distinguishes between A-instructions (`@value` — addresses), C-instructions (`dest=comp;jump` — computations), and L-instructions (`(LABEL)` — label declarations)
+- **Bit-level encoding:** Direct bit manipulation to assemble the three instruction fields — 7-bit computation ALU codes, 3-bit destination registers, and 3-bit jump conditions
+- **28 ALU mnemonics:** Covers all Hack ALU operations from simple `D|M` to complex `D+1` and `A-D`
+- **Zero dependencies:** Pure Rust standard library — no external crates required
+
+---
+
+## Architecture
+
+A clean modular pipeline with clear separation of concerns:
+
+```
+.asm file
+    │
+    ▼
+┌─────────────┐
+│  Parser     │  Pass 1: strips comments, detects (LABEL)s,
+│  (parser.rs)│  builds symbol table, collects source lines
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Code Gen   │  Pass 2: A-instruction → 16-bit address
+│  (code.rs)  │         C-instruction → 111 + comp(7) + dest(3) + jump(3)
+└──────┬──────┘
+       │
+       ▼
+  out.hack     (one 16-bit binary string per line)
+```
+
+---
+
+## Tech Stack
+
+| Layer            | Technology                        |
+| ---------------- | --------------------------------- |
+| **Language**     | Rust (edition 2021)               |
+| **Dependencies** | None (stdlib only)               |
+| **Build**        | `cargo build --release` or `make build` |
+| **Test data**    | `data/Pong.asm` (28,375-line Hack game) |
+| **Output**       | `out.hack` (16-bit binary per line) |
+| **License**      | MIT                              |

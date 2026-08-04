@@ -1,0 +1,89 @@
+---
+title: "PostManager — Python Library for Blog Post & Media Management"
+date: 2026-07-17
+authors:
+  - pierre
+tags: [python, library, storage, aws, s3, blog, content-management, pypi]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A Python library for managing blog posts, galleries, and personal records
+  with pluggable storage backends. Features a clean adapter/proxy architecture
+  supporting local filesystem and AWS S3 storage, flexible metadata control
+  with dynamic attribute typing, base64-encoded media management, and
+  comprehensive documentation. Published on PyPI with automated CI/CD.
+docs: https://postmanager.stackgarden.dev
+repo: https://github.com/subaquatic-pierre/postmanager
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**PostManager** (`postmanager`) is a Python library that abstracts post and media management behind a clean, storage-agnostic interface. Whether you're building a blog engine, a photo gallery, or a personal knowledge base, PostManager provides a unified API for creating, reading, updating, and deleting posts — each containing flexible metadata, markdown content, and base64-encoded media attachments.
+
+The library uses an **adapter/proxy pattern** to decouple domain objects from where data is stored. Out of the box, it supports local filesystem storage (via `pathlib`) and AWS S3 storage (via `boto3`), and new backends can be added by implementing the `StorageInterface` abstract base class. It is published on PyPI (v0.1.6) and comes with comprehensive MkDocs documentation and a full CI/CD pipeline.
+
+---
+
+## Key Features
+
+- **Pluggable storage backends:** Local filesystem (`~/.postmanager/data/`) and AWS S3 — switch with a single factory method call
+- **Flexible metadata:** `MetaData` objects accept arbitrary key-value pairs via dynamic `setattr()`, with JSON serialization and incremental update support
+- **Media management:** Base64-encoded media in Data URL format (compatible with the FileReader API), buffered save/delete, and `media_index.json` file mapping
+- **Auto-incrementing IDs:** `PostManager` tracks a `latest_id.json` for collision-free post identifiers
+- **Full CRUD for posts:** Create, get by ID, get by title, save, delete, and list all posts with content and media
+- **PyPI distribution:** Published package installable via `pip install postmanager`
+- **Automated CI/CD:** GitHub Actions for tests, coverage (Codecov), linting (mypy + flake8), docs build/deploy, and PyPI release on version tags
+- **Comprehensive docs:** MkDocs Material site with code-level API documentation via mkdocstrings
+
+---
+
+## Architecture
+
+A **clean adapter/proxy architecture** separating domain objects from storage:
+
+```
+                    PostManager
+                    Post
+                    MetaData       ─── all extend ───▶  StorageAdapter
+                    MediaData                                   │
+                                                               │
+                                                     delegates to
+                                                               │
+                                                               ▼
+                                                     StorageProxy (abstract)
+                                                       ╱              ╲
+                                                      ╱                ╲
+                                          StorageProxyLocal    StorageProxyS3
+                                              (pathlib)          (boto3 S3)
+```
+
+| Component             | Role                                              |
+| --------------------- | ------------------------------------------------- |
+| `StorageInterface`    | Abstract base class — `get_json`, `save_json`, `save_bytes`, `get_bytes`, `delete_file`, `list_files` |
+| `StorageProxy`        | Abstract bridge holding `root_dir` + `client`, extended by concrete implementations |
+| `StorageAdapter`      | Base class all domain objects extend; delegates to a `StorageProxy`; provides `new_storage_proxy()` for scoped child operations |
+| `PostManager`         | Root orchestrator managing an index of all posts |
+| `Post`                | Single post — contains `MetaData` + `MediaData` + content |
+| `MetaData`            | Dynamic attribute bag with JSON serialization |
+| `MediaData`           | Base64 Data URL media manager with buffered operations |
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                                      |
+| ------------------ | ----------------------------------------------- |
+| **Language**       | Python 3.9+                                     |
+| **Package mgmt**   | setuptools, `setup.cfg`                         |
+| **Cloud storage**  | AWS S3 via `boto3`                              |
+| **Local storage**  | `pathlib.Path`                                  |
+| **Type checking**  | mypy (strict mode), flake8                      |
+| **Testing**        | pytest, coverage (Codecov)                       |
+| **Docs**           | MkDocs Material, mkdocstrings (Google-style)    |
+| **CI/CD**          | GitHub Actions (6 workflows)                    |
+| **Distribution**   | PyPI (v0.1.6)                                   |
+| **License**        | MIT                                             |

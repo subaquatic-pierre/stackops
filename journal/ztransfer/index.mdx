@@ -1,0 +1,88 @@
+---
+title: "Z-Transfer — Decentralized File Sharing on 0Chain"
+date: 2023-11-19
+authors:
+  - pierre
+tags: [flask, python, blockchain, zerochain, decentralized-storage, docker, nginx, postgresql]
+image: /img/journal/ztransfer-logo.jpeg
+featured: false
+description: >
+  A decentralized file-sharing web application built on the 0Chain (Zero Chain)
+  blockchain. Features a Flask backend with a custom Python SDK for interacting
+  with the blockchain, Reed-Solomon erasure-coded file sharding across storage
+  nodes, BLS cryptographic signing, and a Bootstrap 5 frontend. Fully
+  containerized with Docker Compose for both development and production.
+repo: https://github.com/subaquatic-pierre/ztransfer
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Z-Transfer** is a file-sharing application that leverages the **0Chain (Zero Chain)** decentralized storage blockchain to provide secure, censorship-resistant file hosting. Users upload files through a Bootstrap 5 web interface; the application shards the files using Reed-Solomon erasure coding and distributes them across multiple storage nodes (blobbers) on the 0Chain network.
+
+The project includes a custom **`zero_sdk`** Python library — a complete SDK for interacting with the 0Chain blockchain, handling wallet management, storage allocation, file sharding, and BLS cryptographic signing. Signatures are generated via a Node.js sidecar using `bls-wasm` on the BN254 elliptic curve.
+
+---
+
+## Key Features
+
+- **Decentralized file storage:** Files are erasure-coded (4 data + 2 parity shards) and distributed across multiple blobber nodes on the 0Chain blockchain
+- **Custom blockchain SDK:** `zero_sdk` — a complete Python library for 0Chain interaction including `Wallet`, `Allocation`, `Network`, and `ConnectionBase` classes
+- **BLS cryptographic signing:** BN254 curve signatures via a Node.js `bls-wasm` subprocess bridge, with a Heroku fallback endpoint
+- **File lifecycle management:** Upload (shard, distribute, commit), download (reassemble from shards), and allocation management
+- **Docker Compose dev/prod environments:** Development with Flask hot-reload on SQLite; production with Gunicorn + PostgreSQL + Nginx
+- **Responsive Bootstrap 5 UI:** Jinja2 server-rendered templates with Font Awesome icons and vanilla JavaScript file upload with progress tracking
+- **Email notifications:** Flask-Mail integration with SMTP for sender/recipient notifications
+
+---
+
+## Architecture
+
+A **three-tier containerized architecture** with a custom blockchain SDK:
+
+```
+┌──────────────────────────────────────────┐
+│              Nginx :80                   │
+│         (prod reverse proxy)             │
+└──────────────┬───────────────────────────┘
+               │
+┌──────────────▼───────────────────────────┐
+│         Flask App (services/web/)        │
+│  / ──── upload form (Jinja2 + Bootstrap) │
+│  /upload-files ──── POST handler         │
+│   ├── saves to uploads/                  │
+│   └── emails sender/recipient            │
+└──────────────┬───────────────────────────┘
+               │ uses
+┌──────────────▼───────────────────────────┐
+│       zero_sdk (app/zero_sdk/)           │
+│  Wallet ── balance, sign, restore        │
+│  Allocation ── upload_file, download_file │
+│  Network ── miner/sharder discovery      │
+│  ConnectionBase ── consensus engine      │
+└──────────────┬───────────────────────────┘
+               │ signs via
+┌──────────────▼───────────────────────────┐
+│   JS Bridge (lib/bn254_signature_js/)    │
+│   bls-wasm ── BN254 BLS signatures       │
+└──────────────────────────────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer            | Technology                                    |
+| ---------------- | --------------------------------------------- |
+| **Backend**      | Python 3, Flask 2.0, Gunicorn                 |
+| **Frontend**     | Jinja2, Bootstrap 5, Font Awesome, vanilla JS |
+| **Database**     | SQLite (dev), PostgreSQL 13 (prod)            |
+| **Blockchain**   | 0Chain/Zus (beta network)                     |
+| **Crypto**       | BN254 BLS via `bls-wasm` (Node.js)            |
+| **Erasure coding** | `reedsolo` (Reed-Solomon)                   |
+| **Container**    | Docker Compose (dev + prod), Nginx, Supervisor |
+| **Email**        | Flask-Mail, SMTP_SSL                          |
+| **License**      | MIT                                           |

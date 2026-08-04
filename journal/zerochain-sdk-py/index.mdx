@@ -1,0 +1,83 @@
+---
+title: "ZeroChain SDK — Python Client for the Zus Blockchain"
+date: 2026-02-06
+authors:
+  - pierre
+tags: [python, blockchain, sdk, zus, zerochain, bls, p2p, storage, decentralized]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A Python SDK for interacting with the Zus (formerly 0Chain) decentralized
+  storage blockchain. Provides wallet management, token transactions, storage
+  allocation CRUD, blobber discovery, miner/sharder staking, and vesting pool
+  operations. Features a consensus-based HTTP client, BLS cryptographic signing
+  via a Node.js bridge, and Reed-Solomon erasure coding for file sharding.
+repo: https://github.com/subaquatic-pierre/zerochain-sdk-py
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**ZeroChain SDK** (`zerochain`) is a Python client library for the **Zus** blockchain network (formerly 0Chain). It provides a complete interface for interacting with a decentralized storage blockchain — from wallet management and token transfers to file upload/download with erasure-coded sharding across multiple storage nodes (blobbers).
+
+The SDK follows the design of the official Go-based `ZBox`/`ZClient` CLI tools but reimplements every operation in Python. Because the Zus blockchain uses **BN254 BLS signatures** — a curve not well-supported in native Python — the SDK bridges to a small Node.js sidecar (`bls-wasm`) via subprocess for cryptographic signing.
+
+---
+
+## Key Features
+
+- **Wallet management:** Create and restore wallets, get token balances, receive faucet tokens, send transactions
+- **Storage allocations:** Full CRUD for storage allocations — create, list, get info, cancel, and manage read/write pools
+- **File operations:** Upload files with Reed-Solomon erasure coding (4 data + 2 parity shards) distributed across blobber nodes; download and reassemble files from shards
+- **Blobber discovery:** Query blobber info, stats, and availability; stake/unstake tokens with blobbers
+- **Staking operations:** Miner/sharder staking, delegation, and settings management
+- **Vesting pools:** Create and manage token vesting pools
+- **Consensus engine:** HTTP requests are fanned out to all miners/sharders in parallel via `ThreadPoolExecutor`; a simple counting algorithm determines consensus from the highest number of matching responses
+- **Transaction lifecycle:** Build, sign (BLS), submit to miners, then poll sharders for confirmation status
+
+---
+
+## Architecture
+
+A **layered SDK** with a JavaScript cryptographic bridge:
+
+```
+┌──────────────────────────────────────────┐
+│          Actions Layer (zerochain/actions/)│
+│  wallet / allocation / blobber / interest  │
+│  miner / vesting / network                 │
+└──────────────┬───────────────────────────┘
+               │ delegates to
+┌──────────────▼───────────────────────────┐
+│         Client (client.py)               │
+│  ConnectionBase ── consensus HTTP engine  │
+│  Transaction ───── build/sign/submit/check│
+│  Network ────────── miner/sharder discovery│
+└──────────────┬───────────────────────────┘
+               │ signs via
+┌──────────────▼───────────────────────────┐
+│     JS Bridge (lib/bn254_js/)            │
+│  sign.js ── bls-wasm (BN254 curve)       │
+│  generate_keys.js ── bip39 + bls-wasm    │
+└──────────────────────────────────────────┘
+```
+
+The consensus engine is the backbone: `ConnectionBase._consensus_from_workers()` fires parallel HTTP requests to all configured miners and sharders, then uses a simple counting algorithm to determine the canonical response.
+
+---
+
+## Tech Stack
+
+| Layer            | Technology                          |
+| ---------------- | ----------------------------------- |
+| **Language**     | Python 3                            |
+| **Crypto**       | BN254 BLS via `bls-wasm` (Node.js)  |
+| **Erasure coding** | `reedsolo` (Reed-Solomon)          |
+| **HTTP**         | `requests`                          |
+| **Serialization** | `PyYAML`, `json`                   |
+| **Testing**      | `unittest` with 40+ JSON mock fixtures |
+| **Mnemonic**     | `bip39` (BIP-39 compliant seed phrases) |
+| **License**      | BSD 2-Clause                        |

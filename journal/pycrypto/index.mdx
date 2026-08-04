@@ -1,0 +1,82 @@
+---
+title: "PyCrypto — Bitcoin ECC & Transaction Library in Python"
+date: 2023-11-22
+authors:
+  - pierre
+tags: [python, bitcoin, cryptography, ecc, blockchain, secp256k1, ecdsa, transactions]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A pure-Python cryptographic foundation for Bitcoin blockchain development.
+  Implements elliptic curve cryptography (ECC) on the secp256k1 curve, including
+  finite field arithmetic, ECDSA signing and verification, key generation, and
+  Bitcoin address encoding. Also includes a full Bitcoin transaction parser
+  supporting legacy and SegWit formats, with a testnet block explorer API fetcher.
+repo: https://github.com/subaquatic-pierre/pycrypto
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**PyCrypto** is a pure-Python library that provides the foundational cryptographic primitives needed for Bitcoin and blockchain development. It is split into two distinct layers: a **cryptographic core** implementing elliptic curve operations on the secp256k1 curve, and a **transaction parsing layer** that deserializes raw Bitcoin transaction hex into structured data.
+
+The library requires no compiled extensions — all finite field arithmetic, point operations, and ECDSA signing are implemented directly in Python. This makes it an excellent educational resource for understanding the mathematics behind Bitcoin, as well as a reusable library for building blockchain tools.
+
+---
+
+## Key Features
+
+- **Finite field arithmetic:** `FieldElement` class with modular addition, subtraction, multiplication, division (via Fermat's Little Theorem), exponentiation, and square root over prime fields
+- **Elliptic curve operations:** Point addition, scalar multiplication (double-and-add), and curve membership validation on secp256k1
+- **ECDSA signing and verification:** Deterministic k generation via RFC 6979 (HMAC-based), signature creation, and verification against the Bitcoin generator point
+- **Key generation and encoding:** `PrivateKey` class with WIF (Wallet Import Format) encoding, compressed and uncompressed public key derivation
+- **Bitcoin address generation:** Base58Check encoding for legacy addresses, Bech32 encoding for SegWit addresses
+- **Transaction parsing:** Full deserialization of legacy and SegWit transactions — version, inputs (prevout, script, sequence, witness), outputs (value, script, address extraction), locktime
+- **Testnet API fetcher:** `TxFetcher` and `RemoteApiCaller` classes that fetch raw transactions from the Blockstream Testnet API
+
+---
+
+## Architecture
+
+A **two-layer architecture** separating pure cryptography from Bitcoin wire-format parsing:
+
+| Layer              | Role                                                    |
+| ------------------ | ------------------------------------------------------- |
+| **ECC Core**       | `FieldElement` → `Point`/`S256Point` → `PrivateKey` → `Signature` |
+| **Transaction**    | `Transaction`, `Input`, `Output`, `Script`, `Address`, `TxFetcher` |
+
+```
+┌──────────────────────────────────┐
+│          ECC Core (ecc/)         │
+│  FieldElement ── S256FieldElement │
+│  Point ──────── S256Point        │
+│  PrivateKey ──── ECDSA sign()    │
+│  Signature ───── DER encode/decode│
+│  utils ──────── Base58, hash160  │
+└──────────────┬───────────────────┘
+               │ used by
+┌──────────────▼───────────────────┐
+│     Transaction Layer (src/)     │
+│  Transaction ─── parse hex       │
+│  Input ───────── prevout, script  │
+│  Output ──────── value, address  │
+│  TxFetcher ───── Blockstream API │
+└──────────────────────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer            | Technology                                      |
+| ---------------- | ----------------------------------------------- |
+| **Language**     | Python 3 (pure, no compiled extensions)         |
+| **Crypto curve** | secp256k1 (Bitcoin's curve, prime P = 2²⁵⁶ - 2³² - 977) |
+| **Hashing**      | SHA-256, RIPEMD-160 (stdlib + low-level ops)    |
+| **HTTP client**  | `requests` (for Blockstream API)                |
+| **Config**       | `python-dotenv` (API keys)                      |
+| **Testing**      | `unittest` (stdlib)                             |
+| **License**      | MIT                                             |

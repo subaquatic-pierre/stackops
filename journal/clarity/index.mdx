@@ -1,0 +1,86 @@
+---
+title: "Clarity PMA — AI-Powered Project Manager Assistant"
+date: 2026-04-15
+authors:
+  - pierre
+tags: [python, ai, ollama, llm, project-management, plane, azure-devops, github-projects]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  An intelligent, local-first project management assistant that converts
+  unstructured meeting notes and video transcripts into actionable work items.
+  Uses Ollama for on-device LLM inference (no cloud dependency), generates
+  structured JSON with Pydantic validation, and posts work items directly to
+  Plane.so, Azure DevOps, GitHub Projects, or console output. Fully local
+  and private — all AI processing stays on your machine.
+repo: https://github.com/subaquatic-pierre/clarity
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Clarity PMA** (Project Manager Assistant) is an AI-powered tool that turns messy meeting notes, video call transcripts, and brain-dump text files into structured, actionable work items — all running locally on your machine with zero data leaving your device.
+
+It uses **Ollama** to run a large language model (default: Llama 3) directly on your hardware. A carefully crafted system prompt instructs the model to extract tasks, bugs, chores, and documentation items from unstructured text, outputting them as validated JSON. The parsed work items are saved locally and optionally pushed to your project management platform of choice — Plane.so, Azure DevOps, GitHub Projects, or just stdout.
+
+---
+
+## Key Features
+
+- **Transcript-to-task conversion:** Feed any `.txt` or `.vtt` transcript and receive structured work items with titles, descriptions, acceptance criteria, task breakdowns, types, and components
+- **Local-first privacy:** All LLM inference runs via Ollama on your own hardware — no API keys, no cloud dependency, no data exfiltration
+- **Structured JSON output:** Ollama-native JSON mode with `Pydantic` schema enforcement ensures consistently valid, well-typed outputs every time
+- **Pydantic validation:** `WorkItem` model validates title length, type enumeration, and required fields before any work item is created
+- **Multi-platform posting:** Push work items to Plane.so (REST API), Azure DevOps (SDK), GitHub Projects (ProjectsV2 API), or console output
+- **Three prompt variants:** Basic (simple extraction), Agile (user story format), and Engineering (technical task breakdown) — selectable via config
+- **Docker Compose for Ollama:** GPU-enabled NVIDIA Docker setup to run the LLM server in a container
+- **Deterministic output:** Temperature set to 0 in Ollama for reproducible, consistent results across runs
+
+---
+
+## Architecture
+
+```
+main.py
+  └── WorkflowManager (orchestrator)
+        ├── IAgent (interface)
+        │     └── OllamaAgent ─── connects to local Ollama server (JSON mode, temp=0)
+        ├── IClient (interface)
+        │     ├── PlaneClient    ─── Plane.so REST API
+        │     ├── AzureClient    ─── Azure DevOps SDK
+        │     ├── GithubClient   ─── GitHub Issues + ProjectsV2 API
+        │     └── ConsoleClient  ─── stdout (debug/testing)
+        ├── SystemPrompt         ─── 3 variants (A: basic, B: agile, C: engineering)
+        ├── WorkflowManagerParser ─── JSON → Pydantic WorkItem validation
+        ├── Storage              ─── Read transcripts, save work items to disk
+        ├── Config               ─── .env loader (Ollama host, model, platform tokens)
+        └── Log                  ─── Custom logger (INFO + SUCCESS levels)
+```
+
+### WorkItem Data Model
+| Field                 | Type      | Constraints                          |
+| --------------------- | --------- | ------------------------------------ |
+| `title`               | string    | Max 100 chars, imperative style      |
+| `description`         | string    | WHAT + WHY narrative                 |
+| `acceptance_criteria` | string[]  | Verifiable conditions                |
+| `task_breakdown`      | string[]  | Implementation sub-tasks             |
+| `task_type`           | enum      | Task, Fix, Chore, Docs               |
+| `component`           | string?   | Optional module/area identifier      |
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                                        |
+| ------------------ | ------------------------------------------------- |
+| **Language**       | Python 3                                          |
+| **LLM Runtime**    | Ollama (local Llama 3 inference)                  |
+| **Schema validation** | Pydantic v2                                   |
+| **API clients**    | `httpx`, `requests`, `azure-devops` SDK           |
+| **Config**         | `python-dotenv`                                   |
+| **Container**      | Docker Compose (NVIDIA GPU + Ollama)              |
+| **Formatting**     | `black`                                           |
+| **License**        | MIT                                               |

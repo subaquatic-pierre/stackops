@@ -44,6 +44,7 @@ const config: Config = {
   plugins: [
     "docusaurus-plugin-sass",
     tailwindPlugin,
+    require("./src/plugins/blogSearchCatalog"),
     [
       "@easyops-cn/docusaurus-search-local",
       {

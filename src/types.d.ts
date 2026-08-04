@@ -35,5 +35,19 @@ declare module "@theme/searchByWorker" {
   }
 }
 
+declare module "@docusaurus/useGlobalData" {
+  export default function useGlobalData(): Record<
+    string,
+    Record<string, unknown>
+  >;
+  export function usePluginData(
+    pluginName: string,
+    pluginId?: string,
+  ): unknown;
+  export function useAllPluginInstancesData(
+    pluginName: string,
+  ): Record<string, unknown> | undefined;
+}
+
 declare module "*.css" {}
 declare module "*.scss" {}

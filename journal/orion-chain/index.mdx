@@ -1,0 +1,82 @@
+---
+title: "Orion Chain — Custom Blockchain in Rust"
+date: 2024-08-23
+authors:
+  - pierre
+tags: [rust, blockchain, p2p, tcp, actix-web, rocksdb, cryptography, ecdsa]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A feature-rich blockchain implementation written in Rust, featuring a custom
+  TCP-based peer-to-peer communication protocol, ECDSA cryptographic signing
+  (k256/p256 curves), RocksDB persistent storage, an Actix-web HTTP API, and
+  a validator runtime for executing transactions. Designed as a full-node
+  platform for decentralized applications with 55 source files across 7 modules.
+repo: https://github.com/subaquatic-pierre/orion-chain
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Orion Chain** is a blockchain platform built from the ground up in Rust. Unlike projects that fork existing chains, Orion implements its own custom P2P networking protocol over raw TCP, its own transaction pool and block validation logic, and its own validator runtime for transaction execution.
+
+The codebase is structured into 7 cohesive modules — `api`, `core`, `crypto`, `network`, `rpc`, `state`, and `vm` — across 55 source files. It is designed as a full-node platform: a single `ChainNode` binary that runs an HTTP API (Actix-web), a P2P networking layer, and a blockchain validator loop, all backed by RocksDB for persistent storage.
+
+---
+
+## Key Features
+
+- **Custom TCP P2P protocol:** Nodes communicate over a custom binary protocol with message types encoded via `borsh` serialization — no gRPC, no libp2p — just raw TCP sockets with manual binary framing
+- **ECDSA cryptography:** Transaction signing and verification using both `k256` (secp256k1) and `p256` curves, with DER/PEM encoding support
+- **RocksDB persistence:** Block storage and chain state persisted to disk via RocksDB, with support for in-memory operation during testing
+- **Block production:** Validator loop runs every 5 seconds (configurable block time), proposing new blocks containing transactions from the mempool
+- **Transaction pool:** In-memory mempool with configurable size (default 50 transactions), fed by peer gossip and RPC submissions
+- **Validator runtime:** VM module that executes transactions against chain state, with a `ValidatorRuntime` that validates blocks before commitment
+- **HTTP API:** Actix-web server exposing REST endpoints for blocks, transactions, and chain state queries
+- **RPC controller:** Bridges peer TCP messages and client HTTP requests, routing `RpcHeader` enum variants (GetBlock, NewTx, CommitBlock, GetChainHeight, etc.) to appropriate handlers
+
+---
+
+## Architecture
+
+Seven modules forming a complete blockchain node:
+
+```
+┌────────────────────────────────────────────┐
+│               ChainNode                     │
+│  orchestrates: TcpController, TxPool,       │
+│  BlockValidator, Blockchain, RpcController  │
+└──────────────┬─────────────────────────────┘
+               │
+   ┌───────────┼───────────┬──────────┬───────────┬──────────┐
+   ▼           ▼           ▼          ▼           ▼          ▼
+  api/       core/       crypto/   network/    rpc/       state/
+  (HTTP)   (blockchain) (ECDSA)   (TCP P2P)  (bridge)  (accounts)
+   │           │           │          │           │          │
+   ▼           ▼           ▼          ▼           ▼          ▼
+ Actix-web  BlockMgr    k256/p256  Node/Peer  Handlers   AcctMgr
+ Routes     StateMgr    Address    TxPool     Controller  Storage
+            RocksDB     Signature  Encoder                RocksDB
+            Validator   Hash       Message
+            Runtime                Types
+```
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                                        |
+| ------------------ | ------------------------------------------------- |
+| **Language**       | Rust (edition 2021)                               |
+| **HTTP API**       | Actix-web 4.9, Actix-CORS                         |
+| **P2P Networking** | Custom TCP protocol, `borsh` serialization        |
+| **Cryptography**   | `ecdsa` (k256/p256 curves), `sha256`, `rand`      |
+| **Serialization**  | `borsh`, `serde`, `serde_json`, `bincode`, `hex`  |
+| **Database**       | RocksDB (`rocksdb` crate), `tempfile`             |
+| **Async runtime**  | Tokio (full features)                             |
+| **Logging**        | `env_logger`, `log`, `pretty_env_logger`          |
+| **Build**          | `cargo build --release`, `make build`             |
+| **License**        | MIT                                               |

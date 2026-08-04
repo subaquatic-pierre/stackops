@@ -1,0 +1,79 @@
+---
+title: "Flask DevOps — Service Rebuild API"
+date: 2023-04-16
+authors:
+  - pierre
+tags: [flask, python, devops, gunicorn, nginx, systemd, api, automation]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A lightweight Flask API service that initiates remote rebuilds for web
+  services on a machine. Features password-authenticated POST endpoints
+  that execute build scripts via subprocess, with stdout/stderr capture
+  and a Bootstrap web dashboard. Production-ready with Gunicorn (gthread
+  workers), Nginx reverse proxy with SSL, and systemd service management.
+repo: https://github.com/subaquatic-pierre/flask-devops
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Flask DevOps** is a minimal, single-purpose Flask API designed to trigger service rebuilds on a production machine. It provides an authenticated endpoint that executes arbitrary build scripts via `subprocess.run()`, captures stdout and stderr, and returns the output as JSON.
+
+The service includes a simple Bootstrap 5 web dashboard where operators enter a password and trigger a rebuild with a single button click. It is designed to sit behind an Nginx reverse proxy with SSL, run under Gunicorn with gthread workers, and be managed by systemd — a complete, production-ready DevOps automation microservice.
+
+---
+
+## Key Features
+
+- **Authenticated rebuild endpoint:** `POST /rebuild` accepts a password (validated against an environment variable), a project directory, and a build script path — executes the script and returns stdout/stderr
+- **Web dashboard:** Bootstrap 5 UI with password input, a "Run Rebuild" button, animated loading indicator, and color-coded output display (green for stdout, red for stderr)
+- **Gunicorn production config:** 2 workers with gthread worker class (3 threads each), 600-second keepalive and timeout for long-running builds
+- **Nginx reverse proxy:** Pre-configured with HTTP → HTTPS redirect, SSL via LetsEncrypt, and proxy pass to Gunicorn on `127.0.0.1:8001`
+- **systemd service unit:** Pre-written unit file for running the Gunicorn service as a system daemon
+- **CORS enabled:** All origins allowed via Flask-CORS for external dashboard access
+
+---
+
+## Architecture
+
+```
+                    ┌──────────────────┐
+                    │   Nginx :80/443  │
+                    │   SSL (LetsEncrypt│
+                    │   proxy_pass     │
+                    │   127.0.0.1:8001 │
+                    └────────┬─────────┘
+                             │
+                    ┌────────▼─────────┐
+                    │    Gunicorn      │
+                    │  2 gthread       │
+                    │  workers :8001   │
+                    └────────┬─────────┘
+                             │
+                    ┌────────▼─────────┐
+                    │   Flask App      │
+                    │  GET / ──► HTML  │
+                    │  POST /rebuild   │
+                    │   │              │
+                    │   └── subprocess.run(build_script)
+                    │        captures stdout/stderr    │
+                    └──────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                            |
+| ------------------ | ------------------------------------- |
+| **Framework**      | Flask 2.2, Flask-CORS                 |
+| **WSGI Server**    | Gunicorn (gthread workers)            |
+| **Reverse proxy**  | Nginx (SSL via LetsEncrypt)           |
+| **Service mgmt**   | systemd                               |
+| **Frontend**       | Bootstrap 5 (CDN), vanilla JS         |
+| **Config**         | `python-dotenv` (.env-based secrets)  |
+| **License**        | MIT                                  |

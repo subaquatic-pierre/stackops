@@ -1,0 +1,90 @@
+---
+title: "FastAPI ML Project — Car Damage Assessment Platform"
+date: 2023-11-19
+authors:
+  - pierre
+tags: [fastapi, python, machine-learning, detectron2, computer-vision, docker, mongodb, react]
+image: /img/journal/fast-api-ml-project-logo.png
+featured: false
+description: >
+  A machine learning microservices platform for automated car accident damage
+  assessment. Features a FastAPI backend, an asynchronous GPU-accelerated ML
+  worker using Detectron2 for damage detection on car images, MongoDB
+  persistence, Flask and React frontends, and a Celery task queue. Fully
+  containerized with Docker Compose for NVIDIA GPU-accelerated inference.
+website: https://www.accident-ai.com
+repo: https://github.com/subaquatic-pierre/fast-api-ml-project
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**FastAPI ML Project** (also branded as "Accident-AI") is a machine learning microservices platform that automates vehicle damage assessment from car accident images. Users upload photos of damaged vehicles, and the system's ML models — powered by **Detectron2** (Facebook Research) on an NVIDIA GPU — detect and classify damage across different car parts using blueprint mask overlays.
+
+The platform is split across five containerized services: a **FastAPI** backend for business logic and case management, a **GPU-accelerated ML worker** running Detectron2 models, a **Flask** server-rendered frontend, a **React** (CoreUI) admin dashboard, and **MongoDB** for persistent storage. Celery with Redis handles asynchronous task distribution.
+
+---
+
+## Key Features
+
+- **Automated damage detection:** Detectron2-based computer vision models process car images and identify damaged areas using 18 car-part blueprint masks (bumper, fender, door, headlamp, etc.)
+- **Two ML model versions:** `model_service_v1.py` and `model_service_v2.py` (~2,500 lines each) — support for multiple detection architectures
+- **Parallel image processing:** ThreadPoolExecutor with 8 workers for concurrent image analysis
+- **Full case management API:** CRUD for accident cases, vehicle addition, top-view generation, and PDF report generation
+- **JWT authentication:** HS256-signed JWT tokens with bearer authentication and API key support
+- **S3 storage integration:** Images and reports stored in AWS S3 bucket (`accident-ai-uploads`)
+- **Dual frontends:** Flask (server-rendered Jinja2 + Bootstrap Creative) and React (CoreUI Free Admin Template)
+- **GPU-accelerated Docker worker:** NVIDIA CUDA 11.0.3 base image with Detectron2 compiled from source
+- **Celery task queue:** Asynchronous job distribution for long-running ML inference tasks
+
+---
+
+## Architecture
+
+```
+                  ┌──────────────┐
+                  │   MongoDB    │  (accident_ai_app)
+                  └──────┬───────┘
+                         │
+     ┌───────────────────┼───────────────────┐
+     │                   │                   │
+┌────▼────────┐  ┌───────▼────────┐  ┌───────▼──────────┐
+│  API Svc    │  │  Worker Svc    │  │  Flask Frontend  │
+│  :5000      │◄─┤  :4000         │  │  :3000            │
+│  FastAPI    │  │  FastAPI + ML  │  │  Jinja2 + Bootstrap│
+│  JWT Auth   │  │  Detectron2    │  │                   │
+└─────────────┘  │  GPU Inference │  └───────────────────┘
+                 └────────────────┘
+                                          ┌───────────────────┐
+                                          │  React Frontend   │
+                                          │  :3001            │
+                                          │  CoreUI Admin     │
+                                          └────────┬──────────┘
+                                                   │
+                                          ┌────────▼──────────┐
+                                          │     Nginx :80     │
+                                          └───────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer                | Technology                                      |
+| -------------------- | ----------------------------------------------- |
+| **API Framework**    | FastAPI, Uvicorn                                |
+| **ML Framework**     | Detectron2 (Facebook Research), PyTorch 1.11    |
+| **Computer Vision**  | OpenCV, NumPy, Pytesseract (OCR)                |
+| **GPU Runtime**      | NVIDIA CUDA 11.0.3                              |
+| **Database**         | MongoDB (MongoEngine ODM)                       |
+| **Task Queue**       | Celery + Redis                                  |
+| **Auth**             | JWT (HS256), bcrypt password hashing            |
+| **Storage**          | AWS S3 (boto3)                                  |
+| **Frontend (Flask)** | Flask, Jinja2, Bootstrap Creative               |
+| **Frontend (React)** | React 18, Redux, CoreUI Admin Template, Chart.js |
+| **PDF Generation**   | wkhtmltopdf (PDFKit)                            |
+| **Container**        | Docker Compose (5 services), Nginx, NVIDIA GPU  |
+| **License**          | MIT                                             |

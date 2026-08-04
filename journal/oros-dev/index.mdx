@@ -1,0 +1,78 @@
+---
+title: "orOS — Monolithic 64-bit Kernel in Rust"
+date: 2026-02-07
+authors:
+  - pierre
+tags: [rust, osdev, kernel, x86-64, no-std, systems-programming, vga, interrupts, async]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A 64-bit operating system kernel written from scratch in freestanding Rust.
+  Features custom interrupt handling (IDT, GDT, PIC), physical memory management
+  with paging, multiple heap allocator implementations, a VGA text-mode driver
+  with framebuffer support, and an async cooperative task executor with keyboard
+  input. Built for x86_64-unknown-none using the Rust nightly toolchain.
+repo: https://github.com/subaquatic-pierre/oros-dev
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**orOS** is a 64-bit monolithic operating system kernel written entirely in Rust — no C, no assembly beyond what the bootloader provides. It runs in a `#![no_std]` freestanding environment, managing the full x86_64 CPU state without an underlying OS or standard library.
+
+The project serves as a deep-dive into low-level systems programming: configuring the interrupt subsystem (GDT, IDT, PIC), setting up virtual memory with page tables, implementing multiple heap allocator strategies, driving the VGA text buffer and pixel-based framebuffer, and running a cooperative async task executor. It targets the `x86_64-unknown-none` triple and requires the Rust **nightly** toolchain.
+
+---
+
+## Key Features
+
+- **Freestanding execution:** `#![no_std]` + `#![no_main]` — no standard library, no host OS, bare-metal boot via GRUB2 or UEFI
+- **Interrupt subsystem:** Global Descriptor Table (GDT) with Task State Segment (TSS) for double-fault handling, Interrupt Descriptor Table (IDT) with handlers for breakpoint, double fault, page fault, timer (PIC IRQ0), and keyboard (PIC IRQ1)
+- **Memory management:** Page table setup via `OffsetPageTable`, physical frame allocation from bootloader memory regions, virtual memory mapping for heap pages
+- **Three heap allocators:** Bump allocator (linear), fixed-size block allocator (9 size classes with free lists), and linked-list allocator with free region merging — all behind `Locked<T>` using `spin::Mutex`
+- **VGA text-mode driver:** Memory-mapped I/O to `0xb8000` (80×25 text mode), 16-color palette, line scrolling, thread-safe via spinlock + interrupt-disabled critical sections
+- **Framebuffer output:** Pixel-based writer using `noto-sans-mono-bitmap` font rasterizer, supporting RGB, BGR, and U8 pixel formats
+- **Async task system:** Cooperative executor with custom `TaskWaker`, `BTreeMap`-backed task registry, sleep-on-idle via `hlt`, and an async keyboard input stream
+- **Custom test framework:** `#![custom_test_frameworks]` with QEMU exit-code integration — tests run in the actual kernel on real hardware emulation
+
+---
+
+## Architecture
+
+A **monolithic kernel** organized into 7 subsystems:
+
+```
+┌─────────────────────────────────────────┐
+│          init.rs (boot sequence)        │
+│  IDT → GDT → PIC → paging → allocator  │
+└──────────────┬──────────────────────────┘
+               │
+    ┌──────────┼──────────┬──────────┬──────────┐
+    ▼          ▼          ▼          ▼          ▼
+ interrupts  memory     screen     task       port
+  gdt, idt   page tbl   vga        executor   serial
+  handlers    frame     frame-buf  keyboard   qemu exit
+  pic         bump      color               
+              fixed     macros              
+              linked                          
+```
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                                          |
+| ------------------ | --------------------------------------------------- |
+| **Language**       | Rust (nightly toolchain)                             |
+| **Target triple**  | `x86_64-unknown-none`                               |
+| **Bootloader**     | `bootloader` crate (v0.11), GRUB2, UEFI (OVMF)     |
+| **Async runtime**  | Custom cooperative executor, `futures-util`          |
+| **Concurrency**    | `spin`, `crossbeam-queue` (lock-free)                |
+| **Keyboard**       | `pc-keyboard` (PS/2 scancode decoding), `x86_64`    |
+| **Serial**         | `uart_16550` (COM1 at `0x3F8`)                      |
+| **Font**           | `noto-sans-mono-bitmap` (pixel-perfect rendering)    |
+| **Build**          | Cargo workspace: `os` (host launcher) + `oros-kernel` |
+| **License**        | MIT                                                 |

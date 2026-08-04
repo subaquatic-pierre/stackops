@@ -5,6 +5,9 @@
  * Featured ordering is handled at build time by `processBlogPosts`
  * in docusaurus.config.ts, so this component just splits the
  * current page's items into featured / regular.
+ *
+ * Search now queries the full blog post catalog (all pages)
+ * instead of being limited to the current paginated page.
  */
 import React, { type ReactNode, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
@@ -14,6 +17,7 @@ import {
   HtmlClassNameProvider,
   ThemeClassNames,
 } from "@docusaurus/theme-common";
+import { usePluginData } from "@docusaurus/useGlobalData";
 import BlogLayout from "@theme/BlogLayout";
 import BlogListPaginator from "@theme/BlogListPaginator";
 import SearchMetadata from "@theme/SearchMetadata";
@@ -28,6 +32,7 @@ import {
   getMetadata,
   sortRegularByDate,
 } from "@site/src/lib/blog-utils";
+import type { BlogPostSearchItem } from "@site/src/plugins/blogSearchCatalog";
 import type { Props } from "@theme/BlogListPage";
 
 // ── Metadata ────────────────────────────────────────────────────────
@@ -54,26 +59,73 @@ function BlogListPageContent(props: Props): ReactNode {
   const { metadata, items } = props;
   const isFirstPage = metadata.page === 1;
 
+  // Access the full blog post catalog (all pages) for search
+  const catalog = usePluginData("blog-search-catalog") as
+    | { posts: BlogPostSearchItem[] }
+    | undefined;
+  const allPosts: BlogPostSearchItem[] = catalog?.posts ?? [];
+
   const [searchQuery, setSearchQuery] = useState("");
   const hasActiveFilters = searchQuery !== "";
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
 
-  // Featured posts are pre-sorted first by processBlogPosts.
-  // On page 1 they appear in the featured grid; on other pages
-  // they flow into the regular list.
-  const { featuredItems, regularItems } = useMemo(() => {
+  // Split items into featured / regular based on search state.
+  // - When NOT searching: use paginated items (current page only).
+  // - When searching: filter the FULL catalog across all pages.
+  const { featuredItems, regularItems, resultCount } = useMemo(() => {
     const featured: BlogPluginPost[] = [];
     const regular: Props["items"][number][] = [];
 
     const query = searchQuery.toLowerCase().trim();
 
+    if (query && allPosts.length > 0) {
+      // ── Full catalog search (all pages) ──────────────────────────
+      const filtered = allPosts.filter((post) => {
+        const title = post.title.toLowerCase();
+        const desc = post.description.toLowerCase();
+        return title.includes(query) || desc.includes(query);
+      });
+
+      // Convert catalog items to the shape expected by RegularSection
+      for (const post of filtered) {
+        const syntheticItem = {
+          content: {
+            frontMatter: {
+              title: post.title,
+              description: post.description,
+              tags: post.tags,
+              image: post.image,
+              date: post.date,
+              featured: post.featured,
+            },
+            metadata: {
+              permalink: post.permalink,
+              title: post.title,
+              date: post.date,
+            },
+          },
+        } as unknown as Props["items"][number];
+
+        regular.push(syntheticItem);
+      }
+
+      return {
+        featuredItems: [],
+        regularItems: sortRegularByDate(regular),
+        resultCount: filtered.length,
+      };
+    }
+
+    // ── Paginated (current page only) ──────────────────────────────
+    // Also serves as fallback when catalog is unavailable
     for (const item of items) {
       const fm = getFrontMatter(item);
       const meta = getMetadata(item);
 
-      if (query) {
+      // Fallback search when catalog isn't available
+      if (query && allPosts.length === 0) {
         const title = ((fm.title as string) || "").toLowerCase();
         const desc = ((fm.description as string) || "").toLowerCase();
         if (!title.includes(query) && !desc.includes(query)) continue;
@@ -96,8 +148,13 @@ function BlogListPageContent(props: Props): ReactNode {
     return {
       featuredItems: featured,
       regularItems: sortRegularByDate(regular),
+      resultCount: undefined,
     };
-  }, [items, searchQuery, isFirstPage, hasActiveFilters]);
+  }, [items, searchQuery, isFirstPage, hasActiveFilters, allPosts]);
+
+  const isEmpty =
+    regularItems.length === 0 && featuredItems.length === 0;
+  const showPaginator = !hasActiveFilters && items.length > 0;
 
   // ── Render ───────────────────────────────────────────────────────
 
@@ -105,17 +162,29 @@ function BlogListPageContent(props: Props): ReactNode {
     <BlogLayout>
       <FilterBar onSearchChange={handleSearchChange} />
 
-      {items.length === 0 && <EmptyState reason="search" />}
+      {/* Search result count (only when results found) */}
+      {hasActiveFilters && resultCount != null && resultCount > 0 && (
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+          {resultCount} {resultCount === 1 ? "entry" : "entries"} match{" "}
+          {"\u201C"}{searchQuery}{"\u201D"}
+        </p>
+      )}
 
       <FeaturedSection posts={featuredItems} />
 
       <RegularSection items={regularItems} />
 
-      {regularItems.length === 0 &&
-        featuredItems.length === 0 &&
-        items.length > 0 && <EmptyState reason="empty" />}
+      {/* Empty state when search returns no results */}
+      {hasActiveFilters && isEmpty && items.length > 0 && (
+        <EmptyState reason="search" />
+      )}
 
-      <BlogListPaginator metadata={metadata} />
+      {/* Empty state when page has no posts (non-search) */}
+      {!hasActiveFilters && isEmpty && (
+        <EmptyState reason="empty" />
+      )}
+
+      {showPaginator && <BlogListPaginator metadata={metadata} />}
     </BlogLayout>
   );
 }

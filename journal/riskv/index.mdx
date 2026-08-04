@@ -1,0 +1,89 @@
+---
+title: "Risk-V — 5-Stage Pipelined RISC-V Microarchitecture Study"
+date: 2026-07-05
+authors:
+  - pierre
+tags: [riscv, cpu, logisim, digital-design, microarchitecture, pipeline, hardware, rv32i]
+image: /img/journal/riskv-logo.png
+featured: false
+description: >
+  A structural, visual microarchitecture study of a complete 5-stage pipelined
+  RISC-V RV32I processor built entirely from fundamental digital logic primitives
+  in Logisim-evolution. Every component is visible and simulatable at the gate
+  level, with full hazard detection, operand forwarding, branch prediction, and
+  a 14-suite automated test framework. Includes comprehensive MkDocs
+  documentation with detailed theory on pipeline hazards and forwarding.
+repo: https://github.com/subaquatic-pierre/riskv
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Risk-V** is not a software project — it is a structural, educational microarchitecture study of a complete **5-stage pipelined RISC-V (RV32I) processor** built in Logisim-evolution, a digital logic simulator. Every wire, every gate, and every pipeline register is visible and step-through-able.
+
+The design covers the full classic 5-stage pipeline — Instruction Fetch, Decode, Execute, Memory Access, and Writeback — with hardware implementations of load-use hazard detection and stalling, operand forwarding (bypassing from EX/MEM and MEM/WB stages), and branch/jump resolution with pipeline flushes. An in-progress 4-way set-associative cache subsystem rounds out the memory hierarchy.
+
+Complemented by a 22-page MkDocs Material documentation site and a Python-based automated test runner that validates 14 test suites against expected register state, the project is designed as both a reference implementation and a teaching tool.
+
+---
+
+## Key Features
+
+- **Complete 5-stage RISC-V RV32I CPU:** IF (Instruction Fetch) → ID (Decode + Register File) → EX (Execute + ALU) → MEM (Memory Access) → WB (Writeback)
+- **Hardware Hazard Controller:** Formal boolean logic for load-use hazard detection — `LoadUseHazard = ID_EX_MemRead AND (ID_EX_rd != 0) AND (ID_EX_rd == IF_ID_rs1 OR ID_EX_rd == IF_ID_rs2)` — triggering 1-cycle stalls with PC/IF_ID writes disabled
+- **Operand Forwarding:** Forwarding paths from EX/MEM and MEM/WB pipeline registers back to the ALU inputs, eliminating unnecessary stalls
+- **Branch and Jump Resolution:** Control hazards handled with pipeline flushes when branches are taken; jump target computed in the Decode stage
+- **Full structural visibility:** Every component built from Logisim primitives (AND/OR/NOT gates, multiplexers, registers) — no hidden abstractions
+- **14 test suites:** Automated testing via Logisim CLI covering alignment, branches, cache, control signals, CSR operations, pipeline flush behavior, multiply, and SLT instructions
+- **In-progress cache subsystem:** 4-way set-associative cache with pseudo-LRU replacement, cache FSM with write-through/write-back policies
+- **RISC-V toolchain integration:** `riscv64-unknown-elf-as` assembler integration via `compile_logisim.sh` that converts assembly listings to Logisim-compatible hex ROM files
+- **Comprehensive documentation:** MkDocs Material site with detailed write-ups on pipeline timing, hazard theory with truth tables, ALU control decoding, and component-by-component specifications
+
+---
+
+## Architecture
+
+### CPU Datapath
+
+```
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│   IF    │──▶│   ID    │──▶│   EX    │──▶│   MEM   │──▶│   WB    │
+│ PC+IMem │   │ Ctrl+RF │   │ ALU+Fwd │   │ DMem+Al │   │ WB Mux  │
+└─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘
+     │             │             │             │
+  IF/ID reg     ID/EX reg     EX/MEM reg    MEM/WB reg
+     │             │             │             │
+     └──── Stall/Flush logic (Hazard Controller) ────┘
+                       │
+              Forward Controller ──┐
+                       │           │ bypass paths
+                       └───────────┘
+```
+
+### Circuit Files
+
+| Circuit              | Contents                                              |
+| -------------------- | ----------------------------------------------------- |
+| `RiskVCPU.circ`      | Top-level integrated 5-stage datapath                  |
+| `RiskVControl.circ`  | Main control, hazard, forwarding, branch, immediate gen |
+| `RiskVMemory.circ`   | Register File + Data Memory + load/store aligners      |
+| `RiskVALU.circ`      | ALU + M-extension multiplier/divider logic             |
+| `RiskVPipelineRegs.circ` | IF/ID, ID/EX, EX/MEM, MEM/WB pipeline registers    |
+| `RiskVCache.circ`    | 4-way set-associative cache (in progress)              |
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                                      |
+| ------------------ | ----------------------------------------------- |
+| **Digital design** | Logisim-evolution (Java-based logic simulator)  |
+| **ISA**            | RISC-V RV32I (32-bit base integer instruction set) |
+| **Assembly**       | `riscv64-unknown-elf-as` (GNU assembler)        |
+| **Test framework** | Python 3 (`scripts/test_runner.py`), Logisim CLI |
+| **Documentation**  | MkDocs Material, Mermaid diagrams, MathJax      |
+| **CI/CD**          | GitHub Actions (docs deploy on version tags)    |
+| **License**        | MIT                                             |
