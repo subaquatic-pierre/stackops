@@ -18,7 +18,7 @@ export default function Home() {
         // triggerRef={searchTriggerRef}
       />
       <Layout
-        title="Technical Reference | StackOps"
+        title="Technical Reference"
         description="A practical software engineering reference covering cloud infrastructure, Kubernetes, Linux, networking, virtualization, databases, DevOps, and modern software architecture."
       >
         <div className="bg-white dark:bg-surface-0 text-slate-900 dark:text-white antialiased bg-grid min-h-screen font-sans transition-colors duration-200">
