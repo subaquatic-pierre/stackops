@@ -20,11 +20,18 @@ export default function TagPill({
   permalink,
   stopPropagation = false,
 }: TagPillProps): React.ReactNode {
+  const className =
+    "tag-pill inline-flex items-center rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline";
+
+  // Render as <span> inside clickable cards to avoid nested <a> tags
+  if (stopPropagation) {
+    return <span className={className}>{label}</span>;
+  }
+
   return (
     <Link
       to={permalink}
-      onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
-      className="tag-pill inline-flex items-center rounded-md border border-black/5 dark:border-white/10 bg-black/5 dark:bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors no-underline hover:no-underline"
+      className={className}
     >
       {label}
     </Link>

@@ -104,9 +104,7 @@ function BlogListPageContent(props: Props): ReactNode {
   return (
     <BlogLayout>
       {/* Filter bar with search */}
-      <FilterBar
-        onSearchChange={handleSearchChange}
-      />
+      <FilterBar onSearchChange={handleSearchChange} />
 
       {/* Empty state */}
       {filteredItems.length === 0 && (
