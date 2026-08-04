@@ -22,7 +22,6 @@ description: >
   browsing, shopping cart with coupon support, and CSV bulk import for inventory
   management. Deployed on Heroku with AWS S3 for static and media storage.
 repo: https://github.com/subaquatic-pierre/scubadivedubai-django
-website: https://scubadivedubai.herokuapp.com/
 ---
 
 {/* truncate */}
@@ -51,13 +50,13 @@ The admin interface provides CSV upload functionality for bulk inventory managem
 
 ## Architecture
 
-| Service            | Role                                            |
-| ------------------ | ----------------------------------------------- |
-| **Django**         | Full-stack web framework with class-based views |
-| **SQLite**         | Development database (package is 471KB)         |
-| **AWS S3**         | Static files and media storage (Django Storages) |
-| **Gunicorn**       | WSGI server for AWS EC2 production deployment   |
-| **MDBootstrap**    | Responsive frontend styling                     |
+| Service         | Role                                             |
+| --------------- | ------------------------------------------------ |
+| **Django**      | Full-stack web framework with class-based views  |
+| **SQLite**      | Development database (package is 471KB)          |
+| **AWS S3**      | Static files and media storage (Django Storages) |
+| **Gunicorn**    | WSGI server for AWS EC2 production deployment    |
+| **MDBootstrap** | Responsive frontend styling                      |
 
 ---
 
@@ -75,13 +74,13 @@ Landing page (all items) → Filter by category → View item detail
 
 ## Tech Stack
 
-| Layer                  | Technology                                     |
-| ---------------------- | ---------------------------------------------- |
-| **Framework**          | Django (Python)                                |
-| **Authentication**     | Django AllAuth (registration, login, social)   |
-| **Forms**              | Django Crispy Forms (Bootstrap 4 styling)      |
-| **Countries**          | Django Countries (country selection in checkout)|
-| **Storage**            | Django Storages + AWS S3 (media/static files)  |
-| **Frontend**           | MDBootstrap, SCSS, vanilla JavaScript          |
-| **Production**         | Gunicorn + Heroku / AWS EC2                    |
-| **Database**           | SQLite (development)                           |
+| Layer              | Technology                                       |
+| ------------------ | ------------------------------------------------ |
+| **Framework**      | Django (Python)                                  |
+| **Authentication** | Django AllAuth (registration, login, social)     |
+| **Forms**          | Django Crispy Forms (Bootstrap 4 styling)        |
+| **Countries**      | Django Countries (country selection in checkout) |
+| **Storage**        | Django Storages + AWS S3 (media/static files)    |
+| **Frontend**       | MDBootstrap, SCSS, vanilla JavaScript            |
+| **Production**     | Gunicorn + Heroku / AWS EC2                      |
+| **Database**       | SQLite (development)                             |

@@ -3,7 +3,17 @@ title: "Portfolio — Personal Website with AWS CI/CD"
 date: 2020-06-30
 authors:
   - pierre
-tags: [gatsby, react, material-ui, aws, cloudfront, codepipeline, serverless, portfolio]
+tags:
+  [
+    gatsby,
+    react,
+    material-ui,
+    aws,
+    cloudfront,
+    codepipeline,
+    serverless,
+    portfolio,
+  ]
 image: /img/journal/portfolio-logo.png
 featured: false
 description: >
@@ -12,7 +22,6 @@ description: >
   form powered by AWS Lambda for email delivery. Every push to the main branch
   triggers an automatic build and production deployment.
 repo: https://github.com/subaquatic-pierre/portfolio-gatsby-public
-website: https://subaquatic-pierre.com
 ---
 
 {/* truncate */}
@@ -42,13 +51,13 @@ The site is hosted on AWS CloudFront for global CDN delivery, with a CodePipelin
 
 A **single-service, serverless** architecture:
 
-| Service               | Role                                          |
-| --------------------- | --------------------------------------------- |
-| **Gatsby (React)**    | Static site generation with Material UI       |
-| **AWS CloudFront**    | Global CDN delivery with SSL                  |
-| **AWS CodePipeline**  | Automated build and deployment pipeline       |
-| **AWS Lambda**        | Serverless contact form email delivery        |
-| **AWS S3**            | Static asset hosting                          |
+| Service              | Role                                    |
+| -------------------- | --------------------------------------- |
+| **Gatsby (React)**   | Static site generation with Material UI |
+| **AWS CloudFront**   | Global CDN delivery with SSL            |
+| **AWS CodePipeline** | Automated build and deployment pipeline |
+| **AWS Lambda**       | Serverless contact form email delivery  |
+| **AWS S3**           | Static asset hosting                    |
 
 ---
 
@@ -64,12 +73,12 @@ The contact form posts to a Lambda function endpoint, which formats and sends th
 
 ## Tech Stack
 
-| Layer              | Technology                            |
-| ------------------ | ------------------------------------- |
-| **Static Site**    | Gatsby.js, React                      |
-| **UI Framework**   | Material UI (custom themed)           |
-| **Hosting**        | AWS S3, AWS CloudFront CDN            |
-| **CI/CD**          | AWS CodePipeline                      |
-| **Serverless**     | AWS Lambda (contact form)             |
-| **Container**      | Docker (Dockerfile included)          |
-| **Language**       | TypeScript (partial), JavaScript      |
+| Layer            | Technology                       |
+| ---------------- | -------------------------------- |
+| **Static Site**  | Gatsby.js, React                 |
+| **UI Framework** | Material UI (custom themed)      |
+| **Hosting**      | AWS S3, AWS CloudFront CDN       |
+| **CI/CD**        | AWS CodePipeline                 |
+| **Serverless**   | AWS Lambda (contact form)        |
+| **Container**    | Docker (Dockerfile included)     |
+| **Language**     | TypeScript (partial), JavaScript |

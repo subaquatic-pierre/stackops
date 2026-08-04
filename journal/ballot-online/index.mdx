@@ -13,7 +13,6 @@ description: >
   with Apollo Client for data fetching and optimistic UI updates. JWT-based
   authentication secures user sessions and voting actions.
 repo: https://github.com/subaquatic-pierre/ballot-online
-website: https://ballot-online.zeroisone.io
 ---
 
 {/* truncate */}
@@ -43,11 +42,11 @@ Users can register accounts, create poll questions, browse existing questions, a
 
 A **backend + frontend** split with GraphQL as the communication layer:
 
-| Service               | Role                                           |
-| --------------------- | ---------------------------------------------- |
+| Service               | Role                                             |
+| --------------------- | ------------------------------------------------ |
 | **backend** (Django)  | GraphQL API with auto-generated schema, JWT auth |
-| **frontend** (Gatsby) | React SPA with Apollo Client, Material UI       |
-| **PostgreSQL**        | Production database                             |
+| **frontend** (Gatsby) | React SPA with Apollo Client, Material UI        |
+| **PostgreSQL**        | Production database                              |
 
 The backend runs Django on port 8004 with Gunicorn for production. The frontend is built as a static Gatsby site and served through Nginx. The project uses a Makefile for build scripts and environment configuration.
 
@@ -67,10 +66,10 @@ All mutations use Apollo's optimistic response pattern — the UI updates immedi
 
 ## Tech Stack
 
-| Layer             | Technology                                  |
-| ----------------- | ------------------------------------------- |
-| **Frontend**      | Gatsby.js, React, Apollo Client, Material UI |
-| **API Backend**   | Django, Graphene-Django, GraphQL             |
-| **Authentication**| JWT (JSON Web Tokens)                        |
-| **Database**      | PostgreSQL (production), SQLite (development)|
-| **Deployment**    | Nginx (static files) + Gunicorn (Django WSGI)|
+| Layer              | Technology                                    |
+| ------------------ | --------------------------------------------- |
+| **Frontend**       | Gatsby.js, React, Apollo Client, Material UI  |
+| **API Backend**    | Django, Graphene-Django, GraphQL              |
+| **Authentication** | JWT (JSON Web Tokens)                         |
+| **Database**       | PostgreSQL (production), SQLite (development) |
+| **Deployment**     | Nginx (static files) + Gunicorn (Django WSGI) |

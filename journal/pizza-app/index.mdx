@@ -3,8 +3,7 @@ title: "Pizza App — Online Ordering Platform"
 date: 2019-10-30
 authors:
   - pierre
-tags:
-  [django, python, javascript, jquery, e-commerce, pizza, online-ordering]
+tags: [django, python, javascript, jquery, e-commerce, pizza, online-ordering]
 image: /img/journal/pizza-app-logo.png
 featured: false
 description: >
@@ -13,7 +12,6 @@ description: >
   dialog, cart management with JavaScript, and order placement. Admins can
   manage items through the Django admin interface or CSV bulk upload.
 repo: https://github.com/subaquatic-pierre/pizza-app
-website: https://pizza-cool-app.herokuapp.com/
 ---
 
 {/* truncate */}
@@ -45,10 +43,10 @@ The application is organized into two main Django apps: **Products** (menu items
 
 A **two-app Django application**:
 
-| App        | Role                                              |
-| ---------- | ------------------------------------------------- |
-| **Products** | Menu items and CSV bulk import                  |
-| **Orders**  | Cart, checkout, and order tracking               |
+| App          | Role                               |
+| ------------ | ---------------------------------- |
+| **Products** | Menu items and CSV bulk import     |
+| **Orders**   | Cart, checkout, and order tracking |
 
 The ordering experience is driven by custom **JavaScript** — event listeners on menu items open the topping-selection modal, the cart is built as a JavaScript object, and checkout happens through an invisible form submission to the server. The menu can be populated efficiently via a provided CSV template and a Django shell import command.
 
@@ -56,10 +54,10 @@ The ordering experience is driven by custom **JavaScript** — event listeners o
 
 ## Tech Stack
 
-| Layer        | Technology                              |
-| ------------ | --------------------------------------- |
-| **Framework**| Django                                  |
-| **Frontend** | jQuery, Vanilla JS, Handlebars JS       |
-| **Forms**    | Django Crispy Forms                     |
+| Layer           | Technology                               |
+| --------------- | ---------------------------------------- |
+| **Framework**   | Django                                   |
+| **Frontend**    | jQuery, Vanilla JS, Handlebars JS        |
+| **Forms**       | Django Crispy Forms                      |
 | **Data import** | CSV bulk upload via Django shell command |
-| **Auth**     | Django auth system                      |
+| **Auth**        | Django auth system                       |

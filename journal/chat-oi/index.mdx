@@ -3,7 +3,17 @@ title: "Chat I/O — Real-Time Web Chat Application"
 date: 2019-11-30
 authors:
   - pierre
-tags: [flask, socket-io, websocket, real-time, python, javascript, handlebars, bootstrap]
+tags:
+  [
+    flask,
+    socket-io,
+    websocket,
+    real-time,
+    python,
+    javascript,
+    handlebars,
+    bootstrap,
+  ]
 image: /img/journal/chat-oi-logo.png
 featured: false
 description: >
@@ -12,7 +22,6 @@ description: >
   Features persistent login through browser local storage and Handlebars.js
   templating for dynamic UI rendering.
 repo: https://github.com/subaquatic-pierre/chat-io
-website: https://chat-appsocketio.herokuapp.com/
 ---
 
 {/* truncate */}
@@ -39,13 +48,13 @@ Handlebars.js templates render dynamic UI components including the login form, c
 
 ## Architecture
 
-| Layer          | Role                                               |
-| -------------- | -------------------------------------------------- |
-| **Flask**      | HTTP server, routing, session management           |
-| **Flask-SocketIO** | WebSocket layer for real-time communication   |
-| **Handlebars.js** | Client-side template rendering                |
-| **Bootstrap 4** | Responsive CSS framework                         |
-| **Local Storage** | Client-side session persistence               |
+| Layer              | Role                                        |
+| ------------------ | ------------------------------------------- |
+| **Flask**          | HTTP server, routing, session management    |
+| **Flask-SocketIO** | WebSocket layer for real-time communication |
+| **Handlebars.js**  | Client-side template rendering              |
+| **Bootstrap 4**    | Responsive CSS framework                    |
+| **Local Storage**  | Client-side session persistence             |
 
 The server runs on Flask with the `flask_sockets` worker under Gunicorn for production. The client uses Socket.IO's JavaScript library for WebSocket connections, with AJAX fallback. All templates are rendered client-side by Handlebars.js after being fetched from the server.
 
@@ -63,11 +72,11 @@ Message sent → Socket.IO emit → Server broadcast to room → All clients ren
 
 ## Tech Stack
 
-| Layer             | Technology                                |
-| ----------------- | ----------------------------------------- |
-| **Server**        | Python, Flask, Flask-SocketIO            |
-| **Real-time**     | Socket.IO (WebSocket with AJAX fallback) |
-| **Templating**    | Handlebars.js (client-side)              |
-| **Styling**       | Bootstrap 4                              |
-| **Production**    | Gunicorn + flask_sockets worker          |
-| **Deployment**    | Docker, Heroku                           |
+| Layer          | Technology                               |
+| -------------- | ---------------------------------------- |
+| **Server**     | Python, Flask, Flask-SocketIO            |
+| **Real-time**  | Socket.IO (WebSocket with AJAX fallback) |
+| **Templating** | Handlebars.js (client-side)              |
+| **Styling**    | Bootstrap 4                              |
+| **Production** | Gunicorn + flask_sockets worker          |
+| **Deployment** | Docker, Heroku                           |
