@@ -9,7 +9,13 @@
  * Search now queries the full blog post catalog (all pages)
  * instead of being limited to the current paginated page.
  */
-import React, { type ReactNode, useMemo, useState, useCallback } from "react";
+import React, {
+  type ReactNode,
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import clsx from "clsx";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import {
@@ -17,7 +23,6 @@ import {
   HtmlClassNameProvider,
   ThemeClassNames,
 } from "@docusaurus/theme-common";
-import { usePluginData } from "@docusaurus/useGlobalData";
 import BlogLayout from "@theme/BlogLayout";
 import BlogListPaginator from "@theme/BlogListPaginator";
 import SearchMetadata from "@theme/SearchMetadata";
@@ -59,11 +64,28 @@ function BlogListPageContent(props: Props): ReactNode {
   const { metadata, items } = props;
   const isFirstPage = metadata.page === 1;
 
-  // Access the full blog post catalog (all pages) for search
-  const catalog = usePluginData("blog-search-catalog") as
-    | { posts: BlogPostSearchItem[] }
-    | undefined;
-  const allPosts: BlogPostSearchItem[] = catalog?.posts ?? [];
+  // Load the full blog post catalog (all pages) for search.
+  // The plugin writes this JSON to /static/blog-search-catalog.json at build time.
+  const [allPosts, setAllPosts] = useState<BlogPostSearchItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/blog-search-catalog.json")
+      .then((res) => {
+        if (!res.ok) throw new Error("Catalog not available");
+        return res.json();
+      })
+      .then((data: { posts: BlogPostSearchItem[] }) => {
+        if (!cancelled) setAllPosts(data.posts ?? []);
+      })
+      .catch(() => {
+        // Catalog unavailable — fallback to current-page search
+        if (!cancelled) setAllPosts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState("");
   const hasActiveFilters = searchQuery !== "";

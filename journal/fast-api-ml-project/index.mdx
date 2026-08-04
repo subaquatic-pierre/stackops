@@ -3,8 +3,18 @@ title: "FastAPI ML Project — Car Damage Assessment Platform"
 date: 2023-11-19
 authors:
   - pierre
-tags: [fastapi, python, machine-learning, detectron2, computer-vision, docker, mongodb, react]
-image: /img/journal/fast-api-ml-project-logo.png
+tags:
+  [
+    fastapi,
+    python,
+    machine-learning,
+    detectron2,
+    computer-vision,
+    docker,
+    mongodb,
+    react,
+  ]
+image: /img/journal-placeholder.png
 featured: false
 description: >
   A machine learning microservices platform for automated car accident damage
@@ -12,7 +22,6 @@ description: >
   worker using Detectron2 for damage detection on car images, MongoDB
   persistence, Flask and React frontends, and a Celery task queue. Fully
   containerized with Docker Compose for NVIDIA GPU-accelerated inference.
-website: https://www.accident-ai.com
 repo: https://github.com/subaquatic-pierre/fast-api-ml-project
 ---
 
@@ -73,18 +82,18 @@ The platform is split across five containerized services: a **FastAPI** backend 
 
 ## Tech Stack
 
-| Layer                | Technology                                      |
-| -------------------- | ----------------------------------------------- |
-| **API Framework**    | FastAPI, Uvicorn                                |
-| **ML Framework**     | Detectron2 (Facebook Research), PyTorch 1.11    |
-| **Computer Vision**  | OpenCV, NumPy, Pytesseract (OCR)                |
-| **GPU Runtime**      | NVIDIA CUDA 11.0.3                              |
-| **Database**         | MongoDB (MongoEngine ODM)                       |
-| **Task Queue**       | Celery + Redis                                  |
-| **Auth**             | JWT (HS256), bcrypt password hashing            |
-| **Storage**          | AWS S3 (boto3)                                  |
-| **Frontend (Flask)** | Flask, Jinja2, Bootstrap Creative               |
+| Layer                | Technology                                       |
+| -------------------- | ------------------------------------------------ |
+| **API Framework**    | FastAPI, Uvicorn                                 |
+| **ML Framework**     | Detectron2 (Facebook Research), PyTorch 1.11     |
+| **Computer Vision**  | OpenCV, NumPy, Pytesseract (OCR)                 |
+| **GPU Runtime**      | NVIDIA CUDA 11.0.3                               |
+| **Database**         | MongoDB (MongoEngine ODM)                        |
+| **Task Queue**       | Celery + Redis                                   |
+| **Auth**             | JWT (HS256), bcrypt password hashing             |
+| **Storage**          | AWS S3 (boto3)                                   |
+| **Frontend (Flask)** | Flask, Jinja2, Bootstrap Creative                |
 | **Frontend (React)** | React 18, Redux, CoreUI Admin Template, Chart.js |
-| **PDF Generation**   | wkhtmltopdf (PDFKit)                            |
-| **Container**        | Docker Compose (5 services), Nginx, NVIDIA GPU  |
-| **License**          | MIT                                             |
+| **PDF Generation**   | wkhtmltopdf (PDFKit)                             |
+| **Container**        | Docker Compose (5 services), Nginx, NVIDIA GPU   |
+| **License**          | MIT                                              |

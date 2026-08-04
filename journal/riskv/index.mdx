@@ -3,7 +3,17 @@ title: "Risk-V — 5-Stage Pipelined RISC-V Microarchitecture Study"
 date: 2026-07-05
 authors:
   - pierre
-tags: [riscv, cpu, logisim, digital-design, microarchitecture, pipeline, hardware, rv32i]
+tags:
+  [
+    riscv,
+    cpu,
+    logisim,
+    digital-design,
+    microarchitecture,
+    pipeline,
+    hardware,
+    rv32i,
+  ]
 image: /img/journal/riskv-logo.png
 featured: false
 description: >
@@ -14,6 +24,7 @@ description: >
   a 14-suite automated test framework. Includes comprehensive MkDocs
   documentation with detailed theory on pipeline hazards and forwarding.
 repo: https://github.com/subaquatic-pierre/riskv
+docs: https://riskv.stackgarden.dev
 ---
 
 {/* truncate */}
@@ -65,25 +76,25 @@ Complemented by a 22-page MkDocs Material documentation site and a Python-based 
 
 ### Circuit Files
 
-| Circuit              | Contents                                              |
-| -------------------- | ----------------------------------------------------- |
-| `RiskVCPU.circ`      | Top-level integrated 5-stage datapath                  |
-| `RiskVControl.circ`  | Main control, hazard, forwarding, branch, immediate gen |
-| `RiskVMemory.circ`   | Register File + Data Memory + load/store aligners      |
-| `RiskVALU.circ`      | ALU + M-extension multiplier/divider logic             |
-| `RiskVPipelineRegs.circ` | IF/ID, ID/EX, EX/MEM, MEM/WB pipeline registers    |
-| `RiskVCache.circ`    | 4-way set-associative cache (in progress)              |
+| Circuit                  | Contents                                                |
+| ------------------------ | ------------------------------------------------------- |
+| `RiskVCPU.circ`          | Top-level integrated 5-stage datapath                   |
+| `RiskVControl.circ`      | Main control, hazard, forwarding, branch, immediate gen |
+| `RiskVMemory.circ`       | Register File + Data Memory + load/store aligners       |
+| `RiskVALU.circ`          | ALU + M-extension multiplier/divider logic              |
+| `RiskVPipelineRegs.circ` | IF/ID, ID/EX, EX/MEM, MEM/WB pipeline registers         |
+| `RiskVCache.circ`        | 4-way set-associative cache (in progress)               |
 
 ---
 
 ## Tech Stack
 
-| Layer              | Technology                                      |
-| ------------------ | ----------------------------------------------- |
-| **Digital design** | Logisim-evolution (Java-based logic simulator)  |
+| Layer              | Technology                                         |
+| ------------------ | -------------------------------------------------- |
+| **Digital design** | Logisim-evolution (Java-based logic simulator)     |
 | **ISA**            | RISC-V RV32I (32-bit base integer instruction set) |
-| **Assembly**       | `riscv64-unknown-elf-as` (GNU assembler)        |
-| **Test framework** | Python 3 (`scripts/test_runner.py`), Logisim CLI |
-| **Documentation**  | MkDocs Material, Mermaid diagrams, MathJax      |
-| **CI/CD**          | GitHub Actions (docs deploy on version tags)    |
-| **License**        | MIT                                             |
+| **Assembly**       | `riscv64-unknown-elf-as` (GNU assembler)           |
+| **Test framework** | Python 3 (`scripts/test_runner.py`), Logisim CLI   |
+| **Documentation**  | MkDocs Material, Mermaid diagrams, MathJax         |
+| **CI/CD**          | GitHub Actions (docs deploy on version tags)       |
+| **License**        | MIT                                                |
