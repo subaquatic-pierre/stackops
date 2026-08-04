@@ -3,15 +3,30 @@ title: "Maven Platform — Bill of Quantities Management"
 date: 2026-08-03
 authors:
   - pierre
-tags: [nextjs, react, express, dotnet, csharp, postgresql, mui, tanstack-table, typescript, construction, procurement, excel]
+tags:
+  [
+    nextjs,
+    react,
+    express,
+    dotnet,
+    csharp,
+    postgresql,
+    mui,
+    tanstack-table,
+    typescript,
+    construction,
+    procurement,
+    excel,
+  ]
 image: /img/journal/maven-platform-logo.png
-featured: true
+featured: false
 description: >
   A Bill of Quantities management platform for the construction and procurement
   industry. Manages projects, work orders, BOQs, work items, and checklists with
   a specialized .NET export engine   producing formatted Excel and PDF documents.
 website: https://erp.mavenpdc.cloud
 ---
+
 {/* truncate */}
 
 ---
@@ -40,12 +55,12 @@ What sets Maven apart is its **.NET BOQ Exporter** — a dedicated microservice 
 
 A **polyglot three-service system** with OxideAuth for authentication:
 
-| Service | Role |
-|---------|------|
-| **www** (Next.js) | Administrative dashboard |
-| **api** (Express.js) | REST API with 25 service files |
+| Service                | Role                                      |
+| ---------------------- | ----------------------------------------- |
+| **www** (Next.js)      | Administrative dashboard                  |
+| **api** (Express.js)   | REST API with 25 service files            |
 | **BOQExporter** (.NET) | Professional XLSX/PDF document generation |
-| **PostgreSQL** | Primary database |
+| **PostgreSQL**         | Primary database                          |
 
 The API uses five role types (SuperAdmin, TeamManager, TeamLeader, QS, OfficeManager) with fine-grained permissions on every entity. Auth is delegated to OxideAuth.
 
@@ -97,13 +112,13 @@ Endpoints: `POST /export-boq`, `POST /export-section`, `GET /ping`. The producti
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js (App Router), React, TypeScript, MUI v7, TanStack Table, ApexCharts |
-| **Rich Editing** | TipTap (rich text), DnD Kit (drag-and-drop), Puck CMS (page builder) |
-| **API Backend** | Express.js, TypeScript, MikroORM |
-| **Export Engine** | .NET 8 C#, ASP.NET Core Minimal API, Aspose.Cells, SkiaSharp |
-| **Database** | PostgreSQL |
-| **Auth** | OxideAuth (JWT-based centralized auth) |
-| **Storage** | Hetzner S3, Azure Blob (alternative) |
-| **i18n** | English + Arabic with RTL |
+| Layer             | Technology                                                                  |
+| ----------------- | --------------------------------------------------------------------------- |
+| **Frontend**      | Next.js (App Router), React, TypeScript, MUI v7, TanStack Table, ApexCharts |
+| **Rich Editing**  | TipTap (rich text), DnD Kit (drag-and-drop), Puck CMS (page builder)        |
+| **API Backend**   | Express.js, TypeScript, MikroORM                                            |
+| **Export Engine** | .NET 8 C#, ASP.NET Core Minimal API, Aspose.Cells, SkiaSharp                |
+| **Database**      | PostgreSQL                                                                  |
+| **Auth**          | OxideAuth (JWT-based centralized auth)                                      |
+| **Storage**       | Hetzner S3, Azure Blob (alternative)                                        |
+| **i18n**          | English + Arabic with RTL                                                   |
