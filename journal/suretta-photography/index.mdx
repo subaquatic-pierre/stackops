@@ -1,0 +1,85 @@
+---
+title: "Suretta Venter Photography — Portfolio Website"
+date: 2020-03-30
+authors:
+  - pierre
+tags:
+  [gatsby, react, bootstrap, photography, portfolio, pwa, sass, aws-codepipeline]
+image: /img/journal/suretta-photography-logo.png
+featured: false
+description: >
+  A professional portfolio website for a photographer, built with Gatsby.js and
+  React. Features a responsive photo gallery with optimized image loading, custom
+  typography with Google Fonts, and offline PWA support. Deployed via AWS
+  CodePipeline to S3 hosting with CD caching.
+repo: https://github.com/subaquatic-pierre/suretta-photography
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Suretta Venter Photography** is a Gatsby.js portfolio website designed for professional photographers to showcase their work. The site uses Gatsby's powerful image processing pipeline — `gatsby-transformer-sharp` and `gatsby-remark-images` — to automatically generate responsive, optimized image variants for every photo in the gallery.
+
+Typography is carefully curated with three Google Fonts: **Playfair Display** for elegant headings, **Pinyon Script** for artistic accents, and **Roboto** for clean body text. The site is a Progressive Web App with offline support, meaning visitors can browse the portfolio even without an internet connection. Automated deployment is handled by AWS CodePipeline — every push to the main branch triggers a build and deployment to S3.
+
+---
+
+## Key Features
+
+- **Responsive photo gallery:** Gatsby Image pipeline generates optimized images at multiple breakpoints automatically
+- **Custom typography:** Three Google Font families (Playfair Display, Pinyon Script, Roboto) for distinct visual hierarchy
+- **PWA with offline support:** `gatsby-plugin-offline` enables service worker caching for offline browsing
+- **Markdown content:** Photography collections managed through Markdown files processed by `gatsby-transformer-remark`
+- **SEO optimization:** React Helmet for meta tags, `gatsby-plugin-sitemap` for search engine indexing
+- **Automated deployment:** AWS CodePipeline builds and deploys on every push to the main branch
+- **Analytics ready:** Google Analytics integration pre-configured (tracking ID configurable)
+
+---
+
+## Architecture
+
+A **static site, serverless** architecture:
+
+| Service               | Role                                          |
+| --------------------- | --------------------------------------------- |
+| **Gatsby.js**         | Static site generation with React             |
+| **gatsby-image**      | Responsive image processing and lazy loading  |
+| **gatsby-transformer-remark** | Markdown-to-HTML content processing |
+| **AWS S3**            | Static site hosting                           |
+| **AWS CodePipeline**  | Automated build and deployment                |
+
+---
+
+## Gatsby Plugin Stack
+
+| Plugin                           | Purpose                                |
+| -------------------------------- | -------------------------------------- |
+| `gatsby-source-filesystem`       | Load images and markdown from `/content` |
+| `gatsby-transformer-sharp`       | Image processing (resize, optimize)    |
+| `gatsby-plugin-sharp`            | Image manipulation API                 |
+| `gatsby-remark-images`           | Responsive images in markdown          |
+| `gatsby-plugin-offline`          | Service worker for PWA offline support |
+| `gatsby-plugin-react-helmet`     | SEO meta tag management                |
+| `gatsby-plugin-sass`             | SCSS preprocessing                     |
+| `gatsby-plugin-sitemap`          | Auto-generate XML sitemap              |
+| `gatsby-plugin-typography`       | Typography.js integration              |
+| `gatsby-plugin-webfonts`         | Google Fonts loading                   |
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                             |
+| ------------------ | -------------------------------------- |
+| **Static Site**    | Gatsby.js, React                       |
+| **Styling**        | SCSS (Sass), Bootstrap 4               |
+| **Fonts**          | Google Fonts (Playfair Display, Pinyon Script, Roboto) |
+| **Images**         | gatsby-image (sharp)                   |
+| **Content**        | Markdown (gatsby-transformer-remark)   |
+| **PWA**            | gatsby-plugin-offline                  |
+| **Analytics**      | Google Analytics (configurable)        |
+| **CI/CD**          | AWS CodePipeline                       |
+| **Deployment**     | Docker + AWS S3                        |

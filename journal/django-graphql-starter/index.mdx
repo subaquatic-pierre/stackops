@@ -1,0 +1,53 @@
+---
+title: "Django GraphQL Starter — API Template"
+date: 2021-04-10
+authors:
+  - pierre
+tags: [django, graphql, graphene, python, starter-template, api]
+featured: false
+description: >
+  A starter template for building Django GraphQL APIs. Bootstraps a Django
+  project with Graphene-Django for automatic GraphQL schema generation from
+  models, including basic CRUD operations on a Todo model, test setup, and
+  Docker support for containerized development.
+repo: https://github.com/subaquatic-pierre/django-graphql
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Django GraphQL Starter** is a boilerplate template for bootstrapping new Django GraphQL APIs. It wires up **Graphene-Django** for automatic GraphQL schema generation directly from Django models, removing the need to hand-write resolvers for standard operations.
+
+The template ships with a basic **Todo model** demonstrating full CRUD through GraphQL mutations and queries, a test suite, and Docker support. It is also referenced by the **terraform-aws-ci-cd** project as the sample backend API for its CI/CD pipeline.
+
+---
+
+## Key Features
+
+- **Automatic schema generation:** Graphene-Django generates the GraphQL schema from models
+- **Full CRUD on Todo model:** Queries and mutations for create, read, update, delete
+- **Test setup:** Pre-configured test suite
+- **Docker support:** Dockerfile for containerized development and deployment
+- **Explicit schema definition:** Schema documented in `schema.graphql`
+- **Minimal bootstrapping:** Clone, install requirements, and start building
+
+---
+
+## Architecture
+
+A **single Django application** exposing a GraphQL API. Graphene resolves requests against the Django ORM, with the schema defined in `schema.graphql`. The included Dockerfile makes the API easy to containerize and deploy.
+
+---
+
+## Tech Stack
+
+| Layer          | Technology                |
+| -------------- | ------------------------- |
+| **Framework**  | Django                    |
+| **GraphQL**    | Graphene-Django           |
+| **Schema**     | `schema.graphql`          |
+| **Language**   | Python                    |
+| **Deployment** | Docker (Dockerfile)       |

@@ -1,0 +1,67 @@
+---
+title: "Roomba Bots — Interactive Robot Cleaning Simulation"
+date: 2021-01-25
+authors:
+  - pierre
+tags: [typescript, react, simulation, robotics, interactive, game]
+image: /img/journal/roomba-bots-logo.png
+featured: false
+description: >
+  An interactive React/TypeScript simulation of Roomba cleaning robots navigating
+  a tile grid. Configure bot count, speed, and movement patterns, then watch as
+  they autonomously clean tiles using random walk or random bounce algorithms.
+  Includes manual bot control via arrow keys and real-time game statistics.
+repo: https://github.com/subaquatic-pierre/roomba-bots
+website: http://roomba-bots.s3-website-us-east-1.amazonaws.com
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Roomba Bots** is an interactive TypeScript + React simulation that visualizes autonomous cleaning robots on a 2D tile grid. Users configure the simulation parameters — number of bots, movement speed, and navigation algorithm — then watch as the bots autonomously clean all tiles. The simulation tracks real-time statistics and lets users manually control individual bots for targeted cleaning.
+
+Bots navigate using one of two algorithms: **random walk** (direction changes every 100 loop cycles) or **random bounce** (direction changes only when hitting the map edge). The simulation starts with all tiles dirty and ends when every tile has been cleaned.
+
+---
+
+## Key Features
+
+- **Bot configuration:** Set number of bots (1+), adjust speed, and toggle random walk mode
+- **Two movement algorithms:** Random walk (periodic direction changes) and random bounce (edge-triggered direction changes)
+- **Manual bot control:** Click any bot to select it, then use arrow keys to direct its movement
+- **Real-time statistics:** Active bot count, elapsed time, random walk toggle status, cleaned tile count
+- **Simulation controls:** Start, stop, and reset the game at any time
+- **Dynamic bot count:** Add or remove bots during the simulation
+- **Automatic completion:** Simulation ends when all tiles are clean
+
+---
+
+## Simulation Logic
+
+```
+Game starts with N bots on a grid of dirty tiles
+     ↓
+Each bot moves one tile per tick based on current algorithm
+     ↓
+If random walk: change direction every 100 ticks
+If random bounce: change direction on hitting edge or other bots
+     ↓
+Track cleaned tile count, elapsed time, active bots
+     ↓
+All tiles cleaned → simulation ends
+```
+
+---
+
+## Tech Stack
+
+| Layer           | Technology                   |
+| --------------- | ---------------------------- |
+| **Language**    | TypeScript                    |
+| **Framework**   | React                         |
+| **State**       | React hooks (useState, useEffect) |
+| **Hosting**     | AWS S3 (static website)       |
+| **Styling**     | CSS                           |

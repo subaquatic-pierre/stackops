@@ -1,0 +1,557 @@
+---
+sidebar_position: 15
+title: 'Makefile Reference'
+description: 'Complete Makefile reference: syntax, variables, automatic variables, pattern rules, conditionals, functions, and practical patterns for Docker, Kubernetes, Terraform, and general development workflows.'
+tags: [linux, make, makefile, build-automation, devops, reference]
+last_updated: '2026-08-04'
+---
+
+# Makefile Reference
+
+## Overview
+
+Make is a build automation tool that uses a file called `Makefile` to define targets, dependencies, and recipes. Despite its age, Make remains the lingua franca of project automation — used for building binaries, running tests, deploying infrastructure, and orchestrating complex multi-step workflows. It's ubiquitous in Go and C projects, Docker-based development, Terraform operations, and CI/CD pipelines.
+
+## Anatomy of a Makefile
+
+A Makefile consists of rules with this structure:
+
+```makefile
+target: prerequisites
+	recipe
+```
+
+- **target**: The name of the file to generate or a phony action name.
+- **prerequisites**: Files or other targets that must be up-to-date before this rule runs.
+- **recipe**: Shell commands to execute (must be indented with a **tab**, not spaces).
+
+### Minimal example
+
+```makefile
+.PHONY: build test clean
+
+build:
+	go build -o bin/app ./cmd/server
+
+test:
+	go test ./... -count=1 -race
+
+clean:
+	rm -rf bin/
+```
+
+## Phony targets
+
+Targets that don't represent files must be declared `.PHONY` to prevent Make from skipping them if a file with that name exists:
+
+```makefile
+.PHONY: all build test lint clean deploy
+
+all: build test
+
+build:
+	@echo "Building..."
+	go build -o bin/app .
+
+test:
+	@echo "Running tests..."
+	go test ./...
+
+clean:
+	@echo "Cleaning..."
+	rm -rf bin/
+```
+
+Without `.PHONY`, if a file named `build` or `test` exists, Make will compare timestamps and potentially skip the recipe.
+
+## Variables
+
+### Simple assignment (`=`) — recursive expansion
+
+```makefile
+CC = gcc
+CFLAGS = -Wall -O2
+
+build:
+	$(CC) $(CFLAGS) -o app main.c
+```
+
+Variables assigned with `=` are expanded lazily — their value is computed each time they are referenced.
+
+### Immediate assignment (`:=`) — simple expansion
+
+```makefile
+CURRENT_DIR := $(shell pwd)
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+build:
+	@echo "Building in $(CURRENT_DIR) at $(BUILD_TIME)"
+```
+
+Variables with `:=` are expanded once at the point of assignment. Prefer `:=` unless you need recursion.
+
+### Conditional assignment (`?=`) — set if undefined
+
+```makefile
+ENV ?= development
+REGION ?= us-east-1
+
+deploy:
+	@echo "Deploying to $(ENV) in $(REGION)"
+```
+
+Allows overriding from the command line or environment:
+
+```bash
+make deploy ENV=production
+```
+
+### Append (`+=`)
+
+```makefile
+LDFLAGS := -s -w
+LDFLAGS += -X main.version=$(VERSION)
+```
+
+## Automatic variables
+
+Make provides built-in variables that refer to the current target and its prerequisites:
+
+| Variable | Meaning |
+|---|---|
+| `$@` | The target name |
+| `$<` | The first prerequisite |
+| `$^` | All prerequisites (space-separated, no duplicates) |
+| `$?` | Prerequisites newer than the target |
+| `$*` | The stem of a pattern rule match |
+| `$(@D)` | Directory part of the target |
+| `$(@F)` | File part of the target |
+
+### Example
+
+```makefile
+bin/%: cmd/%/main.go
+	@echo "Building $@ from $<"
+	go build -o $@ $<
+```
+
+## Pattern rules
+
+Pattern rules let you define a generic recipe for building files that match a pattern:
+
+```makefile
+# Build any binary from its corresponding main.go
+bin/%: cmd/%/main.go
+	go build -o $@ ./cmd/$*
+
+# Compile any .c file to a .o file
+%.o: %.c
+	$(CC) -c $(CFLAGS) $< -o $@
+```
+
+## Functions
+
+Make provides built-in functions for string manipulation, file operations, and shell invocation.
+
+### String functions
+
+```makefile
+SOURCES := main.go utils.go handlers.go
+
+# $(subst from,to,text)
+BINARIES := $(subst .go,,$(SOURCES))    # main utils handlers
+
+# $(patsubst pattern,replacement,text)
+OBJECTS := $(patsubst %.go,%.o,$(SOURCES))  # main.o utils.o handlers.o
+
+# $(filter pattern,text)
+GO_FILES := $(filter %.go,$(SOURCES))
+
+# $(filter-out pattern,text)
+NON_GO := $(filter-out %.go,$(SOURCES))
+
+# $(word n,text) / $(words text)
+FIRST := $(word 1,$(SOURCES))           # main.go
+COUNT := $(words $(SOURCES))            # 3
+```
+
+### File functions
+
+```makefile
+# $(wildcard pattern)
+GO_FILES := $(wildcard cmd/*/main.go)
+
+# $(dir names)
+DIRS := $(dir $(GO_FILES))              # cmd/server/ cmd/worker/
+
+# $(notdir names)
+FILES := $(notdir $(GO_FILES))          # main.go main.go
+```
+
+### Shell function
+
+```makefile
+GIT_COMMIT := $(shell git rev-parse --short HEAD)
+GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+BRANCH_SLUG := $(shell echo $(GIT_BRANCH) | tr '/' '-')
+UNAME := $(shell uname -s)
+```
+
+### Conditionals
+
+```makefile
+ENV ?= development
+
+deploy:
+ifeq ($(ENV),production)
+	@echo "Deploying to PRODUCTION with extra safety..."
+	kubectl apply -k overlays/production/ --dry-run=server
+	kubectl apply -k overlays/production/
+else
+	@echo "Deploying to $(ENV)..."
+	kubectl apply -k overlays/$(ENV)/
+endif
+
+# One-liner alternative
+deploy:
+	@[ "$(ENV)" = "production" ] && echo "WARNING: deploying to PRODUCTION!" || true
+	kubectl apply -k overlays/$(ENV)/
+```
+
+## Silencing commands
+
+Prefix a recipe line with `@` to suppress echoing the command itself:
+
+```makefile
+build:
+	@echo "Compiling..."       # Prints: Compiling...
+	go build -o bin/app .      # Prints: go build -o bin/app . (no @)
+```
+
+## Error handling
+
+By default, Make stops when a recipe line returns a non-zero exit code. Use `-` prefix to ignore errors:
+
+```makefile
+clean:
+	-rm -rf bin/               # Ignore error if bin/ doesn't exist
+	-docker stop $(CONTAINER)  # Ok if container doesn't exist
+	-rm -f *.o
+```
+
+Or use `.SHELLFLAGS` to control shell behavior:
+
+```makefile
+.SHELLFLAGS := -eu -o pipefail -c
+.ONESHELL:                     # Run entire recipe in a single shell
+
+deploy:
+	terraform plan -out=tfplan
+	terraform apply tfplan
+```
+
+## Common Makefile patterns
+
+### Docker development Makefile
+
+```makefile
+.PHONY: build run test lint clean
+
+APP_NAME := my-app
+IMAGE := $(APP_NAME):latest
+PORT := 8080
+
+build:
+	docker build -t $(IMAGE) .
+
+run:
+	docker run --rm -p $(PORT):$(PORT) $(IMAGE)
+
+test:
+	docker run --rm $(IMAGE) go test ./... -count=1
+
+lint:
+	docker run --rm -v $(PWD):/app -w /app golangci/golangci-lint:latest golangci-lint run
+
+shell:
+	docker run --rm -it $(IMAGE) /bin/sh
+
+clean:
+	docker rmi $(IMAGE) 2>/dev/null || true
+```
+
+### Kubernetes operations Makefile
+
+```makefile
+.PHONY: deploy diff logs restart port-forward
+
+ENV ?= staging
+NAMESPACE ?= $(ENV)
+APP := my-app
+
+deploy:
+	kubectl apply -k overlays/$(ENV)/ -n $(NAMESPACE)
+
+diff:
+	kubectl diff -k overlays/$(ENV)/ -n $(NAMESPACE)
+
+logs:
+	kubectl logs -l app=$(APP) -n $(NAMESPACE) --tail=100 -f
+
+restart:
+	kubectl rollout restart deployment/$(APP) -n $(NAMESPACE)
+
+port-forward:
+	kubectl port-forward svc/$(APP) 8080:80 -n $(NAMESPACE)
+
+status:
+	kubectl get all -n $(NAMESPACE) -l app=$(APP)
+```
+
+### Terraform Makefile
+
+```makefile
+.PHONY: init plan apply destroy
+
+ENV ?= staging
+TF_DIR := terraform/environments/$(ENV)
+TF := terraform -chdir=$(TF_DIR)
+
+init:
+	$(TF) init
+
+plan:
+	$(TF) plan -out=tfplan
+
+apply:
+	$(TF) apply tfplan
+
+destroy:
+	$(TF) destroy
+
+output:
+	$(TF) output
+
+fmt:
+	terraform fmt -recursive terraform/
+
+validate:
+	$(TF) validate
+```
+
+### Go project Makefile
+
+```makefile
+.PHONY: build test lint run clean
+
+APP := my-app
+BIN := bin/$(APP)
+PKG := ./...
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+LDFLAGS := -s -w \
+	-X main.version=$(VERSION) \
+	-X main.commit=$(COMMIT) \
+	-X main.buildTime=$(BUILD_TIME)
+
+build:
+	go build -ldflags="$(LDFLAGS)" -o $(BIN) ./cmd/server
+
+test:
+	go test $(PKG) -count=1 -race -coverprofile=coverage.out
+
+test-verbose:
+	go test $(PKG) -count=1 -race -v
+
+lint:
+	golangci-lint run ./...
+
+run: build
+	./$(BIN)
+
+watch:
+	air                           # Uses github.com/air-verse/air for live reload
+
+clean:
+	rm -rf bin/ coverage.out
+
+# Cross-compile
+build-all:
+	GOOS=linux   GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(BIN)-linux-amd64   ./cmd/server
+	GOOS=darwin  GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(BIN)-darwin-amd64  ./cmd/server
+	GOOS=darwin  GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o $(BIN)-darwin-arm64  ./cmd/server
+```
+
+### Multi-service monorepo Makefile
+
+```makefile
+.PHONY: all build test clean
+
+SERVICES := api worker scheduler
+
+all: build test
+
+build: $(SERVICES)
+$(SERVICES):
+	go build -o bin/$@ ./cmd/$@
+
+test:
+	go test ./...
+
+# Run a specific service
+run-%:
+	go run ./cmd/$*
+
+clean:
+	rm -rf bin/
+```
+
+## Help target (self-documenting Makefile)
+
+A common pattern is to add a `help` target that extracts comments from the Makefile:
+
+```makefile
+.PHONY: help
+
+.DEFAULT_GOAL := help
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		sort | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+build: ## Build the application binary
+	go build -o bin/app ./cmd/server
+
+test: ## Run all tests
+	go test ./...
+
+lint: ## Run linters
+	golangci-lint run
+
+deploy: ## Deploy to Kubernetes (set ENV=staging|production)
+	kubectl apply -k overlays/$(ENV)/
+```
+
+The `help` target will output:
+
+```
+build                 Build the application binary
+deploy                Deploy to Kubernetes (set ENV=staging|production)
+help                  Show this help
+lint                  Run linters
+test                  Run all tests
+```
+
+## Passing arguments to targets
+
+Make doesn't support passing arguments directly. Common workarounds:
+
+```makefile
+# Use environment variables
+make deploy ENV=production
+
+# Use target-specific variables
+deploy: ENV ?= staging
+deploy:
+	kubectl apply -k overlays/$(ENV)/
+
+# Use a sub-make invocation
+%:
+	@:
+```
+
+For targets that need positional arguments, use a wrapper:
+
+```makefile
+# Run: make run-api ARGS="--port 9090 --debug"
+run-%:
+	go run ./cmd/$* $(ARGS)
+```
+
+```bash
+make run-api ARGS="--port 9090 --debug"
+```
+
+## Parallel execution
+
+Make can run independent targets in parallel with `-j`:
+
+```makefile
+# Run targets in parallel (default: one job per target)
+make -j4 build test lint
+
+# Inside a Makefile, use .NOTPARALLEL to disable parallelism
+.NOTPARALLEL:
+```
+
+## Debugging Makefiles
+
+```bash
+# Print all variable values
+make -p
+
+# Dry run (show what would be executed without doing it)
+make -n
+
+# Print the database of rules and variables
+make -p -f /dev/null
+
+# Trace which files Make considers
+make -d
+
+# Show the commands being run (default behavior, opposite of @)
+# Remove @ from recipes, or use:
+make V=1                       # If the Makefile supports verbose mode
+```
+
+Add a debug target:
+
+```makefile
+debug: ## Print all Makefile variables for debugging
+	@echo "APP:          $(APP)"
+	@echo "VERSION:      $(VERSION)"
+	@echo "COMMIT:       $(COMMIT)"
+	@echo "BUILD_TIME:   $(BUILD_TIME)"
+	@echo "GO_FILES:     $(GO_FILES)"
+	@echo "LDFLAGS:      $(LDFLAGS)"
+```
+
+## `.DEFAULT_GOAL`
+
+Set the default target when `make` is run with no arguments:
+
+```makefile
+.DEFAULT_GOAL := help
+```
+
+## Including other Makefiles
+
+```makefile
+include .env
+export $(shell sed 's/=.*//' .env)
+
+# Include shared rules
+include makefiles/docker.mk
+include makefiles/kubernetes.mk
+```
+
+## Best practices
+
+- **Use `.PHONY`** for all non-file targets — prevents conflicts with files of the same name.
+- **Prefer `:=` over `=`** — simple expansion avoids unexpected recursive behavior.
+- **Add a `help` target** — self-documenting Makefiles reduce tribal knowledge.
+- **Silence echoes selectively** — use `@` on informational messages, not on actual build commands (so failures are debuggable).
+- **Use automatic variables** — `$@`, `$<`, `$^` make rules generic and reusable.
+- **Keep recipes idempotent** — running `make build` twice should not cause errors.
+- **Check in the Makefile** — it's part of the project's developer interface, not a local convenience script.
+- **Don't over-engineer** — Make is best for command orchestration, not complex logic. For heavy scripting, call a shell script from a Make target.
+
+## See also
+
+- [Bash & Shell Scripting](/docs/linux/bash) — shell scripting fundamentals
+- [Docker Overview](/docs/docker/docker-overview) — container build automation
+- [Helm Reference](/docs/kubernetes/helm) — Kubernetes packaging
+- [ArgoCD & GitHub Actions](/docs/gitops/argocd-github-actions) — CI/CD workflows

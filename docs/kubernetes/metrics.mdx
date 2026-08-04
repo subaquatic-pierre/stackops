@@ -1,0 +1,322 @@
+---
+sidebar_position: 11
+title: 'Kubernetes Metrics'
+description: 'Kubernetes metrics reference: metrics-server, resource metrics API, kubectl top, Prometheus integration, ServiceMonitor, PodMonitor, and common metrics to monitor for cluster health.'
+tags: [kubernetes, metrics, monitoring, prometheus, reference]
+last_updated: '2026-08-04'
+---
+
+# Kubernetes Metrics
+
+## Overview
+
+Kubernetes exposes resource and state metrics through several APIs and components. The pipeline starts with the **metrics-server** (collecting CPU/memory per node and pod), extends through the **resource metrics API** (powering `kubectl top` and HPA), and feeds into **Prometheus** for long-term storage, alerting, and dashboards. This reference covers the full metrics stack.
+
+## Metrics pipeline architecture
+
+```
+kubelet (cAdvisor)             kube-state-metrics
+       │                              │
+       ▼                              ▼
+  metrics-server ◄─────────── Prometheus ────────► Grafana
+       │                              │
+       ▼                              ▼
+  resource metrics API        custom/external metrics API
+       │                              │
+       ▼                              ▼
+  kubectl top, HPA           HPA (custom metrics)
+```
+
+## Metrics server
+
+The metrics-server aggregates resource usage data from the kubelet on each node. It is **not** installed by default.
+
+### Installation
+
+```bash
+# Install the latest release
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# Or via Helm
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm upgrade --install metrics-server metrics-server/metrics-server \
+  --namespace kube-system \
+  --set args={--kubelet-insecure-tls}
+```
+
+### Verify
+
+```bash
+kubectl get deployment metrics-server -n kube-system
+kubectl top nodes
+kubectl top pods -A
+```
+
+### Common configuration
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-server
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: metrics-server
+          args:
+            - --kubelet-insecure-tls          # Skip TLS verification (common in dev)
+            - --kubelet-preferred-address-types=InternalIP
+            - --metric-resolution=15s         # Default: 60s. Lower = more granular.
+            - --kubelet-use-node-status-port  # Use node status port for kubelet
+```
+
+## kubectl top
+
+`kubectl top` queries the metrics-server via the resource metrics API:
+
+```bash
+# Node resource usage
+kubectl top nodes
+kubectl top nodes --sort-by=cpu
+kubectl top nodes --sort-by=memory
+
+# Pod resource usage (namespace-scoped)
+kubectl top pods
+kubectl top pods -n kube-system
+kubectl top pods --all-namespaces --sort-by=cpu
+kubectl top pods -l app=my-app
+kubectl top pods --containers          # Show per-container breakdown
+```
+
+## Resource metrics API
+
+The resource metrics API exposes CPU and memory usage at the pod and node level. It is used by `kubectl top` and the HPA.
+
+```bash
+# Query the API directly
+kubectl get --raw /apis/metrics.k8s.io/v1beta1/nodes
+kubectl get --raw /apis/metrics.k8s.io/v1beta1/pods
+
+# Query a specific pod
+kubectl get --raw /apis/metrics.k8s.io/v1beta1/namespaces/default/pods/my-pod | jq .
+```
+
+Example response:
+
+```json
+{
+  "kind": "PodMetrics",
+  "apiVersion": "metrics.k8s.io/v1beta1",
+  "metadata": {
+    "name": "my-pod",
+    "namespace": "default"
+  },
+  "containers": [
+    {
+      "name": "app",
+      "usage": {
+        "cpu": "125m",
+        "memory": "256Mi"
+      }
+    }
+  ]
+}
+```
+
+## Prometheus integration
+
+### Prometheus Operator (recommended)
+
+The Prometheus Operator uses custom resources to define scrape targets:
+
+**ServiceMonitor** (scrape services):
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: my-app
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  namespaceSelector:
+    matchNames:
+      - default
+      - staging
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+```
+
+**PodMonitor** (scrape pods directly):
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: my-app
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+```
+
+### Prometheus scrape config (manual)
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+```
+
+### Pod annotations for auto-discovery
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      ports:
+        - containerPort: 8080
+          name: metrics
+```
+
+## Key metrics to monitor
+
+### Node-level metrics
+
+| Metric | Description |
+|---|---|
+| `node_cpu_seconds_total` | CPU usage rate |
+| `node_memory_MemAvailable_bytes` | Available memory |
+| `node_filesystem_avail_bytes` | Free disk space |
+| `node_network_receive_bytes_total` | Network ingress |
+| `node_network_transmit_bytes_total` | Network egress |
+| `kube_node_status_condition` | Node conditions (Ready, MemoryPressure, DiskPressure) |
+
+### Pod-level metrics
+
+| Metric | Description |
+|---|---|
+| `container_cpu_usage_seconds_total` | CPU usage per container |
+| `container_memory_working_set_bytes` | Memory working set |
+| `kube_pod_status_phase` | Pod phase (Running, Pending, Failed) |
+| `kube_pod_status_ready` | Pod readiness (0 or 1) |
+| `kube_pod_container_status_restarts_total` | Container restart count |
+| `kube_pod_container_status_waiting_reason` | Waiting reason (CrashLoopBackOff, ErrImagePull) |
+
+### Deployment and workload metrics
+
+| Metric | Description |
+|---|---|
+| `kube_deployment_spec_replicas` | Desired replicas |
+| `kube_deployment_status_replicas_available` | Available replicas |
+| `kube_deployment_status_replicas_updated` | Updated replicas |
+| `kube_statefulset_status_replicas_ready` | StatefulSet ready replicas |
+| `kube_daemonset_status_number_ready` | DaemonSet ready pods |
+| `kube_hpa_status_desired_replicas` | HPA desired replicas |
+
+### Useful PromQL queries
+
+```promql
+# CPU usage % per pod
+sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (pod, namespace)
+  /
+sum(kube_pod_container_resource_requests{resource="cpu"}) by (pod, namespace) * 100
+
+# Memory usage % per pod
+sum(container_memory_working_set_bytes{container!=""}) by (pod, namespace)
+  /
+sum(kube_pod_container_resource_requests{resource="memory"}) by (pod, namespace) * 100
+
+# Pods not ready
+sum(kube_pod_status_ready{condition="false"}) by (namespace)
+
+# Restart rate (5m window)
+rate(kube_pod_container_status_restarts_total[5m]) > 0
+
+# Node CPU utilization %
+100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) * 100)
+```
+
+## kube-state-metrics
+
+kube-state-metrics (KSM) is a separate service that exposes cluster state metrics (object counts, statuses, labels) — it does **not** provide resource usage. KSM is required for Prometheus to query deployment status, pod phases, and other object-level metadata.
+
+### Installation
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm install kube-state-metrics prometheus-community/kube-state-metrics \
+  --namespace kube-system
+```
+
+## Common troubleshooting
+
+### metrics-server not reporting
+
+```bash
+# Check metrics-server logs
+kubectl logs -n kube-system deployment/metrics-server
+
+# Common issues: TLS, network policy, kubelet read-only port
+# Check if APIService is available
+kubectl get apiservice v1beta1.metrics.k8s.io
+
+# Verify kubelet serves metrics
+kubectl get --raw /api/v1/nodes/<node>/proxy/metrics | head
+```
+
+### kubectl top shows `<unknown>`
+
+```bash
+# metrics-server might not be running or discovering nodes
+kubectl describe apiservice v1beta1.metrics.k8s.io
+
+# Force redeploy
+kubectl rollout restart deployment metrics-server -n kube-system
+```
+
+## See also
+
+- [Autoscaling with Metrics and KEDA](./autoscaling-metrics-keda.mdx)
+- [Debugging Tools and Commands](./debugging-tools-commands.mdx)
+- [Observability](/docs/sre/observability.mdx) — Prometheus, Grafana, Loki
+- [Helm Reference](./helm.mdx)

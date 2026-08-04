@@ -1,0 +1,523 @@
+---
+sidebar_position: 10
+title: 'Kustomize Reference'
+description: 'Kustomize reference: kustomization.yaml structure, base and overlay patterns, patches, ConfigMap generators, image transformers, and common commands for declarative Kubernetes configuration management.'
+tags: [kubernetes, kustomize, configuration, reference]
+last_updated: '2026-08-04'
+---
+
+# Kustomize Reference
+
+## Overview
+
+Kustomize is a Kubernetes-native configuration management tool that lets you customize raw YAML manifests without templating. It works on a base + overlay model: you define a base set of resources and layer environment-specific changes on top via overlays. Kustomize is built into `kubectl` (`kubectl apply -k`) and is the foundation of GitOps workflows with Argo CD and Flux.
+
+## Directory layout
+
+```
+├── base/
+│   ├── kustomization.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── configmap.yaml
+└── overlays/
+    ├── staging/
+    │   ├── kustomization.yaml
+    │   └── patch-replicas.yaml
+    └── production/
+        ├── kustomization.yaml
+        ├── patch-replicas.yaml
+        └── patch-resources.yaml
+```
+
+## kustomization.yaml structure
+
+### Minimal base
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+```
+
+### Full-featured base
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace to set on all resources (unless overridden)
+namespace: default
+
+# Resource files or directories to include
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Labels applied to all resources and selectors
+commonLabels:
+  app.kubernetes.io/name: my-app
+  app.kubernetes.io/part-of: my-platform
+
+# Annotations applied to all resources
+commonAnnotations:
+  managed-by: kustomize
+  team: platform
+
+# Prefix/suffix for resource names
+namePrefix: my-app-
+nameSuffix: -v2
+
+# Image tag overrides
+images:
+  - name: my-app
+    newTag: "1.5.0"
+  - name: sidecar-proxy
+    newName: my-registry/sidecar-proxy
+    newTag: "2.3.1"
+    digest: sha256:abc123...
+```
+
+## Overlays
+
+Overlays are directories that reference a base and apply patches:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base directory (relative path)
+resources:
+  - ../../base
+
+# Override the namespace
+namespace: staging
+
+# Apply patches
+patches:
+  - path: patch-replicas.yaml
+    target:
+      kind: Deployment
+      name: my-app
+  - path: patch-resources.yaml
+    target:
+      kind: Deployment
+      name: my-app
+```
+
+## Patching strategies
+
+### Strategic merge patch (default)
+
+Matches on `metadata.name` and `kind`, then merges fields. The simplest approach — just write the fields you want to override and specify the target.
+
+```yaml
+# patch-replicas.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 5
+```
+
+```yaml
+# patch-resources.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: my-app
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+```
+
+### JSON Patch (RFC 6902)
+
+Use `patchesJson6902` for array operations (add, remove, replace, move, copy):
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: my-app
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENVIRONMENT
+          value: "production"
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+```
+
+### Inline patch
+
+Define the patch directly in the kustomization.yaml:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: my-app
+      spec:
+        template:
+          spec:
+            containers:
+              - name: my-app
+                env:
+                  - name: LOG_LEVEL
+                    value: debug
+    target:
+      kind: Deployment
+      name: my-app
+```
+
+## ConfigMap and Secret generators
+
+### ConfigMap from literals
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+  - name: app-config
+    literals:
+      - LOG_LEVEL=info
+      - CACHE_TTL=300
+      - METRICS_ENABLED=true
+  - name: app-properties
+    files:
+      - application.properties
+      - config/database.properties
+    options:
+      disableNameSuffixHash: false  # Append content hash (default: true)
+```
+
+### Secret from files and literals
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+secretGenerator:
+  - name: app-secrets
+    literals:
+      - DB_PASSWORD=supersecret
+      - API_KEY=abc-123-def
+    files:
+      - tls.key
+      - tls.crt
+    type: Opaque
+  - name: docker-registry-creds
+    type: kubernetes.io/dockerconfigjson
+    files:
+      - .dockerconfigjson
+```
+
+### Generated resource naming
+
+When `disableNameSuffixHash` is `false` (the default), Kustomize appends a content hash to the name (e.g., `app-config-7k5m8f`). This triggers rolling updates of Deployments that reference the ConfigMap, since the name changes whenever the content changes.
+
+## Common transformers
+
+### Name manipulation
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Prefix and suffix applied to all resource names
+namePrefix: team-a-
+nameSuffix: -prod
+
+# Reference a specific resource by its original name
+# Kustomize resolves the prefix/suffix at build time
+```
+
+### Replacements (advanced field substitution)
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Copy a value from one resource to another
+replacements:
+  - source:
+      kind: Service
+      name: my-app
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: Deployment
+          name: my-app
+        fieldPaths:
+          - spec.template.spec.containers.[name=my-app].env.[name=SERVICE_NAME].value
+```
+
+### Vars (legacy — prefer replacements)
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+vars:
+  - name: SERVICE_NAME
+    objref:
+      kind: Service
+      name: my-app
+      apiVersion: v1
+    fieldref:
+      fieldpath: metadata.name
+```
+
+## Image transformation
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+images:
+  # Override only the tag
+  - name: my-app
+    newTag: "2.0.0"
+
+  # Override registry/name and tag
+  - name: nginx
+    newName: my-private-registry.io/nginx
+    newTag: "1.25"
+
+  # Pin to a specific digest
+  - name: my-app
+    digest: sha256:45b23dee08af5e43a7fea6c4cf9c25ccf269ee113168c19722f87876677c5cb2
+```
+
+## Common commands
+
+```bash
+# Preview rendered manifests (dry run)
+kustomize build base/
+kustomize build overlays/production/
+
+# Apply to cluster
+kubectl apply -k base/
+kubectl apply -k overlays/production/
+
+# Apply with server-side dry run
+kubectl apply -k overlays/production/ --dry-run=server
+
+# Apply with prune (removes resources not in the kustomization)
+kubectl apply -k overlays/production/ --prune -l app.kubernetes.io/part-of=my-platform
+
+# Diff against live cluster
+kubectl diff -k overlays/production/
+
+# Validate without applying
+kustomize build overlays/production/ | kubectl apply --dry-run=client -f -
+```
+
+## Real-world example: base + production overlay
+
+### Base: `base/deployment.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: my-app:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+```
+
+### Base: `base/service.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+spec:
+  selector:
+    app: my-app
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+### Base: `base/kustomization.yaml`
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+commonLabels:
+  app.kubernetes.io/name: my-app
+  app.kubernetes.io/part-of: platform
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+images:
+  - name: my-app
+    newTag: "1.5.0"
+```
+
+### Production overlay: `overlays/production/kustomization.yaml`
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - ../../base
+
+namePrefix: prod-
+
+commonLabels:
+  environment: production
+
+patches:
+  - path: patch-replicas.yaml
+  - path: patch-resources.yaml
+  - path: patch-health-check.yaml
+
+configMapGenerator:
+  - name: app-config
+    literals:
+      - LOG_LEVEL=warn
+      - METRICS_ENABLED=true
+      - CACHE_TTL=600
+```
+
+### Production patches
+
+`overlays/production/patch-replicas.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 6
+```
+
+`overlays/production/patch-resources.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: my-app
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+```
+
+`overlays/production/patch-health-check.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: my-app
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+```
+
+## Best practices
+
+- **Keep bases minimal**: Put only what is common across all environments in the base.
+- **Patch, don't duplicate**: Never copy full manifests into overlays — patch only the fields that differ.
+- **Use `commonLabels` in bases**: They flow to all resources and their selectors automatically.
+- **Leverage `configMapGenerator`**: Content hashes in names trigger automatic rolling updates.
+- **Pin image digests in production**: Override tags with `digest` for immutable, reproducible deployments.
+- **Run `kubectl diff -k` before applying**: Preview changes without affecting the cluster.
+
+## See also
+
+- [Deployment Manifest Examples](./deployment-manifest-examples.mdx)
+- [Common Design Patterns](./common-design-patterns.mdx)
+- [Helm Reference](./helm.mdx)

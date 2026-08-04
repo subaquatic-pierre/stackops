@@ -1,0 +1,75 @@
+---
+title: "Azure Test Automation — CI/CD Testing Pipeline"
+date: 2020-10-13
+authors:
+  - pierre
+tags:
+  [azure, azure-devops, terraform, selenium, jmeter, newman, postman, ci-cd, test-automation]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A comprehensive template for automated software testing on Microsoft Azure DevOps.
+  Integrates JMeter for stress testing, Selenium for browser integration tests,
+  Postman/Newman for API endpoint validation, and Terraform for infrastructure
+  provisioning — all orchestrated through a single YAML CI/CD pipeline.
+repo: https://github.com/subaquatic-pierre/azure-test-automation
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Azure Test Automation** provides a complete, production-ready template for integrating automated testing into an Azure DevOps CI/CD workflow. It covers the full spectrum — stress testing with JMeter, browser-based integration testing with Selenium, API testing with Postman/Newman — all running against infrastructure provisioned via Terraform.
+
+The project includes a fake REST API to serve as the test target, allowing teams to validate the full pipeline before connecting it to their real applications. A 19-step walkthrough guides users from zero to a fully automated testing pipeline with Azure Log Analytics monitoring.
+
+---
+
+## Key Features
+
+- **Multi-tool test suite:** JMeter for load/stress testing (two suites: stress and endurance), Selenium for browser integration tests, Postman collection + Newman CLI for API testing
+- **Infrastructure as Code:** Terraform provisions the Azure resources — App Service, Virtual Machines, networking, and storage
+- **Log Analytics integration:** Selenium test logs stream to Azure Log Analytics Workspace for centralized monitoring and alerting
+- **Custom log collection:** VMs configured to forward `/var/log/selenium/*.log` to Azure Monitor for real-time visibility
+- **Single pipeline YAML:** The entire workflow — infrastructure provisioning, test execution, and log collection — is defined in `azure-pipelines.yaml`
+
+---
+
+## Architecture
+
+| Component              | Role                                              |
+| ---------------------- | ------------------------------------------------- |
+| **Azure DevOps**       | CI/CD orchestration via YAML pipeline             |
+| **Terraform**          | Infrastructure provisioning (App Service, VMs, networking) |
+| **JMeter**             | Stress testing and endurance testing suites       |
+| **Selenium**           | Browser integration tests (ChromeDriver on Azure VMs) |
+| **Postman / Newman**   | API endpoint testing (collection + CLI runner)    |
+| **Fake REST API**      | Template application for pipeline validation      |
+| **Azure Log Analytics** | Centralized log aggregation and alerting         |
+
+---
+
+## Pipeline Workflow
+
+1. **Infrastructure:** Terraform provisions Azure App Service, VM test environment, and networking
+2. **Build:** Test code is deployed to the environment
+3. **Stress Tests:** JMeter executes `stress_test_suite.jmx` and `endurance_test_suite.jmx`
+4. **Integration Tests:** Selenium runs browser automation tests on the deployed application
+5. **API Tests:** Newman executes Postman collections against API endpoints
+6. **Monitoring:** All test logs feed into Azure Log Analytics with configured alerts
+
+---
+
+## Tech Stack
+
+| Layer                 | Technology                                           |
+| --------------------- | ---------------------------------------------------- |
+| **CI/CD**             | Azure DevOps Pipelines (YAML)                        |
+| **Infrastructure**    | Terraform (AzureRM provider)                         |
+| **Stress Testing**    | Apache JMeter 5.3                                    |
+| **Browser Testing**   | Selenium + ChromeDriver                              |
+| **API Testing**       | Postman (collection authoring) + Newman (CLI runner) |
+| **Monitoring**        | Azure Log Analytics + Custom Logs                    |
+| **Target Application**| Python Flask (fake REST API)                         |

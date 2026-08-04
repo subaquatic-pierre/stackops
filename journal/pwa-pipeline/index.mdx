@@ -1,0 +1,66 @@
+---
+title: "PWA Pipeline — AWS CloudFormation Stack for PWAs"
+date: 2020-06-08
+authors:
+  - pierre
+tags: [aws, cloudformation, cloudfront, codepipeline, pwa, gatsby, iac]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  An Infrastructure-as-Code template that provisions a complete AWS deployment
+  pipeline for Progressive Web Applications. Launches a CloudFormation stack that
+  sets up S3 hosting, CloudFront CDN, Route53 DNS with SSL, and a CodePipeline
+  for automated builds — all in one click.
+repo: https://github.com/subaquatic-pierre/pwa-pipeline
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**PWA Pipeline** is a one-click AWS CloudFormation stack that provisions all the infrastructure needed to host and deploy a Progressive Web Application. Instead of manually configuring S3 buckets, CloudFront distributions, Route53 records, SSL certificates, and CodePipelines, this template creates everything in a single launch.
+
+The stack sets up a Gatsby.js-based PWA (a sample site is included) with automated deployments triggered on every push to GitHub. The architecture follows AWS best practices — separate buckets for the main site and www-to-non-www redirect, CloudFront CDN for global performance, and ACM for SSL termination.
+
+---
+
+## Key Features
+
+- **One-click launch:** Entire infrastructure provisioned from a single CloudFormation template
+- **Global CDN:** CloudFront distribution for worldwide content delivery with low latency
+- **SSL by default:** ACM certificate integration with automatic Route53 DNS validation
+- **www redirect:** Automatic redirection from `www.domain.com` to `domain.com`
+- **Automated pipelines:** CodePipeline builds and deploys on every git push to the main branch
+- **Sample Gatsby site:** Includes a minimal PWA to validate the pipeline end-to-end
+
+---
+
+## Architecture
+
+The CloudFormation stack provisions:
+
+| Resource               | Purpose                                            |
+| ---------------------- | -------------------------------------------------- |
+| **S3 Bucket (main)**   | Hosts the production website                       |
+| **S3 Bucket (redirect)** | Redirects www to non-www domain                 |
+| **S3 Bucket (pipeline)** | Stores build artifacts                          |
+| **CloudFront**         | CDN distribution with SSL termination              |
+| **Route53**            | DNS record sets for root and www subdomain         |
+| **CodePipeline**       | Automated build pipeline triggered by GitHub pushes |
+| **IAM Roles/Policies** | Least-privilege access for pipeline operations     |
+
+---
+
+## Tech Stack
+
+| Layer                 | Technology                            |
+| --------------------- | ------------------------------------- |
+| **Infrastructure**    | AWS CloudFormation (YAML template)    |
+| **Hosting**           | AWS S3 (static website hosting)       |
+| **CDN**               | AWS CloudFront                        |
+| **DNS**               | AWS Route53                           |
+| **SSL**               | AWS Certificate Manager (ACM)         |
+| **CI/CD**             | AWS CodePipeline                      |
+| **Application**       | Gatsby.js (sample PWA included)       |

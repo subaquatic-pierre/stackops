@@ -1,0 +1,56 @@
+---
+title: "Dive Sandy Beach — Dive Centre Business Website"
+date: 2019-10-19
+authors:
+  - pierre
+tags: [django, python, bootstrap, aws-ec2, scuba-diving, booking]
+image: /img/journal/divesandybeach-logo.png
+featured: false
+description: >
+  The production business website for Sandy Beach Dive Centre in Fujairah, UAE.
+  A Django application featuring an online booking interface for divers, custom
+  PADI course management, and dive site listings through the Django admin
+  interface. Deployed on AWS EC2.
+website: https://www.divesandybeach.com
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Dive Sandy Beach (Django)** is the production business website for Sandy Beach Dive Centre in Fujairah, UAE — a real, client-deployed Django application. It succeeded the earlier Flask prototype and provides an online booking interface for divers, custom PADI course management, and dive site listings.
+
+Unlike the Flask iteration, this version was built as a fully production-ready application deployed on **AWS EC2**, with all content managed through the powerful **Django admin** interface. Because it is a private client project, there is no public GitHub repository.
+
+---
+
+## Key Features
+
+- **Online booking system:** Divers can book dive sessions directly through the site
+- **Custom PADI course management:** Courses uploaded and managed through the Django admin
+- **Dive site management:** Dive site information maintained via the admin interface
+- **Form protection:** Django ReCaptcha prevents spam on public forms
+- **Styled forms:** Crispy Forms for clean, consistent form rendering
+- **Production deployment:** Hosted on AWS EC2 with a real domain
+
+---
+
+## Architecture
+
+A **single Django application** in production on AWS EC2. The Django admin interface acts as the content management layer for PADI courses and dive sites, while the public-facing pages offer the booking experience for divers.
+
+Public forms are protected with **Django ReCaptcha**, and all forms are rendered through **Django Crispy Forms** for a polished Bootstrap 4 appearance. This was the final production shape of the Sandy Beach Dive Centre website.
+
+---
+
+## Tech Stack
+
+| Layer           | Technology                |
+| --------------- | ------------------------- |
+| **Framework**   | Django                    |
+| **Forms**       | Django Crispy Forms       |
+| **ReCaptcha**   | Django ReCaptcha          |
+| **Frontend**    | Bootstrap 4               |
+| **Deployment**  | AWS EC2                   |

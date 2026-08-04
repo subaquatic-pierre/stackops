@@ -1,0 +1,129 @@
+---
+title: "Terraform AWS CI/CD — Full-Stack Infrastructure Template"
+date: 2021-04-28
+authors:
+  - pierre
+tags:
+  [
+    terraform,
+    aws,
+    ecs,
+    cloudfront,
+    codepipeline,
+    route53,
+    iac,
+    ci-cd,
+    devops,
+    vpc,
+    athena,
+  ]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A production-grade Terraform module that provisions a complete AWS CI/CD
+  infrastructure for decoupled full-stack applications. Supports independent
+  pipelines for a React frontend (S3 + CloudFront) and a Django GraphQL API
+  (ECS Fargate + ALB with Auto Scaling), with SSL, DNS, VPC, logging, and
+  monitoring all configured out of the box.
+repo: https://github.com/subaquatic-pierre/terraform-aws-ci-cd
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Terraform AWS CI/CD** is a comprehensive Infrastructure-as-Code template for deploying production-ready, decoupled full-stack applications on AWS. It provisions everything needed for a modern web application: a highly available backend API on ECS Fargate with Auto Scaling, a globally distributed React frontend on S3 + CloudFront, independent CI/CD pipelines triggered by GitHub pushes, and all supporting infrastructure — VPC, SSL, DNS, logging, and monitoring.
+
+The infrastructure is designed around two independent pipelines. Pushing to the backend GitHub repo builds a Docker image, pushes it to ECR, and deploys to ECS. Pushing to the frontend repo builds the React app, syncs to S3, and invalidates CloudFront. Both pipelines run independently — a frontend change never touches the API, and vice versa.
+
+---
+
+## Key Features
+
+- **Decoupled frontend and backend:** Independent repositories, builds, and deployments for each layer
+- **ECS Fargate backend:** Serverless container hosting with Auto Scaling and Application Load Balancer
+- **S3 + CloudFront frontend:** Global CDN delivery with SSL termination and www-to-non-www redirect
+- **Independent CI/CD pipelines:** Each pipeline (frontend + backend) triggers on push to main branch via CodeStar Connections
+- **Secure VPC:** Public and private subnets across two Availability Zones with NAT gateway
+- **SSL by default:** ACM certificate with automatic Route53 DNS validation
+- **ALB access logging:** Application Load Balancer logs stream to S3, queryable via AWS Athena
+- **Build-time secrets:** Database credentials, Django settings, Docker Hub credentials injected as pipeline variables
+
+---
+
+## Architecture
+
+| Component               | AWS Service                             |
+| ----------------------- | --------------------------------------- |
+| **Frontend Hosting**    | S3 (static website) + CloudFront CDN    |
+| **Backend Hosting**     | ECS Fargate + ALB + Auto Scaling Group  |
+| **Image Registry**      | ECR (Elastic Container Registry)        |
+| **CI/CD (Frontend)**    | CodePipeline (build → S3 sync → CloudFront invalidation) |
+| **CI/CD (Backend)**     | CodePipeline (Docker build → ECR push → ECS deploy) |
+| **Source Connection**   | CodeStar Connections (GitHub)           |
+| **DNS**                 | Route53 (hosted zone, alias records)    |
+| **SSL**                 | ACM (certificate in us-east-1)          |
+| **Networking**          | VPC (2 public + 2 private subnets, NAT GW, IGW) |
+| **Logging**             | S3 + Athena (ALB access logs)           |
+| **Database**            | RDS PostgreSQL (pre-requisite)          |
+
+---
+
+## Infrastructure Resources
+
+Terraform provisions the following AWS resources:
+
+```
+VPC (10.0.0.0/16)
+├── Public Subnets  (10.0.0.0/24, 10.0.1/24)  → Internet Gateway
+├── Private Subnets (10.0.50.0/24, 10.0.51/24) → NAT Gateway
+│   └── ECS Fargate Service → ALB → Auto Scaling Group
+│       └── Target Group (health checks)
+│           └── Task Definition (Django GraphQL API)
+│
+S3 Buckets
+├── Main Site (static website hosting)
+├── WWW Redirect → Main Site
+└── Pipeline Artifacts
+
+CloudFront Distribution → S3 Origin (OAC) + ACM SSL
+Route53 Alias Records → CloudFront
+CodePipeline (Frontend) → GitHub → Build → S3 → CloudFront
+CodePipeline (Backend)  → GitHub → Docker Build → ECR → ECS Deploy
+```
+
+---
+
+## Pipeline Workflow
+
+### Frontend Pipeline
+```
+Push to main → CodeStar webhook → Build React app → Sync S3 bucket → Invalidate CloudFront cache
+```
+
+### Backend Pipeline
+```
+Push to main → CodeStar webhook → Build Docker image → Push to ECR → Update ECS service → Health check
+```
+
+Buildspec files in `pipelines/frontend/buildspec` and `pipelines/api/buildspec` define test commands that run before deployment.
+
+---
+
+## Tech Stack
+
+| Layer                 | Technology                                         |
+| --------------------- | -------------------------------------------------- |
+| **Infrastructure**    | Terraform (HCL), AWS provider                       |
+| **Backend Hosting**   | AWS ECS Fargate, ALB, Auto Scaling                  |
+| **Frontend Hosting**  | AWS S3, CloudFront CDN                              |
+| **CI/CD**             | AWS CodePipeline, CodeStar Connections (GitHub)     |
+| **DNS**               | AWS Route53                                        |
+| **SSL**               | AWS Certificate Manager (ACM)                       |
+| **Networking**        | AWS VPC, NAT Gateway, Internet Gateway              |
+| **Container Registry**| AWS ECR                                             |
+| **Database**          | AWS RDS PostgreSQL (external prerequisite)          |
+| **Logging**           | AWS S3 + Athena (ALB access logs)                   |
+| **Reference Apps**    | React Apollo Starter (frontend), Django GraphQL Starter (backend) |

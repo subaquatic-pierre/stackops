@@ -1,0 +1,69 @@
+---
+title: "Dive Sandy Beach Flask — Informational Dive Site CMS"
+date: 2019-08-14
+authors:
+  - pierre
+tags: [flask, python, bootstrap, mvc, scuba-diving, blog, cms]
+image: /img/journal/divesandybeach-flask-logo.png
+featured: false
+description: >
+  An informational website for Sandy Beach Dive Centre in Fujairah, UAE. Built
+  with Python Flask following the MVC pattern, featuring a blog platform, PADI
+  course management, and dive site listings, with Flask Blueprints for modular
+  component design.
+repo: https://github.com/subaquatic-pierre/divesandybeach-flask
+website: https://divesandybeach-flask.herokuapp.com/
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Dive Sandy Beach (Flask)** is a Python-based informational website for Sandy Beach Dive Centre in Fujairah, UAE. The application provides a public-facing blog platform, PADI course management, and dive site listings, all delivered through a classic **Model-View-Controller (MVC)** architecture.
+
+The project was structured around **Flask Blueprints** for modular component design — separating concerns into main, posts, users, and error handlers. This was the earlier iteration of the Sandy Beach web presence before being superseded by the production Django application.
+
+---
+
+## Key Features
+
+- **User registration & login:** Full authentication flow with Flask-Login
+- **PADI course CRUD:** Create, read, update, and delete PADI course listings
+- **Dive site CRUD:** Manage dive site information with full create/update/delete
+- **Blog platform:** Post management with create, update, and delete operations
+- **Contact form:** Public-facing contact form for enquiries
+- **Dive course request form:** Users can request specific dive courses
+- **Fun diving request form:** Book fun diving sessions
+- **Password reset:** Reset via emailed tokens
+- **Profile pictures:** Upload with automatic image resizing (via Pillow)
+
+---
+
+## Architecture
+
+A **modular MVC application** built on Flask Blueprints:
+
+| Blueprint  | Role                                          |
+| ---------- | --------------------------------------------- |
+| **main**   | Core pages and routing                        |
+| **posts**  | Blog post management                          |
+| **users**  | Authentication and user profiles              |
+| **errors** | Custom error handlers                         |
+
+The application is backed by an **SQLAlchemy** ORM over a SQLite database (migratable to PostgreSQL) for production. Passwords are hashed with **Bcrypt**, authentication is handled by **Flask-Login**, and emails are sent through **Flask-Mail**. Forms are validated with **WTForms** and rendered on the frontend with Bootstrap 4 and jQuery.
+
+---
+
+## Tech Stack
+
+| Layer          | Technology                                      |
+| -------------- | ----------------------------------------------- |
+| **Framework**  | Flask (MVC, Blueprints)                         |
+| **ORM**        | Flask-SQLAlchemy (SQLite → PostgreSQL)          |
+| **Auth**       | Flask-Login, Bcrypt                             |
+| **Forms**      | WTForms                                         |
+| **Email**      | Flask-Mail                                      |
+| **Images**     | Pillow (auto-resize profile pictures)           |
+| **Frontend**   | Bootstrap 4, jQuery, Jinja2                     |

@@ -1,0 +1,61 @@
+---
+title: "Algorithm Testing — Python Testing Library"
+date: 2020-08-10
+authors:
+  - pierre
+tags:
+  [python, algorithms, testing, strategy-pattern, stress-test, unit-test]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A Python library for testing algorithms with two complementary strategies:
+  deterministic comparison against known-working implementations and stochastic
+  stress testing with randomized inputs. Built with the Strategy design pattern for
+  interchangeable algorithm implementations.
+repo: https://github.com/subaquatic-pierre/algorithm-testing
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Algorithm Testing** is a Python library designed for systematically validating algorithm implementations. It provides two testing methodologies: **minimal testing**, which compares an algorithm's output against a known-working implementation using deterministic data, and **stress testing**, which validates algorithms against randomly generated inputs over a configurable duration.
+
+The library implements the **Strategy design pattern**, allowing algorithms to be defined independently of the testing framework and passed in as interchangeable implementations. It was built to support the Algorithmic Toolbox course in the Algorithms and Data Structures Specialization on Coursera.
+
+---
+
+## Key Features
+
+- **Dual testing strategies:** Minimal tests with deterministic data for correctness verification; stress tests with randomized inputs for robustness validation
+- **Strategy Pattern architecture:** Algorithms are defined as separate objects that can be swapped without changing the test framework
+- **Automatic failure detection:** Both test types compare outputs across algorithm implementations — any discrepancy triggers a failure with detailed result reporting
+- **Configurable stress duration:** Stress tests run for a predetermined time period, generating as many random inputs as possible within the window
+
+---
+
+## Architecture
+
+The library is structured around a class hierarchy built on the Strategy design pattern:
+
+| Class                   | Role                                                                  |
+| ----------------------- | --------------------------------------------------------------------- |
+| **Algorithm**           | Base class defining the algorithm object                              |
+| **AlgorithmTest**       | Abstract base class for test strategies                               |
+| **AlgorithmTestMinimal** | Subclass specializing in deterministic comparison testing           |
+| **AlgorithmTestStress** | Subclass specializing in stochastic stress testing with random inputs |
+| **TestResult**          | Stores and validates results from a single test data point            |
+
+**Minimal testing** passes predefined data points to multiple algorithm implementations and compares results. **Stress testing** generates random data continuously for a set duration, running all algorithms against each input and flagging any result mismatch.
+
+---
+
+## Tech Stack
+
+| Layer            | Technology |
+| ---------------- | ---------- |
+| **Language**     | Python     |
+| **Design**       | Strategy Pattern |
+| **Use Case**     | Algorithm validation, Coursera coursework |

@@ -3,7 +3,7 @@ sidebar_position: 1
 title: 'Kubernetes Deployment Manifest Examples'
 description: 'Reference Deployment manifests for common workload patterns.'
 tags: [kubernetes, k8s, reference, manifests, deployments]
-last_updated: '2026-07-31'
+last_updated: '2026-08-04'
 ---
 
 # Kubernetes Deployment Manifest Examples
@@ -48,12 +48,27 @@ spec:
 ## Deployment with resource limits
 
 ```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
 spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app
   template:
+    metadata:
+      labels:
+        app: app
     spec:
       containers:
         - name: app
           image: app:1.0.0
+          ports:
+            - containerPort: 8080
           resources:
             requests:
               memory: "128Mi"

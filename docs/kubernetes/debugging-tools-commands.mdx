@@ -1,0 +1,457 @@
+---
+sidebar_position: 13
+title: 'Kubernetes Debugging Tools & Commands'
+description: 'A practical reference for debugging Kubernetes workloads: kubectl debug, ephemeral containers, logging patterns, networking diagnostics, CrashLoopBackOff, OOMKilled, and essential third-party tools like stern, k9s, and kubectx.'
+tags: [kubernetes, debugging, troubleshooting, kubectl, reference]
+last_updated: '2026-08-04'
+---
+
+# Kubernetes Debugging Tools & Commands
+
+## Overview
+
+Debugging in Kubernetes requires fluency with a focused set of commands and tools. This reference catalogs practical debugging patterns — from inspecting pod failures and network issues to using ephemeral containers and external CLI tools — organized by the problem you're trying to solve.
+
+## Essential kubectl commands
+
+### Resource inspection
+
+```bash
+# List and describe — your starting point for any issue
+kubectl get pods -n <namespace> -o wide
+kubectl describe pod <pod> -n <namespace>
+kubectl describe deployment <deployment> -n <namespace>
+kubectl describe node <node>
+
+# Get events (sorted by time)
+kubectl get events -n <namespace> --sort-by=.metadata.creationTimestamp
+kubectl get events -A --field-selector type=Warning
+
+# Check rollout status
+kubectl rollout status deployment/<name> -n <namespace>
+kubectl rollout history deployment/<name> -n <namespace>
+```
+
+### Output formatting
+
+```bash
+# JSON / YAML output with filtering
+kubectl get pod <pod> -n <namespace> -o yaml
+kubectl get pod <pod> -n <namespace> -o json | jq '.status.conditions'
+
+# Custom columns
+kubectl get pods -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
+
+# Wide output (includes IP, node)
+kubectl get pods -o wide
+
+# Label selectors
+kubectl get pods -l app=my-app,environment=staging
+kubectl get pods -l 'app in (my-app, my-worker)'
+```
+
+## Logging patterns
+
+### kubectl logs
+
+```bash
+# Basic log retrieval
+kubectl logs <pod> -n <namespace>
+kubectl logs <pod> -c <container> -n <namespace>      # Specific container
+kubectl logs <pod> --all-containers -n <namespace>
+
+# Previous instance (crashed container)
+kubectl logs <pod> --previous -n <namespace>
+kubectl logs <pod> -c <container> --previous
+
+# Time-bounded logs
+kubectl logs <pod> --since=10m -n <namespace>
+kubectl logs <pod> --since-time=2026-08-04T10:00:00Z
+
+# Tail (follow) and limit
+kubectl logs -f <pod> -n <namespace>
+kubectl logs <pod> --tail=100 -n <namespace>
+
+# Multi-pod: label selector
+kubectl logs -l app=my-app --all-containers -n <namespace>
+kubectl logs -l app=my-app --max-log-requests=10
+```
+
+### stern (multi-pod log streaming)
+
+stern lets you tail logs from multiple pods matching a pattern:
+
+```bash
+# Install
+# Linux:  curl -LO https://github.com/stern/stern/releases/latest/download/stern_linux_amd64 && chmod +x stern_linux_amd64 && mv stern_linux_amd64 /usr/local/bin/stern
+# macOS:  brew install stern
+
+# Tail all pods matching 'my-app'
+stern my-app -n default
+
+# Tail with regex, include init containers
+stern "my-.*" -n default --init-containers
+
+# Tail with timestamps, exclude certain containers
+stern my-app -n default --since 10m --exclude-container istio-proxy
+
+# Color-coded output per pod (default)
+stern my-app -n production --tail 50
+```
+
+## Debugging pod failures
+
+### CrashLoopBackOff
+
+```bash
+# 1. Check the reason
+kubectl describe pod <pod>
+
+# 2. Look at logs from the crashed container
+kubectl logs <pod> --previous
+
+# 3. Check the exit code
+kubectl get pod <pod> -o json | jq '.status.containerStatuses[].lastState.terminated'
+
+# 4. If the app exits too fast, override the command to keep it alive
+kubectl run debug --image=alpine --rm -it -- sh
+
+# 5. Edit and add a sleep to debug
+kubectl edit deployment <name>
+# Change command to: ["sleep", "3600"]
+```
+
+### OOMKilled (Out of Memory)
+
+```bash
+# Check termination reason
+kubectl describe pod <pod> | grep -A5 "State:"
+# Reason: OOMKilled
+# Exit Code: 137
+
+# Check current memory usage vs limits
+kubectl top pod <pod>
+kubectl describe pod <pod> | grep -A3 "Limits\|Requests"
+
+# Check node memory pressure
+kubectl top nodes
+kubectl describe node <node> | grep -A5 "Conditions"
+
+# Common fixes:
+# - Increase memory limits
+# - Fix memory leak in the application
+# - Add a liveness probe to restart on out-of-memory before OOMKill
+```
+
+### ImagePullBackOff / ErrImagePull
+
+```bash
+# Check the exact error
+kubectl describe pod <pod> | grep -A10 "Events"
+# Common causes:
+#   - imagePullSecrets missing or expired
+#   - wrong image tag
+#   - private registry unreachable
+
+# Verify the image exists
+docker pull <image>   # or crictl pull <image>
+
+# Check if the node can reach the registry
+kubectl run debug --image=alpine --rm -it -- sh -c "wget -qO- https://registry.example.com/v2/"
+
+# Create/update image pull secret
+kubectl create secret docker-registry regcred \
+  --docker-server=<registry> \
+  --docker-username=<user> \
+  --docker-password=<token> \
+  -n <namespace>
+```
+
+### Pending pods
+
+```bash
+# Check why a pod won't schedule
+kubectl describe pod <pod> | grep -A10 "Events"
+# Common reasons:
+#   - Insufficient CPU/memory on any node
+#   - No nodes match nodeSelector / affinity rules
+#   - PersistentVolumeClaim not bound
+#   - Taints not tolerated
+
+# Check node capacity
+kubectl describe nodes | grep -A5 "Allocated resources"
+kubectl top nodes
+
+# Check if PVC is bound
+kubectl get pvc -n <namespace>
+```
+
+### Pods stuck in Terminating
+
+```bash
+# Identify stuck pod
+kubectl get pods -n <namespace> | grep Terminating
+
+# Force delete (skip graceful shutdown)
+kubectl delete pod <pod> -n <namespace> --grace-period=0 --force
+
+# If still stuck, patch finalizers
+kubectl patch pod <pod> -n <namespace> -p '{"metadata":{"finalizers":null}}'
+
+# Check what's blocking
+kubectl describe pod <pod> | grep -A5 "Finalizers"
+```
+
+## Network debugging
+
+### Connectivity testing
+
+```bash
+# Run a temporary debug pod with networking tools
+kubectl run netshoot --rm -it --image=nicolaka/netshoot -- /bin/bash
+# Inside netshoot:
+#   curl, dig, nslookup, ping, traceroute, netstat, ss, tcpdump, nmap
+
+# Lightweight option
+kubectl run dnsutils --rm -it --image=registry.k8s.io/e2e-test-images/jessie-dnsutils:1.3 -- sh
+
+# Test DNS resolution from a pod
+kubectl exec <pod> -- nslookup kubernetes.default.svc.cluster.local
+
+# Test connectivity to a service
+kubectl exec <pod> -- curl -v http://<service-name>.<namespace>.svc:80
+kubectl exec <pod> -- nc -zv <service-name>.<namespace>.svc 80
+```
+
+### DNS debugging
+
+```bash
+# Test CoreDNS
+kubectl run -it --rm --restart=Never dns-debug --image=busybox -- nslookup kubernetes.default
+
+# Check CoreDNS logs
+kubectl logs -n kube-system -l k8s-app=kube-dns
+
+# Check /etc/resolv.conf in a pod
+kubectl exec <pod> -- cat /etc/resolv.conf
+
+# Verify CoreDNS service and endpoints
+kubectl get svc -n kube-system kube-dns
+kubectl get endpoints -n kube-system kube-dns
+```
+
+### Service and ingress debugging
+
+```bash
+# Verify service endpoints are healthy
+kubectl get endpoints <service> -n <namespace>
+kubectl describe endpoints <service> -n <namespace>
+
+# Port-forward to test directly
+kubectl port-forward svc/<service> 8080:80 -n <namespace>
+# Then: curl localhost:8080
+
+# Check ingress status
+kubectl describe ingress <name> -n <namespace>
+kubectl get ingress -A
+```
+
+### Network policy debugging
+
+```bash
+# Check if network policies are blocking traffic
+kubectl get networkpolicies -A
+
+# Test from a pod in the same/different namespace/labels
+kubectl exec <source-pod> -n <ns> -- curl -v --connect-timeout 5 http://<target-svc>.<ns>:80
+
+# Describe a policy
+kubectl describe networkpolicy <name> -n <namespace>
+```
+
+## Ephemeral containers (kubectl debug)
+
+Ephemeral containers are great for debugging running pods without restarting them:
+
+```bash
+# Add a debug container to a running pod (Kubernetes 1.23+)
+kubectl debug <pod> -n <namespace> -it \
+  --image=nicolaka/netshoot \
+  --target=<container> \
+  -- sh
+
+# Copy an existing pod for debugging (adds tools)
+kubectl debug <pod> -n <namespace> -it \
+  --image=nicolaka/netshoot \
+  --copy-to=debug-pod \
+  -- sh
+
+# Debug a node (creates a privileged pod on the node)
+kubectl debug node/<node> -it --image=nicolaka/netshoot -- sh
+# Inside the node debug pod:
+#   chroot /host
+#   crictl ps
+#   journalctl -u kubelet
+#   cat /etc/kubernetes/manifests/*.yaml
+```
+
+## Storage and volume debugging
+
+```bash
+# Check PVC/PV status
+kubectl get pvc -A
+kubectl describe pvc <name> -n <namespace>
+kubectl get pv
+
+# Check if a PV is bound
+kubectl get pv | grep -w <pv-name>
+
+# Test write access inside a pod
+kubectl exec <pod> -n <namespace> -- touch /data/test && echo "write OK"
+
+# Check disk usage on a node
+kubectl debug node/<node> -it --image=nicolaka/netshoot -- sh -c "chroot /host df -h"
+```
+
+## RBAC and permission debugging
+
+```bash
+# Check what the current user can do
+kubectl auth can-i create deployments
+kubectl auth can-i delete pods --as jane
+kubectl auth can-i '*' '*' --as-group system:masters
+
+# List all permissions for a user/group/SA
+kubectl auth can-i --list --as jane
+kubectl auth can-i --list --as=system:serviceaccount:default:my-app
+
+# Check which role/binding grants access
+kubectl get rolebindings,clusterrolebindings -A -o yaml | grep -B10 <user-or-sa>
+
+# Debug a forbidden error
+kubectl describe pod <pod> 2>&1 | grep "forbidden\|Unauthorized"
+```
+
+## Resource and cluster-wide inspection
+
+```bash
+# Cluster health overview
+kubectl get nodes
+kubectl describe nodes | grep -A5 Conditions
+kubectl get pods -A --field-selector=status.phase!=Running
+kubectl get componentstatuses   # Deprecated but still useful
+
+# Resource usage summary
+kubectl top nodes
+kubectl top pods -A --sort-by=cpu
+kubectl top pods -A --sort-by=memory
+
+# API resources available
+kubectl api-resources
+kubectl api-versions
+
+# Node conditions
+kubectl get nodes -o custom-columns=NAME:.metadata.name,\
+READY:.status.conditions[?(@.type=="Ready")].status,\
+MEMORY:.status.conditions[?(@.type=="MemoryPressure")].status,\
+DISK:.status.conditions[?(@.type=="DiskPressure")].status,\
+PID:.status.conditions[?(@.type=="PIDPressure")].status
+```
+
+## Essential third-party tools
+
+### k9s — Terminal-based UI
+
+```bash
+# Install
+# Linux:  curl -sS https://webinstall.dev/k9s | bash
+# macOS:  brew install k9s
+
+# Launch
+k9s
+
+# Keybindings inside k9s:
+#   :pods       → view pods
+#   :deploy     → view deployments
+#   :svc        → view services
+#   :ns         → switch namespace
+#   :ctx        → switch context
+#   d           → describe selected resource
+#   l           → logs for selected pod
+#   s           → shell into pod
+#   e           → edit resource
+#   /           → search/filter
+#   ctrl+d      → delete selected resource
+#   ?           → help
+```
+
+### kubectx + kubens — Context/namespace switching
+
+```bash
+# Install
+# Linux/macOS: brew install kubectx
+# Or: git clone https://github.com/ahmetb/kubectx
+
+# Switch contexts
+kubectx                          # List contexts
+kubectx prod-cluster             # Switch to prod-cluster
+kubectx -                        # Switch back to previous
+
+# Switch namespaces
+kubens                           # List namespaces
+kubens kube-system               # Switch to kube-system
+kubens -                         # Switch back to previous
+```
+
+### kubectl plugins (krew)
+
+```bash
+# Install krew plugin manager
+# https://krew.sigs.k8s.io/docs/user-guide/setup/install/
+
+# Useful plugins
+kubectl krew install view-secret     # Decode secrets inline
+kubectl krew install neat            # Clean YAML (remove metadata noise)
+kubectl krew install df-pv           # Show PV disk usage
+kubectl krew install who-can         # Check RBAC: who can do what
+kubectl krew install sniff           # Network packet capture on a pod
+kubectl krew install access-matrix   # Show RBAC access matrix
+
+# Usage
+kubectl view-secret my-secret -n default
+kubectl neat get pod my-pod -o yaml
+kubectl who-can create deployments
+```
+
+### Additional tools
+
+| Tool | Purpose | Install |
+|---|---|---|
+| `kubetail` | Multi-pod log tailing | `brew install kubetail` |
+| `popeye` | Cluster sanitizer (best practices scan) | `brew install popeye` |
+| `pluto` | Deprecated API version checker | `brew install pluto` |
+| `nova` | Outdated Helm releases | `brew install nova` |
+| `kube-capacity` | Resource capacity overview | `kubectl krew install resource-capacity` |
+| `kube-score` | Static analysis of manifests | `brew install kube-score` |
+
+## Quick-reference: solving common problems
+
+| Symptom | First command to run |
+|---|---|
+| Pod won't start | `kubectl describe pod <pod>` |
+| Pod keeps restarting | `kubectl logs <pod> --previous` |
+| Pod is pending | `kubectl describe pod <pod> \| grep Events` |
+| Service unreachable | `kubectl get endpoints <svc>` |
+| OOMKilled | `kubectl top pod <pod>; kubectl describe pod <pod> \| grep Limits` |
+| Image pull error | `kubectl describe pod <pod> \| grep -A10 Events` |
+| Nodes NotReady | `kubectl describe node <node> \| grep Conditions` |
+| DNS not resolving | `kubectl exec <pod> -- nslookup kubernetes.default` |
+| RBAC denied | `kubectl auth can-i --list --as=<user>` |
+| Stuck terminating | `kubectl delete pod --force --grace-period=0` |
+
+## See also
+
+- [Force Delete a Stuck Kubernetes Pod](./force-delete-stuck-pod.mdx)
+- [Kubernetes Metrics](./metrics.mdx) — resource usage monitoring
+- [Kubernetes Configuration Reference](./config.mdx) — cluster logging and kubeconfig
+- [Kubernetes RBAC & User Management](./user-management.mdx)

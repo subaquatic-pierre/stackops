@@ -1,0 +1,65 @@
+---
+title: "Pizza App — Online Ordering Platform"
+date: 2019-10-30
+authors:
+  - pierre
+tags:
+  [django, python, javascript, jquery, e-commerce, pizza, online-ordering]
+image: /img/journal/pizza-app-logo.png
+featured: false
+description: >
+  An online pizza ordering application built with Django. Features a full
+  ordering workflow including menu browsing, topping customization via a modal
+  dialog, cart management with JavaScript, and order placement. Admins can
+  manage items through the Django admin interface or CSV bulk upload.
+repo: https://github.com/subaquatic-pierre/pizza-app
+website: https://pizza-cool-app.herokuapp.com/
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Pizza App** is an online pizza ordering application built with Django. It delivers a complete ordering workflow — from browsing the menu and customizing toppings in a modal dialog, to managing a JavaScript-powered cart and placing an order.
+
+The application is organized into two main Django apps: **Products** (menu items and CSV import) and **Orders** (cart, checkout, and order tracking). Admins can manage the menu through the Django admin interface or via bulk CSV upload for rapid population.
+
+---
+
+## Key Features
+
+- **Menu browsing:** Browse available pizza items
+- **Topping customization:** Add and remove toppings via a modal dialog
+- **JavaScript cart:** Cart managed as a JavaScript object with event listeners
+- **Order placement:** Checkout with an invisible form submission to the server
+- **Order tracking:** Track placed orders
+- **Admin management:** Items managed through the Django admin interface
+- **CSV bulk upload:** Populate the menu via a Django shell command
+- **User accounts:** Django auth system for registration and login
+
+---
+
+## Architecture
+
+A **two-app Django application**:
+
+| App        | Role                                              |
+| ---------- | ------------------------------------------------- |
+| **Products** | Menu items and CSV bulk import                  |
+| **Orders**  | Cart, checkout, and order tracking               |
+
+The ordering experience is driven by custom **JavaScript** — event listeners on menu items open the topping-selection modal, the cart is built as a JavaScript object, and checkout happens through an invisible form submission to the server. The menu can be populated efficiently via a provided CSV template and a Django shell import command.
+
+---
+
+## Tech Stack
+
+| Layer        | Technology                              |
+| ------------ | --------------------------------------- |
+| **Framework**| Django                                  |
+| **Frontend** | jQuery, Vanilla JS, Handlebars JS       |
+| **Forms**    | Django Crispy Forms                     |
+| **Data import** | CSV bulk upload via Django shell command |
+| **Auth**     | Django auth system                      |

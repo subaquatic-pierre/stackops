@@ -1,0 +1,84 @@
+---
+title: "Scuba Dive Dubai — Saleor Headless Commerce Platform"
+date: 2021-02-10
+authors:
+  - pierre
+tags:
+  [django, saleor, react, graphql, terraform, aws, e-commerce, headless-commerce, microservices]
+image: /img/journal/scubadivedubai-logo.png
+featured: false
+description: >
+  A full-scale e-commerce platform for ScubaDiveDubai.com built on Saleor, the
+  open-source headless commerce framework. Split across four Git submodules —
+  storefront, dashboard, API, and Terraform infrastructure — with independent
+  CI/CD pipelines deploying each component to AWS (CloudFront + ECS).
+repo: https://github.com/subaquatic-pierre/scubadivedubai
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Scuba Dive Dubai** (Saleor edition) is a production-grade e-commerce platform built on top of **Saleor**, the leading open-source headless commerce framework. Unlike the earlier monolithic Django version, this iteration fully embraces a **microservice architecture** — the storefront, admin dashboard, GraphQL API, and infrastructure each live in their own Git repository, managed as submodules under an umbrella repo.
+
+Each component has its own CI/CD pipeline on AWS: pushing to the main branch of any sub-repo triggers an automated build, test, and deployment specific to that component. The storefront and dashboard are hosted on CloudFront for global CDN delivery, while the Saleor API runs on ECS Fargate behind an Application Load Balancer.
+
+---
+
+## Key Features
+
+- **Headless commerce:** Saleor provides a fully-featured GraphQL API — the storefront is a decoupled React application consuming the API
+- **Four-repo microservice architecture:** Storefront, dashboard, API, and infrastructure are independently versioned, built, and deployed
+- **Independent CI/CD:** Each component has its own pipeline — pushing to main triggers automated deployment without affecting other services
+- **AWS-native infrastructure:** CloudFront for frontend hosting, ECS Fargate for the API, all provisioned via Terraform
+- **Saleor GraphQL API:** Full e-commerce capabilities exposed through Saleor's comprehensive GraphQL schema — products, carts, checkout, orders, users
+
+---
+
+## Architecture
+
+A **four-repo microservice** system on AWS, managed via Git submodules:
+
+| Repository           | Role                                              |
+| -------------------- | ------------------------------------------------- |
+| **storefront**       | React-based customer-facing shop (CloudFront)     |
+| **dashboard**        | Admin management interface (CloudFront)           |
+| **api**              | Django GraphQL backend (ECS Fargate + ALB)        |
+| **infrastructure**   | Terraform for all AWS resources                   |
+
+```
+github.com/subaquatic-pierre/scubadivedubai (umbrella repo)
+├── storefront/   → github.com/subaquatic-pierre/scubadivedubai-storefront
+├── dashboard/    → github.com/subaquatic-pierre/scubadivedubai-dashboard
+├── api/          → github.com/subaquatic-pierre/scubadivedubai-api
+└── infrastructure/ → github.com/subaquatic-pierre/scubadivedubai-infrastructure
+```
+
+---
+
+## Deployment Flow
+
+```
+Push to storefront main → Pipeline triggers → Build React app → Sync S3 → Invalidate CloudFront
+Push to api main        → Pipeline triggers → Build Docker image → Push ECR → Deploy ECS
+Push to infrastructure  → Terraform apply → Update AWS resources
+```
+
+Each pipeline is completely independent — a frontend update doesn't touch the API, and vice versa.
+
+---
+
+## Tech Stack
+
+| Layer                  | Technology                                  |
+| ---------------------- | ------------------------------------------- |
+| **Commerce Engine**    | Saleor (Django + GraphQL)                   |
+| **Storefront**         | React (Saleor SDK)                          |
+| **Dashboard**          | React (Saleor Dashboard)                    |
+| **API Backend**        | Django, Graphene, PostgreSQL                |
+| **Infrastructure**     | Terraform (AWS provider)                    |
+| **Hosting (Frontend)** | AWS S3 + CloudFront CDN                     |
+| **Hosting (Backend)**  | AWS ECS Fargate + ALB                       |
+| **CI/CD**              | AWS CodePipeline (per component)            |

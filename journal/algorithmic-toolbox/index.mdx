@@ -1,0 +1,98 @@
+---
+title: "Algorithmic Toolbox — CS Algorithms Collection"
+date: 2020-07-15
+authors:
+  - pierre
+tags:
+  [
+    python,
+    algorithms,
+    dynamic-programming,
+    greedy-algorithms,
+    divide-and-conquer,
+    number-theory,
+  ]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A comprehensive collection of standard computer science algorithms implemented in
+  Python. Covers divide and conquer, dynamic programming, greedy algorithms, and
+  number theory — each with dedicated test modules for correctness validation.
+repo: https://github.com/subaquatic-pierre/algorithmic-toolbox
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Algorithmic Toolbox** is a curated collection of classic computer science algorithms organized by algorithmic paradigm. Each algorithm lives in its own directory with a complete test suite — minimal tests for correctness and stress tests for robustness. The collection spans divide and conquer, dynamic programming, greedy strategies, and fundamental number theory operations.
+
+Built as a companion to the Algorithms and Data Structures Specialization on Coursera, the toolbox uses a standardized testing framework that leverages the [algorithm-testing](https://github.com/subaquatic-pierre/algorithm-testing) library for consistent validation across all algorithm implementations.
+
+---
+
+## Key Features
+
+- **Organized by paradigm:** Algorithms grouped into clean directories — `divide_algorithms/`, `dynamic_programming/`, `greedy_algorithms/`, plus standalone modules for GCD, LCM, Fibonacci, and pairwise max product
+- **Comprehensive test coverage:** Every algorithm includes minimal test data, deterministic comparison tests, and stochastic stress tests
+- **Reusable test modules:** Standardized test structure (`algorithm.py`, `algorithm_test.py`, `stress_test.py`, `implementations.py`) shared across all algorithms
+- **Coverage across paradigms:** Binary search, improved quicksort, majority element, edit distance, primitive calculator, car refueling, fractional knapsack, and more
+
+---
+
+## Algorithm Catalog
+
+### Divide & Conquer
+- Binary search
+- Improved quicksort (3-way partitioning)
+- Majority element detection
+
+### Dynamic Programming
+- Money change (minimum coins)
+- Maximum gold (0/1 knapsack)
+- Primitive calculator (minimum operations)
+- Edit distance (Levenshtein)
+- Placing parentheses (arithmetic expression maximization)
+
+### Greedy Algorithms
+- Car refueling (minimum stops)
+- Fractional knapsack (loot optimization)
+- Money change (greedy approach)
+
+### Number Theory
+- Greatest Common Divisor (GCD)
+- Least Common Multiple (LCM)
+- Fibonacci (fast doubling, modulo m, last digit)
+- Maximum pairwise product (fast algorithm with stress testing)
+
+---
+
+## Architecture
+
+Each algorithm follows a consistent project structure:
+
+```
+<algorithm_name>/
+├── main.py              # Entry point
+├── <algorithm_name>.py  # Core implementation
+├── algorithm_test.py    # Deterministic comparison test
+├── stress_test.py       # Randomized stress test
+├── minimal_test.py      # Minimal correctness check
+├── minimal_test_data.py # Test data definitions
+├── implementations.py   # Alternative implementations for comparison
+└── test_result.py       # Result validation
+```
+
+The `algorithm/` root directory provides the shared test framework that each algorithm directory imports, ensuring consistent validation across all paradigms.
+
+---
+
+## Tech Stack
+
+| Layer       | Technology |
+| ----------- | ---------- |
+| **Language** | Python    |
+| **Testing**  | Custom framework with the Strategy Pattern |
+| **Use Case** | Algorithm education, Coursera coursework |

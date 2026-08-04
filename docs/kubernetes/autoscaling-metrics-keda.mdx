@@ -1,0 +1,501 @@
+---
+sidebar_position: 12
+title: 'Autoscaling with Metrics and KEDA'
+description: 'Kubernetes autoscaling reference: Horizontal Pod Autoscaler (HPA) with CPU, memory, and custom metrics, plus KEDA for event-driven autoscaling with Kafka, RabbitMQ, Prometheus, and cron triggers.'
+tags: [kubernetes, autoscaling, hpa, keda, metrics, reference]
+last_updated: '2026-08-04'
+---
+
+# Autoscaling with Metrics and KEDA
+
+## Overview
+
+Kubernetes supports two autoscaling approaches: the built-in **Horizontal Pod Autoscaler (HPA)** for resource-based scaling (CPU, memory, custom metrics), and **KEDA** (Kubernetes Event-Driven Autoscaling) for scaling based on external event sources like message queues, databases, and cron schedules. This reference covers both, from basic HPA configuration to production KEDA deployments.
+
+## Horizontal Pod Autoscaler (HPA)
+
+The HPA automatically scales the number of pods in a Deployment, StatefulSet, or other scalable resource based on observed metrics.
+
+### Prerequisites
+
+The **metrics-server** must be installed for CPU/memory-based HPA:
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl get apiservice v1beta1.metrics.k8s.io
+```
+
+### HPA based on CPU utilization
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300     # Wait 5 min before scaling down
+      policies:
+        - type: Percent
+          value: 50                        # Scale down by 50% max
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0       # Scale up immediately
+      policies:
+        - type: Percent
+          value: 100                      # Scale up by 100% max
+          periodSeconds: 15
+        - type: Pods
+          value: 4                        # Or add 4 pods max
+          periodSeconds: 15
+      selectPolicy: Max                   # Use the policy that allows more pods
+```
+
+The Deployment must have resource requests configured:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: my-app:1.0.0
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+```
+
+### HPA based on memory utilization
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa-memory
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+
+### HPA with multiple metrics
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa-multi
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+```
+
+The HPA selects the metric that would result in the **highest replica count**.
+
+### HPA based on custom metrics (Prometheus)
+
+Requires the Prometheus Adapter to expose Prometheus metrics through the custom metrics API:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa-custom
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "100"
+    - type: Object
+      object:
+        metric:
+          name: rabbitmq_queue_messages_ready
+        describedObject:
+          apiVersion: v1
+          kind: Service
+          name: rabbitmq
+        target:
+          type: Value
+          value: "50"
+```
+
+### HPA troubleshooting
+
+```bash
+# Check HPA status
+kubectl get hpa -A
+kubectl describe hpa my-app-hpa
+
+# Common issues in describe output:
+#   "unable to get metrics"  → metrics-server not running
+#   "no metrics"             → resource requests not set on containers
+#   "missing request"        → container has no cpu/memory request
+
+# Check metrics
+kubectl top pods -l app=my-app
+
+# Check HPA events
+kubectl get events --field-selector involvedObject.kind=HorizontalPodAutoscaler
+```
+
+## KEDA (Kubernetes Event-Driven Autoscaling)
+
+KEDA extends Kubernetes with event-driven autoscaling. It can scale Deployments, StatefulSets, and Jobs **to zero** (unlike HPA), and supports 50+ external event sources (Kafka, RabbitMQ, AWS SQS, Azure Service Bus, Prometheus, cron, and more).
+
+### Architecture
+
+```
+External Event Source
+        │
+        ▼
+  KEDA Operator ◄──► ScaledObject CRD
+        │
+        ▼
+  HPA (KEDA-managed) ──► Deployment
+```
+
+KEDA creates and manages an HPA internally. You define a `ScaledObject` (or `ScaledJob`) and KEDA handles the rest.
+
+### Installation
+
+```bash
+# Via Helm (recommended)
+helm repo add kedacore https://kedacore.github.io/charts
+helm install keda kedacore/keda \
+  --namespace keda \
+  --create-namespace
+
+# Verify
+kubectl get pods -n keda
+kubectl api-resources | grep keda.sh
+```
+
+### ScaledObject — Kafka scaler
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: kafka-consumer-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kafka-consumer
+  pollingInterval: 15                # How often to check the event source (seconds)
+  cooldownPeriod: 300                # Wait before scaling down (seconds)
+  idleReplicaCount: 0                # Can scale to zero
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-broker:9092
+        consumerGroup: my-consumer-group
+        topic: orders
+        lagThreshold: "50"           # Scale when lag exceeds 50 messages
+        offsetResetPolicy: latest
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+```
+
+### ScaledObject — Prometheus scaler
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: prometheus-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc:9090
+        metricName: http_requests_per_second
+        query: |
+          sum(rate(http_requests_total{app="my-app"}[2m]))
+        threshold: "100"
+```
+
+### ScaledObject — CPU and memory scaler
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cpu-memory-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "80"
+```
+
+### ScaledObject — Cron scaler
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cron-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: batch-processor
+  minReplicaCount: 0
+  maxReplicaCount: 5
+  triggers:
+    - type: cron
+      metadata:
+        timezone: America/New_York
+        start: "0 6 * * 1-5"         # 6 AM weekdays
+        end: "0 20 * * 1-5"          # 8 PM weekdays
+        desiredReplicas: "3"
+```
+
+### ScaledObject — RabbitMQ scaler
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: rabbitmq-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rabbitmq-consumer
+  pollingInterval: 10
+  minReplicaCount: 1
+  maxReplicaCount: 15
+  triggers:
+    - type: rabbitmq
+      metadata:
+        host: amqp://user:password@rabbitmq.rabbitmq.svc:5672/vhost
+        queueName: tasks
+        mode: QueueLength
+        value: "20"                  # Scale when queue length exceeds 20
+```
+
+### ScaledJob — Job-based autoscaling
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: job-scaler
+  namespace: default
+spec:
+  jobTargetRef:
+    parallelism: 1
+    completions: 1
+    backoffLimit: 3
+    template:
+      spec:
+        containers:
+          - name: worker
+            image: my-worker:latest
+        restartPolicy: Never
+  pollingInterval: 30
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 10
+  maxReplicaCount: 100
+  scalingStrategy:
+    strategy: accurate
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: https://sqs.us-east-1.amazonaws.com/123456789/my-queue
+        queueLength: "5"
+        awsRegion: us-east-1
+        identityOwner: operator
+```
+
+### TriggerAuthentication (secrets for scalers)
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: kafka-trigger-auth
+  namespace: default
+spec:
+  secretTargetRef:
+    - parameter: sasl
+      name: kafka-secrets
+      key: sasl
+    - parameter: tls
+      name: kafka-secrets
+      key: tls
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: kafka-consumer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kafka-consumer
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-broker:9092
+        consumerGroup: my-group
+        topic: orders
+        lagThreshold: "50"
+      authenticationRef:
+        name: kafka-trigger-auth
+```
+
+## KEDA vs HPA comparison
+
+| Feature | HPA | KEDA |
+|---|---|---|
+| CPU/memory scaling | Yes | Yes |
+| Custom metrics scaling | Yes (with adapter) | Yes (built-in) |
+| Scale to zero | No | Yes |
+| Event sources | Requires custom adapter | 50+ built-in scalers |
+| Job autoscaling | No | Yes (ScaledJob) |
+| Cron-based scheduling | No | Yes |
+| Complexity | Simple | Moderate |
+| Metrics API dependency | Yes (metrics-server) | No (own metrics server) |
+
+## KEDA troubleshooting
+
+```bash
+# Check KEDA operator status
+kubectl get pods -n keda
+kubectl logs -n keda deployment/keda-operator
+
+# Check ScaledObject status
+kubectl get scaledobject -A
+kubectl describe scaledobject kafka-consumer-scaler
+
+# Check KEDA-managed HPA
+kubectl get hpa -A | grep keda
+
+# View scaler decisions
+kubectl get scaledobject kafka-consumer-scaler -o yaml | grep -A20 status
+
+# Common issues:
+# - TriggerAuthentication misconfiguration → check secret names
+# - Wrong metric names → verify with kubectl describe
+# - Network connectivity to event source → check operator logs
+```
+
+## Best practices
+
+- **Set resource requests on all containers** — required for CPU/memory-based autoscaling.
+- **Tune `stabilizationWindowSeconds` for scale-down** — prevent flapping from brief spikes.
+- **Use `behavior` policies** — define scale-up/scale-down rates explicitly.
+- **Scale to zero with KEDA** — reduces cost for event-driven workloads during idle periods.
+- **Test with low `pollingInterval` values during development** — increases responsiveness for testing.
+- **Monitor HPA/KEDA status in Prometheus** — alert on `KubeHpaReplicasMismatch` or ScaledObject errors.
+
+## See also
+
+- [Kubernetes Metrics](./metrics.mdx) — metrics-server, Prometheus, kubectl top
+- [Deployment Manifest Examples](./deployment-manifest-examples.mdx) — base Deployment YAML
+- [Debugging Tools and Commands](./debugging-tools-commands.mdx)

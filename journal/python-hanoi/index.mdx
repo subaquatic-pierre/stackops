@@ -1,0 +1,58 @@
+---
+title: "Python Hanoi — Towers of Hanoi Simulation"
+date: 2020-08-26
+authors:
+  - pierre
+tags: [python, algorithms, recursion, towers-of-hanoi, simulation, puzzle]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A Python simulation of the classic Towers of Hanoi puzzle. Visualizes each move
+  step-by-step with colored disks and tower state printed to the console. Uses a
+  recursive algorithm to solve the puzzle optimally in 2^n - 1 moves.
+repo: https://github.com/subaquatic-pierre/python-hanoi
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Python Hanoi** is a console-based simulation of the classic Towers of Hanoi mathematical puzzle. The program initializes the game with a configurable number of disks, then uses a recursive algorithm to move all disks from the origin tower to the target tower in the minimum possible number of moves (2^n - 1).
+
+Each move is printed to the console with a 0.5-second delay, showing the current state of all three towers with color-coded disks. The simulation runs autonomously until completion — demonstrating both the recursive solution algorithm and the exponential growth of the problem space.
+
+---
+
+## Key Features
+
+- **Optimal recursive solver:** Uses the classic recursive algorithm guaranteeing the minimum move count
+- **Visual step-through:** Each disk move is printed with tower state visualization and a half-second pause
+- **Color-coded disks:** Disks are rendered with distinct colors for easy tracking across towers
+- **Configurable complexity:** Number of disks set at game initialization (limited by available colors)
+- **Stack-based tower model:** Each tower is a Stack data structure tracking disk placement and count
+
+---
+
+## Design
+
+The program consists of three main classes:
+
+| Class      | Role                                                               |
+| ---------- | ------------------------------------------------------------------ |
+| **Game**   | Manages game state, recursive play loop, timed move visualization |
+| **Stack**  | Tower representation — tracks disk count, supports push/pop       |
+| **Disk**   | Individual disk with integer size and color string                |
+
+The Game class uses a recursive method to plan all moves, then executes them sequentially with a `time.sleep(0.5)` delay between each move. The Stack class enforces the game constraint that a larger disk cannot be placed on top of a smaller one.
+
+---
+
+## Tech Stack
+
+| Layer       | Technology |
+| ----------- | ---------- |
+| **Language** | Python 3  |
+| **Algorithm**| Recursive divide-and-conquer |
+| **Data Structure** | Custom Stack implementation |

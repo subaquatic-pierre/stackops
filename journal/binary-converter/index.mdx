@@ -1,0 +1,61 @@
+---
+title: "Binary Converter — CLI Number Conversion Tool"
+date: 2020-07-30
+authors:
+  - pierre
+tags: [python, cli, binary, converter, github-actions, argparse]
+image: /img/journal-placeholder.png
+featured: false
+description: >
+  A command-line utility written in Python that converts integers between decimal
+  and binary representations. Features a simple CLI interface with argparse and a
+  GitHub Actions CI pipeline for automated test validation on every push.
+repo: https://github.com/subaquatic-pierre/binary-converter
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Binary Converter** is a lightweight Python CLI tool for converting numbers between decimal (base-10) and binary (base-2) representations. It provides a clean command-line interface using Python's `argparse` module and includes a test suite that validates conversion accuracy. GitHub Actions runs the test suite automatically on every push to ensure correctness.
+
+---
+
+## Key Features
+
+- **Dual conversion modes:** Convert decimal integers to binary, or binary strings to decimal
+- **Clean CLI interface:** User-friendly help text via `python convert.py --help`
+- **Automated testing:** GitHub Actions CI pipeline runs the test suite on every push
+- **Simple setup:** Single-file implementation with minimal dependencies
+
+---
+
+## Usage
+
+```bash
+# Convert decimal to binary
+python convert --decimal 42
+# Output: 101010
+
+# Convert binary to decimal
+python convert --binary 101010
+# Output: 42
+
+# Display help
+python convert.py --help
+```
+
+The converter handles positive integers using standard conversion algorithms — repeated division by 2 for decimal-to-binary, and positional notation summation for binary-to-decimal.
+
+---
+
+## Tech Stack
+
+| Layer           | Technology     |
+| --------------- | -------------- |
+| **Language**    | Python 3       |
+| **CLI**         | argparse       |
+| **CI/CD**       | GitHub Actions |
+| **Build**       | Makefile       |

@@ -1,0 +1,74 @@
+---
+title: "Dive Schedule — Dive Centre Management Platform"
+date: 2021-04-25
+authors:
+  - pierre
+tags:
+  [
+    django,
+    react,
+    graphql,
+    typescript,
+    terraform,
+    aws,
+    scuba-diving,
+    booking,
+    scheduling,
+  ]
+image: /img/journal/diveschedule-logo.png
+featured: false
+description: >
+  An all-in-one scheduling and management application for dive centres. Split
+  across three repositories — a TypeScript React/Apollo client, a Django
+  GraphQL API server, and Terraform-based AWS infrastructure — providing booking
+  management, boat scheduling, and a digital diver logbook.
+repo: https://github.com/subaquatic-pierre/diveschedule-project
+website: https://scubadivedubai.com
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Dive Schedule** is an all-in-one scheduling and management application for dive centres, split across three repositories. It combines a TypeScript **React/Apollo** client, a **Django GraphQL** API server, and **Terraform**-based AWS infrastructure to deliver booking management, boat scheduling, and a digital diver logbook.
+
+The system powers a production deployment for a real dive operation in Dubai. The three-repository split cleanly separates the frontend, backend, and infrastructure concerns, enabling independent development and dedicated CI/CD pipelines for each.
+
+---
+
+## Key Features
+
+- **Admin booking management:** Full admin interface for managing dive bookings
+- **Boat scheduling:** Plan and coordinate boat departures
+- **Digital diver logbook:** Record keeping and diver log management
+- **Diver information upload:** Upload diver details required for booking confirmation
+- **Automated CI/CD:** Pipelines triggered on push to the main branch
+- **Containerized development:** Docker Compose for consistent local setup
+
+---
+
+## Architecture
+
+A **three-repository architecture** decoupling client, server, and infrastructure:
+
+| Repository                    | Role                                        |
+| ----------------------------- | ------------------------------------------- |
+| **client-diveschedule**       | React / TypeScript / Apollo Client frontend |
+| **server-diveschedule**       | Django / Graphene / GraphQL API             |
+| **infrastructure-diveschedule** | Terraform / AWS infrastructure              |
+
+On AWS, the infrastructure uses **ECS** for the API and **CloudFront** for frontend hosting. Automated CI/CD pipelines deploy new builds whenever code is pushed to the main branch, with Docker Compose providing a frictionless local development environment.
+
+---
+
+## Tech Stack
+
+| Layer               | Technology                                            |
+| ------------------- | ----------------------------------------------------- |
+| **Client**          | React, TypeScript, Apollo Client, Material UI         |
+| **Server**          | Django, Graphene (GraphQL)                            |
+| **Infrastructure**  | Terraform, AWS (ECS, CloudFront)                      |
+| **Local dev**       | Docker Compose                                        |
+| **CI/CD**           | Automated pipelines on push to main                   |

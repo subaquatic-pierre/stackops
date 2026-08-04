@@ -1,0 +1,52 @@
+---
+title: "Node Sites Blog — Dive Sites Blog Platform"
+date: 2019-06-19
+authors:
+  - pierre
+tags: [nodejs, express, mongodb, ejs, bootstrap, blog]
+featured: false
+description: >
+  A blog platform for scuba diving sites built with Express.js and MongoDB,
+  rendered with EJS templates. Users can browse dive site blog posts through
+  Bootstrap-styled views.
+repo: https://github.com/subaquatic-pierre/node-sites-blog
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Node Sites Blog** is a scuba diving blog platform built with **Express.js** and **MongoDB**, rendered server-side with **EJS** templates. It provides an interface for browsing dive site blog posts, presented through responsive **Bootstrap 4** views.
+
+The project demonstrates a classic Node.js full-stack approach — a RESTful Express backend driving server-side-rendered pages over a MongoDB data store via the Mongoose ODM.
+
+---
+
+## Key Features
+
+- **Dive site blog posts:** Browse dive-site-related articles
+- **Full CRUD on posts:** Create, read, update, and delete blog posts
+- **RESTful routes:** Clean route structure with method-override support
+- **Server-side rendering:** EJS templating for a fast, SEO-friendly experience
+- **Responsive UI:** Bootstrap 4 and jQuery for a polished frontend
+
+---
+
+## Architecture
+
+A **single Express.js application** with an Express REST API backend backed by **MongoDB** through the **Mongoose** ODM. Views are rendered server-side with EJS, and the UI is styled with Bootstrap 4 and jQuery. The **body-parser** middleware handles form data, while **method-override** enables full CRUD via RESTful HTTP methods.
+
+---
+
+## Tech Stack
+
+| Layer         | Technology              |
+| ------------- | ----------------------- |
+| **Runtime**   | Node.js                 |
+| **Backend**   | Express.js (REST API)   |
+| **Database**  | MongoDB (Mongoose ODM)  |
+| **Templating**| EJS                     |
+| **Frontend**  | Bootstrap 4, jQuery     |
+| **Middleware**| Body-parser, method-override |

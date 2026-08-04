@@ -1,0 +1,79 @@
+---
+title: "React Apollo Recipes — Full-Stack GraphQL Recipe App"
+date: 2020-07-25
+authors:
+  - pierre
+tags:
+  [react, graphql, apollo, mongodb, material-ui, testing, recipes, nodejs, jwt]
+image: /img/journal/react-apollo-recipes-logo.png
+featured: false
+description: >
+  A recipe sharing application that demonstrates full-stack GraphQL with Apollo
+  Client and Server. Users create, search, and like recipes with optimistic UI
+  updates that make interactions feel instant. Built with comprehensive React
+  Testing Library coverage and MongoDB for persistent storage.
+repo: https://github.com/subaquatic-pierre/react-apollo-recipes
+website: https://apollo-recipes.zeroisone.io
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**React Apollo Recipes** is a full-stack GraphQL application that showcases the Apollo ecosystem end-to-end. The server runs Apollo Server on Express with MongoDB for data persistence, while the client is a React application using Apollo Client with Material UI for the interface.
+
+The application emphasizes two key architectural patterns: **optimistic UI updates** — where the interface reflects user actions immediately before the server confirms — and **comprehensive testing** using React Testing Library for all component interactions. Users can register, create recipes, browse with live search, and like recipes from other users.
+
+---
+
+## Key Features
+
+- **Optimistic UI:** All mutations update the interface immediately — the UI reconciles when the server confirms, providing a snappy experience
+- **Live search:** Real-time filtering of recipes as the user types
+- **JWT authentication:** User registration and login with token-based session management
+- **Recipe CRUD:** Full create, read, update, and delete operations on recipes via GraphQL mutations
+- **Social likes:** Users can like recipes from other community members
+- **Component testing:** Emphasis on React Testing Library for testing UI behavior from the user's perspective
+
+---
+
+## Architecture
+
+A **client + server** split communicating exclusively through GraphQL:
+
+| Service            | Role                                              |
+| ------------------ | ------------------------------------------------- |
+| **client** (React) | Apollo Client, Material UI, React Testing Library |
+| **server** (Node)  | Apollo Server, Express, MongoDB (Mongoose)        |
+| **MongoDB**        | Document database for recipes and users           |
+
+The client runs on port 8006, the server on port 8005. Nginx serves as a reverse proxy in production.
+
+---
+
+## Data Flow
+
+```
+User creates recipe → Apollo Client mutation → Optimistic update (UI refreshes immediately)
+                                                       ↓
+                                              Apollo Server → Mongoose → MongoDB
+                                                       ↓
+                                              Server response → Apollo Client reconciles UI
+```
+
+The optimistic response pattern means recipes appear instantly in the list — no loading spinners for mutations.
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                                    |
+| ------------------ | --------------------------------------------- |
+| **Frontend**       | React, Apollo Client, Material UI              |
+| **API**            | Apollo Server, Express, GraphQL                |
+| **Database**       | MongoDB (Mongoose ODM)                         |
+| **Authentication** | JWT (JSON Web Tokens) with refresh helpers     |
+| **Testing**        | React Testing Library, Jest                    |
+| **Deployment**     | Nginx reverse proxy, AWS EC2                   |

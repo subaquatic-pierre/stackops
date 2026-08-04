@@ -3,7 +3,7 @@ sidebar_position: 2
 title: 'Kubernetes Common Design Patterns'
 description: 'Kubernetes design patterns: sidecar, ambassador, adapter, init containers, health checks, resource management, pod disruption budgets, and anti-affinity rules.'
 tags: [kubernetes, design-patterns, architecture, reference]
-last_updated: '2026-08-03'
+last_updated: '2026-08-04'
 ---
 
 # Kubernetes Common Design Patterns
@@ -19,6 +19,12 @@ Kubernetes provides powerful primitives that enable common distributed-system de
 A helper container that augments the main application — logging, proxying, configuration reloading.
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-sidecar
+  labels:
+    app: app
 spec:
   containers:
     - name: app
@@ -45,6 +51,12 @@ spec:
 A proxy container that handles network connections on behalf of the main app — service mesh sidecar, database proxy.
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-ambassador
+  labels:
+    app: app
 spec:
   containers:
     - name: app
@@ -72,6 +84,12 @@ spec:
 Transforms application output (metrics, logs) to a standard interface that monitoring tools expect.
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-metrics-adapter
+  labels:
+    app: app
 spec:
   containers:
     - name: app
@@ -88,6 +106,9 @@ spec:
         - name: logs
           mountPath: /var/log/nginx
           readOnly: true
+  volumes:
+    - name: logs
+      emptyDir: {}
 ```
 
 ### Init containers
@@ -95,6 +116,12 @@ spec:
 Run before the main container starts — schema migrations, secret fetching, preconditions.
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-init
+  labels:
+    app: app
 spec:
   initContainers:
     - name: check-db
@@ -118,10 +145,18 @@ spec:
 ### Liveness vs Readiness vs Startup
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-health-checks
+  labels:
+    app: app
 spec:
   containers:
     - name: app
       image: myapp:latest
+      ports:
+        - containerPort: 3000
       # Startup probe: delays liveness until app is ready (protects slow-starting apps)
       startupProbe:
         httpGet:
@@ -154,13 +189,32 @@ spec:
 ### Requests and limits
 
 ```yaml
-resources:
-  requests:        # What the container is guaranteed
-    cpu: "250m"
-    memory: "256Mi"
-  limits:          # What the container may burst to
-    cpu: "1000m"
-    memory: "512Mi"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: myapp:latest
+          resources:
+            requests:        # What the container is guaranteed
+              cpu: "250m"
+              memory: "256Mi"
+            limits:          # What the container may burst to
+              cpu: "1000m"
+              memory: "512Mi"
 ```
 
 | Setting | Effect |
@@ -204,6 +258,12 @@ spec:
 ### Pod anti-affinity (spread across nodes)
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+  labels:
+    app: my-app
 spec:
   affinity:
     podAntiAffinity:
@@ -214,11 +274,20 @@ spec:
               matchLabels:
                 app: my-app
             topologyKey: kubernetes.io/hostname
+  containers:
+    - name: app
+      image: myapp:latest
 ```
 
 ### Node affinity
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+  labels:
+    app: app
 spec:
   affinity:
     nodeAffinity:
@@ -228,11 +297,20 @@ spec:
               - key: node.kubernetes.io/instance-type
                 operator: In
                 values: ["t3.medium", "t3.large"]
+  containers:
+    - name: app
+      image: myapp:latest
 ```
 
 ### Topology spread constraints
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+  labels:
+    app: my-app
 spec:
   topologySpreadConstraints:
     - maxSkew: 1
@@ -241,6 +319,9 @@ spec:
       labelSelector:
         matchLabels:
           app: my-app
+  containers:
+    - name: app
+      image: myapp:latest
 ```
 
 ## Taints and tolerations
@@ -252,12 +333,21 @@ kubectl taint nodes worker-1 dedicated=database:NoSchedule
 ```
 
 ```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+  labels:
+    app: app
 spec:
   tolerations:
     - key: "dedicated"
       operator: "Equal"
       value: "database"
       effect: "NoSchedule"
+  containers:
+    - name: app
+      image: myapp:latest
 ```
 
 ## See also

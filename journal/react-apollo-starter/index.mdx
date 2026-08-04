@@ -1,0 +1,65 @@
+---
+title: "React Apollo Starter — TypeScript + GraphQL Template"
+date: 2021-04-23
+authors:
+  - pierre
+tags: [react, typescript, apollo, graphql, starter-template, create-react-app]
+image: /img/journal/react-apollo-starter-logo.png
+featured: false
+description: >
+  A ready-to-use starter template for building React applications with Apollo
+  Client and TypeScript. Bootstraps a project with GraphQL CRUD operations on a
+  Todo model connected to a Django GraphQL API, React Router for navigation, and
+  pre-configured test setup with Jest and React Testing Library.
+repo: https://github.com/subaquatic-pierre/react-apollo
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**React Apollo Starter** eliminates the boilerplate of setting up a new React + Apollo project. It comes pre-configured with TypeScript, Apollo Client for GraphQL data fetching, React Router for client-side navigation, and a working CRUD interface against a Todo model backed by a Django GraphQL API.
+
+The starter is designed to pair with the [Django GraphQL Starter](https://github.com/subaquatic-pierre/django-graphql) — together they form a complete full-stack GraphQL template. It is also the reference frontend used by the [Terraform AWS CI/CD](https://github.com/subaquatic-pierre/terraform-aws-ci-cd) infrastructure project.
+
+---
+
+## Key Features
+
+- **TypeScript throughout:** Full type safety for component props, GraphQL responses, and routing
+- **Apollo Client integration:** Pre-configured client with caching, error handling, and query/mutation hooks
+- **Todo CRUD demo:** Working example of all four CRUD operations via GraphQL against a Django backend
+- **React Router:** Client-side routing with `react-router-dom` v5
+- **Cookie-based token storage:** JWT tokens stored in cookies via `js-cookie` for authenticated requests
+- **Pre-configured testing:** Jest + React Testing Library setup ready for writing component tests
+- **SCSS styling:** Sass preprocessing configured out of the box
+
+---
+
+## Architecture
+
+| Layer               | Role                                    |
+| ------------------- | --------------------------------------- |
+| **React**           | UI components with Apollo hooks         |
+| **Apollo Client**   | GraphQL data fetching, caching, state   |
+| **React Router**    | Client-side navigation                  |
+| **TypeScript**      | Static type checking across the app     |
+
+The starter uses Create React App as its build system with TypeScript template. Apollo Client manages all data operations with the GraphQL endpoint, using an in-memory cache and automatic cache normalization.
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                               |
+| ------------------ | ---------------------------------------- |
+| **Framework**      | React 17                                |
+| **Language**       | TypeScript 4                            |
+| **GraphQL Client** | Apollo Client 3                         |
+| **Routing**        | React Router DOM v5                     |
+| **Styling**        | SCSS (node-sass)                        |
+| **Testing**        | Jest + React Testing Library            |
+| **Build**          | Create React App (react-scripts)        |
+| **Auth Tokens**    | js-cookie                               |

@@ -1,0 +1,76 @@
+---
+title: "Ballot Online — Voting Platform"
+date: 2020-06-10
+authors:
+  - pierre
+tags:
+  [django, react, graphql, gatsby, material-ui, apollo, graphene, voting, jwt]
+image: /img/journal/ballot-online-logo.png
+featured: false
+description: >
+  An online voting platform built with a Django GraphQL backend and a Gatsby React
+  frontend. Uses Django Graphene to auto-generate a GraphQL schema from models,
+  with Apollo Client for data fetching and optimistic UI updates. JWT-based
+  authentication secures user sessions and voting actions.
+repo: https://github.com/subaquatic-pierre/ballot-online
+website: https://ballot-online.zeroisone.io
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Ballot Online** is a full-stack voting platform that demonstrates modern web architecture with GraphQL at its core. The backend is a Django application using **Graphene-Django** — models are automatically transformed into a GraphQL schema, eliminating the need to manually define resolvers for CRUD operations. The frontend is a Gatsby.js React application using Apollo Client for data fetching.
+
+Users can register accounts, create poll questions, browse existing questions, and cast votes. The platform uses JWT-based authentication with Django's session system, and the frontend serves as a static Progressive Web App via Gatsby.
+
+---
+
+## Key Features
+
+- **Auto-generated GraphQL schema:** Django models are converted to GraphQL types by Graphene-Django — no manual schema definition needed
+- **JWT authentication:** Secure user registration, login, and session management
+- **Question creation:** Users create voting questions with multiple options
+- **Voting on questions:** Cast votes through GraphQL mutations
+- **Static frontend:** Gatsby.js pre-renders the React application for fast page loads and SEO
+- **Apollo Client:** Optimistic UI updates make voting feel instantaneous
+
+---
+
+## Architecture
+
+A **backend + frontend** split with GraphQL as the communication layer:
+
+| Service               | Role                                           |
+| --------------------- | ---------------------------------------------- |
+| **backend** (Django)  | GraphQL API with auto-generated schema, JWT auth |
+| **frontend** (Gatsby) | React SPA with Apollo Client, Material UI       |
+| **PostgreSQL**        | Production database                             |
+
+The backend runs Django on port 8004 with Gunicorn for production. The frontend is built as a static Gatsby site and served through Nginx. The project uses a Makefile for build scripts and environment configuration.
+
+---
+
+## Data Flow
+
+```
+User Action → Apollo Client → GraphQL Mutation/Query → Django Graphene → SQL → PostgreSQL
+                                      ↓
+                              Optimistic UI Update (before server response)
+```
+
+All mutations use Apollo's optimistic response pattern — the UI updates immediately, then reconciles when the server confirms.
+
+---
+
+## Tech Stack
+
+| Layer             | Technology                                  |
+| ----------------- | ------------------------------------------- |
+| **Frontend**      | Gatsby.js, React, Apollo Client, Material UI |
+| **API Backend**   | Django, Graphene-Django, GraphQL             |
+| **Authentication**| JWT (JSON Web Tokens)                        |
+| **Database**      | PostgreSQL (production), SQLite (development)|
+| **Deployment**    | Nginx (static files) + Gunicorn (Django WSGI)|

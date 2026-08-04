@@ -1,0 +1,75 @@
+---
+title: "Portfolio — Personal Website with AWS CI/CD"
+date: 2020-06-30
+authors:
+  - pierre
+tags: [gatsby, react, material-ui, aws, cloudfront, codepipeline, serverless, portfolio]
+image: /img/journal/portfolio-logo.png
+featured: false
+description: >
+  A personal portfolio website built with Gatsby.js and Material UI, hosted on AWS
+  CloudFront with a fully automated CI/CD pipeline. Features a serverless contact
+  form powered by AWS Lambda for email delivery. Every push to the main branch
+  triggers an automatic build and production deployment.
+repo: https://github.com/subaquatic-pierre/portfolio-gatsby-public
+website: https://subaquatic-pierre.com
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Portfolio** is a personal website and Progressive Web Application built with Gatsby.js — a React-based static site generator. The entire site is themed with Material UI, featuring custom typography and color schemes applied consistently across all pages. Content is driven by JSON data files, keeping the site fast and simple without a CMS dependency.
+
+The site is hosted on AWS CloudFront for global CDN delivery, with a CodePipeline that automatically builds and deploys on every push to the main branch. A serverless AWS Lambda function handles contact form submissions, sending emails without maintaining a backend server.
+
+---
+
+## Key Features
+
+- **Static site performance:** Gatsby.js pre-renders all pages at build time for instant load speeds
+- **Material UI theming:** Fully customized theme with consistent typography, colors, and component styling
+- **Automated deployment:** AWS CodePipeline triggers build and CloudFront deployment on every push
+- **Serverless contact form:** AWS Lambda handles email delivery — no backend server to maintain
+- **PWA-ready:** Progressive Web App capabilities for offline access and installability
+- **JSON-driven content:** Project data defined in static JSON files for easy maintenance
+
+---
+
+## Architecture
+
+A **single-service, serverless** architecture:
+
+| Service               | Role                                          |
+| --------------------- | --------------------------------------------- |
+| **Gatsby (React)**    | Static site generation with Material UI       |
+| **AWS CloudFront**    | Global CDN delivery with SSL                  |
+| **AWS CodePipeline**  | Automated build and deployment pipeline       |
+| **AWS Lambda**        | Serverless contact form email delivery        |
+| **AWS S3**            | Static asset hosting                          |
+
+---
+
+## Deployment Flow
+
+```
+git push main → CodePipeline triggers → npm build → S3 sync → CloudFront invalidation → Live site updated
+```
+
+The contact form posts to a Lambda function endpoint, which formats and sends the message via email — all without a persistent server.
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                            |
+| ------------------ | ------------------------------------- |
+| **Static Site**    | Gatsby.js, React                      |
+| **UI Framework**   | Material UI (custom themed)           |
+| **Hosting**        | AWS S3, AWS CloudFront CDN            |
+| **CI/CD**          | AWS CodePipeline                      |
+| **Serverless**     | AWS Lambda (contact form)             |
+| **Container**      | Docker (Dockerfile included)          |
+| **Language**       | TypeScript (partial), JavaScript      |

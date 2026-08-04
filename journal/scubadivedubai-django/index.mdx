@@ -1,0 +1,87 @@
+---
+title: "Scuba Dive Dubai — Django E-Commerce Platform"
+date: 2019-12-11
+authors:
+  - pierre
+tags:
+  [
+    django,
+    python,
+    e-commerce,
+    sqlite,
+    aws-s3,
+    django-allauth,
+    bootstrap,
+    heroku,
+  ]
+image: /img/journal/scubadivedubai-django-logo.png
+featured: false
+description: >
+  A full-featured e-commerce application for scuba diving equipment built with
+  Django. Features user authentication via Django AllAuth, categorized product
+  browsing, shopping cart with coupon support, and CSV bulk import for inventory
+  management. Deployed on Heroku with AWS S3 for static and media storage.
+repo: https://github.com/subaquatic-pierre/scubadivedubai-django
+website: https://scubadivedubai.herokuapp.com/
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Scuba Dive Dubai** is a complete Django e-commerce platform for selling scuba diving equipment online. It implements the full shopping workflow — product browsing with category filters, cart management with item increment/merge logic, coupon code application, billing and shipping address collection, and order checkout.
+
+The admin interface provides CSV upload functionality for bulk inventory management, allowing administrators to populate or update product catalogs, categories, and pricing through spreadsheet imports. User registration automatically creates a ShopProfile via Django signals, and Django AllAuth handles all authentication routes with pre-built templates.
+
+---
+
+## Key Features
+
+- **Complete e-commerce flow:** Product listing → category filtering → item detail → add to cart → checkout
+- **Smart cart management:** Checks for existing orders, increments quantities or adds new items intelligently
+- **Coupon system:** Apply discount codes during checkout
+- **Address management:** Collect billing/shipping addresses with option to save for future orders
+- **CSV bulk import:** Admin can upload spreadsheet files to populate or update inventory via Django shell command
+- **Django AllAuth integration:** Full authentication system — registration, login, password reset, email verification — with pre-styled templates
+- **Automatic ShopProfile creation:** Django signal fires on user registration to create the required profile
+
+---
+
+## Architecture
+
+| Service            | Role                                            |
+| ------------------ | ----------------------------------------------- |
+| **Django**         | Full-stack web framework with class-based views |
+| **SQLite**         | Development database (package is 471KB)         |
+| **AWS S3**         | Static files and media storage (Django Storages) |
+| **Gunicorn**       | WSGI server for AWS EC2 production deployment   |
+| **MDBootstrap**    | Responsive frontend styling                     |
+
+---
+
+## E-Commerce Flow
+
+```
+Landing page (all items) → Filter by category → View item detail
+                                                    ↓
+                                            Add to cart (check existing order)
+                                                    ↓
+                      Cart page → Apply coupon → Enter billing/shipping → Checkout
+```
+
+---
+
+## Tech Stack
+
+| Layer                  | Technology                                     |
+| ---------------------- | ---------------------------------------------- |
+| **Framework**          | Django (Python)                                |
+| **Authentication**     | Django AllAuth (registration, login, social)   |
+| **Forms**              | Django Crispy Forms (Bootstrap 4 styling)      |
+| **Countries**          | Django Countries (country selection in checkout)|
+| **Storage**            | Django Storages + AWS S3 (media/static files)  |
+| **Frontend**           | MDBootstrap, SCSS, vanilla JavaScript          |
+| **Production**         | Gunicorn + Heroku / AWS EC2                    |
+| **Database**           | SQLite (development)                           |
