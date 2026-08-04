@@ -1,0 +1,119 @@
+---
+title: "Sera Villas — Luxury Villa Booking Platform"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, tailwind, shadcn-ui, directus, cms, postgresql, stripe, typescript, villas, booking, luxury]
+image: /img/journal/sera-villas-logo.svg
+featured: true
+description: >
+  A luxury vacation rental marketing website and booking platform for high-end
+  villas in Mallorca, Spain. Full booking engine with availability checking,
+  Stripe payments, dynamic pricing, and automated emails — powered by a Directus
+  CMS and Uplisting   property management system.
+website: https://seravillas.com
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**Sera Villas** is a luxury booking platform showcasing four high-end vacation properties in Mallorca, Spain — Villa Escondido, Villa Lumina, Villa Vertice, and Villa Terra. The site combines the visual polish of a luxury brand with a complete booking engine that handles availability lookups, multi-step reservation flow, Stripe payment processing, and automated confirmation emails.
+
+The platform connects to **Uplisting** (a property management system) for real-time availability and pricing, proxies all sensitive API calls through Next.js server-side routes to keep credentials secure, and uses Directus as a headless CMS for blog posts and page content.
+
+---
+
+## Key Features
+
+- **Full booking engine:** Multi-step flow with guest details, Stripe payment, and automated confirmation emails
+- **Secure Uplisting proxy:** All PMS API calls go through Next.js server routes — credentials never reach the browser
+- **Dynamic pricing:** Cleaning fees, extra guest charges, taxes, weekly discounts (5%), and monthly discounts (10%)
+- **Availability calendars:** Normalized calendar data from Uplisting displayed with custom UI components
+- **Multi-channel commissions:** Tracks revenue across Airbnb, Booking.com, HomeAway, Google, and Direct channels
+- **SEO:** Dynamic sitemap, per-page metadata, OpenGraph images, structured data for rich search results
+- **CDN delivery:** Bunny CDN for static assets, CloudFront for Uplisting property photos
+- **Concierge mentions:** All properties advertise premium services (private chefs, airport transfers, grocery pre-stocking)
+
+---
+
+## Architecture
+
+A **headless CMS + external PMS** architecture:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | Luxury villa website + booking engine |
+| **directus** (CMS) | Headless content management |
+| **PostgreSQL** | CMS database |
+| **Uplisting** (PMS) | External property management system |
+| **Stripe** | Payment processing |
+| **AWS SES** | Transactional emails |
+
+The frontend is the sole consumer-facing service. Uplisting, Stripe, and AWS SES are integrated through Next.js API routes that proxy requests — keeping API keys server-side and avoiding browser CORS issues.
+
+---
+
+## Frontend — Next.js App Router with Tailwind & shadcn/ui
+
+Built with Next.js 15 App Router, Tailwind CSS, and shadcn/ui (New York style, Neutral base). The site uses 60+ custom components and 9 context providers for booking state, villa data, theming, notifications, and viewport management.
+
+### Pages
+
+- **Home** — Hero section, villa listing grid, testimonials, blog highlights, Instagram feed
+- **Villas** — Listing page with all four properties
+- **Villa Detail** — Individual villa pages with photo gallery (Embla carousel), features grid, room layouts, map, amenity icons, and booking panel
+- **Booking** — Multi-step flow: date selection → guest details → price breakdown → payment
+- **Booking Confirmation** — Success page with booking summary
+- **Blog** — CMS-managed articles from Directus
+- **About Us** — Brand story and team
+- **Privacy / Cookie / Terms** — Legal pages
+
+### Booking Engine
+
+The booking flow is a polished multi-step experience:
+
+1. **Date selection** — Availability calendar powered by Uplisting data
+2. **Guest details** — Contact information and guest count
+3. **Price breakdown** — Dynamic pricing with cleaning fees, extra guest charges, taxes, and weekly/monthly discounts
+4. **Stripe checkout** — Secure card payment processing
+5. **Confirmation** — Success page with automated AWS SES email
+
+---
+
+## CMS — Directus
+
+Directus manages blog posts, CMS pages, and SEO metadata. Content is fetched via the `@directus/sdk` and served through Next.js ISR. Static assets are stored in a Hetzner S3 bucket and delivered through Bunny CDN at `cdt-sera-villas.b-cdn.net` for fast global delivery.
+
+---
+
+## Third-Party Integrations
+
+| Integration | Purpose |
+|-------------|---------|
+| **Uplisting** | Property details, availability calendars, dynamic pricing, cleaning fees, channel commissions |
+| **Stripe** | Payment processing — customer creation, payment intents, checkout sessions, refunds |
+| **AWS SES** | Booking confirmation and contact form emails |
+| **Hetzner S3 + Bunny CDN** | Asset storage and CDN delivery |
+| **CloudFront** | Uplisting property photo delivery |
+
+### Multi-Channel Commission Tracking
+
+Uplisting provides commission data across booking channels: Airbnb (18.34%), Booking.com (15%), HomeAway (8%), Google (6%), and Direct (0%) — allowing the business to track profitability by channel.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui |
+| **Animations** | Motion (Framer Motion successor), Embla Carousel |
+| **Forms** | React Hook Form + Zod (type-safe validation) |
+| **CMS** | Directus (headless), PostgreSQL |
+| **PMS** | Uplisting (property management) |
+| **Payments** | Stripe |
+| **Email** | AWS SES |
+| **Storage** | Hetzner S3 + Bunny CDN |
+| **Server Actions** | `next-safe-action` for type-safe server logic |

@@ -17,7 +17,7 @@ import BlogPostPaginator from "@theme/BlogPostPaginator";
 import BlogPostPageMetadata from "@theme/BlogPostPage/Metadata";
 import BlogPostPageStructuredData from "@theme/BlogPostPage/StructuredData";
 import ContentVisibility from "@theme/ContentVisibility";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, Globe } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import TagPill from "@site/src/components/shared/TagPill";
 import BackLink from "@site/src/components/blog/BackLink";
@@ -49,6 +49,7 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
 
   const image = frontMatter.image as string | undefined;
   const repo = frontMatter.repo as string | undefined;
+  const website = frontMatter.website as string | undefined;
   const tags = frontMatter.tags as
     | (string | { label?: string; permalink?: string })[]
     | undefined;
@@ -93,6 +94,18 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
           </a>
         )}
 
+        {website && (
+          <a
+            href={website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-accent dark:hover:text-accent transition-colors no-underline"
+          >
+            <Globe className="h-3.5 w-3.5" />
+            {website.replace("https://", "").replace("www.", "")}
+          </a>
+        )}
+
         {/* Metadata row */}
         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
           {dateStr && (
@@ -115,14 +128,10 @@ function BlogPostPageContent({ children }: { children: ReactNode }): ReactNode {
               const permalink =
                 (typeof tag === "object" && "permalink" in tag
                   ? (tag as { permalink?: string }).permalink
-                  : `/journal/tags/${encodeURIComponent(label.toLowerCase().replace(/\s+/g, "-"))}`)
-                || "#";
+                  : `/journal/tags/${encodeURIComponent(label.toLowerCase().replace(/\s+/g, "-"))}`) ||
+                "#";
               return (
-                <TagPill
-                  key={label}
-                  label={label}
-                  permalink={permalink}
-                />
+                <TagPill key={label} label={label} permalink={permalink} />
               );
             })}
           </div>

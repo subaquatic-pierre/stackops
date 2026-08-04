@@ -1,0 +1,120 @@
+---
+title: "RAK NYE CarPass — Parking & Access Management System"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, express, dotnet, csharp, python, mongodb, mui, typescript, parking, anpr, iot, qr-code, bilingual]
+image: /img/journal/raknye-carpass-logo.svg
+featured: true
+description: >
+  Comprehensive parking and access management system for the Ras Al Khaimah New
+  Year's Eve celebration on Al Marjan Island. Handles vehicle registration, car
+  pass issuance, ANPR camera integration, barcode/QR access control, hotel quota
+  management,   and live parking statistics.
+website: https://www.raknye.com
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**RAK NYE CarPass** is a production-scale parking and access management system built for the Ras Al Khaimah New Year's Eve festival on Al Marjan Island, UAE. It manages every aspect of vehicle access to the event area — from visitor car pass registration and hotel quota management to real-time ANPR (Automatic Number Plate Recognition) camera integration and live parking occupancy dashboards.
+
+The system handles **10 parking locations** across Al Marjan Island with traffic flow balancing, WhatsApp + SMS communication, barcode/QR entry passes, and a dedicated public display screen showing real-time parking availability. Built as a polyglot microservices system spanning TypeScript, C# (.NET), and Python.
+
+---
+
+## Key Features
+
+- **ANPR camera integration:** Direct Hikvision camera connection with real-time plate registration and allow-list management
+- **Multi-format scan parsing:** XML, JSON, BSON, and multipart/form-data with robust fallback handling
+- **10 parking locations:** Jais, Yanas, Dhayah, Mega, Marjan1-4, VIP1, VIP2 — each with live occupancy tracking
+- **Traffic flow balancing:** Duplicate scan events across related locations for accurate occupancy counts
+- **Hotel quota system:** Per-hotel vehicle pass limits for guest management
+- **Barcode/QR entry:** PDF certificates with embedded QR codes for access passes
+- **Live parking stats:** Real-time occupancy dashboards with ApexCharts and count-up animations
+- **Mobile scanner:** HTML5 QR scanner for entry/exit checkpoint staff
+- **WhatsApp + SMS:** Twilio templated messaging with automatic fallback for undelivered WhatsApp messages
+- **Multi-language:** Full Arabic/English bilingual site with separate logos and RTL layout
+
+---
+
+## Architecture
+
+A **five-service polyglot system** with OxideAuth for authentication:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | Public registration and information site (AR/EN) |
+| **dashboard** (Next.js) | Admin panel with RBAC and live stats |
+| **api** (Express.js) | REST API with MongoDB backend |
+| **anpr-service** (.NET 8) | ANPR camera integration for Hikvision cameras |
+| **etl** (Python) | Batch data pipeline for database migrations |
+| **MongoDB** | Primary database |
+
+---
+
+## www — Public Site
+
+Built with Next.js 16 App Router and MUI v7, supporting full Arabic/English bilingual with RTL layout using `react-intl` / `next-international`. The site features the Abu Dhabi Media font and separate Arabic and English logos.
+
+### Pages
+
+- **Car Pass Registration** — Vehicle and driver registration form
+- **Update CarPass** — Modify existing registrations
+- **Parking Registration** — Parking pass purchase flow
+- **Marjan Island Access** — Event venue information
+- **Celebration Guide** — PDF event guides and schedules
+- **Visitor Survey** — Post-event feedback
+- **Live Parking Updates** — Real-time occupancy display
+- **Public Display Screen** — Large-format parking availability board for venue entry points
+
+---
+
+## dashboard — Admin Panel
+
+The admin dashboard uses role-based views: **Admin**, **Hotel**, and **Stats** roles. Features include:
+
+- **Car pass management** — View, approve, and manage all registrations
+- **Hotel/quota management** — Per-hotel vehicle pass quotas
+- **Live parking stats** — ApexCharts dashboards with count-up animations
+- **Scan log viewer** — Real-time entry/exit event logs
+- **Barcode/QR scanner** — Desktop and mobile scanning interfaces
+- **Puck CMS** — `@measured/puck` drag-and-drop page builder for custom admin layouts
+- **Token management** — Secure access token administration
+
+---
+
+## anpr-service — .NET 8 Camera Integration
+
+The ANPR service connects directly to **Hikvision iDS-TCM403-B cameras** for real-time license plate recognition. It handles:
+
+- **Scan intake** — Receives camera scan data via XML/JSON/multipart
+- **Plate registration** — Programmatically adds authorized plates to camera allow lists
+- **Traffic flow logic** — Duplicates scan events across related parking locations (e.g., Marjan1 entry → Yanas exit) for accurate occupancy counts across the 10 parking zones
+- **WhatsApp + SMS** — Twilio-powered messaging with automatic SMS fallback when WhatsApp delivery fails
+- **Message callbacks** — Delivery status tracking for sent messages
+
+---
+
+## etl — Python Data Pipeline
+
+A batch ETL pipeline migrates data between database instances. It parses scan data from multiple formats (XML for Hikvision cameras, JSON, BSON, gate-specific) with configurable batch sizes and handles bulk hotel account imports from CSV files.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend (www)** | Next.js (App Router), React, TypeScript, MUI v7, Redux Toolkit |
+| **Frontend (dashboard)** | Next.js, MUI v7, ApexCharts, Puck CMS |
+| **API Backend** | Express.js, TypeScript, Mongoose (MongoDB) |
+| **ANPR Service** | .NET 8 C#, ASP.NET Core Minimal API |
+| **ETL Pipeline** | Python 3, PyMongo |
+| **Database** | MongoDB |
+| **Auth** | OxideAuth (JWT-based centralized auth) |
+| **Messaging** | Twilio (WhatsApp + SMS fallback) |
+| **Storage** | Azure Blob / Hetzner S3 |
+| **i18n** | `react-intl` / `next-international` (EN/AR + RTL) |

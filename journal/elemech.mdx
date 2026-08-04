@@ -1,0 +1,84 @@
+---
+title: "ELE.MECH — MEP Engineering Corporate Site"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, tailwind, typescript, aws-ses, recaptcha, corporate, brochure]
+image: /img/journal/elemech-logo.png
+description: >
+  Corporate marketing website for a Dubai-based MEP (Mechanical, Electrical,
+  Plumbing), ELV (Extra Low Voltage), and Interior Fit-Out solutions company.
+  Digital brochure showcasing services, portfolio, team, and client testimonials
+  with   contact form lead generation.
+website: https://elemech.ae
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**ELE.MECH** is the corporate digital presence for a Dubai-based engineering firm specializing in MEP (Mechanical, Electrical, Plumbing) systems, ELV (Extra Low Voltage) installations, and Interior Fit-Out solutions. The website serves as a comprehensive digital brochure — showcasing the company's service offerings, portfolio of completed projects, team profiles, and client testimonials, with a contact form for lead generation.
+
+ELE.MECH takes the simplest architectural approach of all CODATIVITY projects: a single Next.js application with **no backend, no database, and no CMS**. All content is defined in TypeScript static data files, making the site exceptionally fast to deploy and operate. The only dynamic functionality is the contact form, which sends inquiries via AWS SES with Google reCAPTCHA verification.
+
+---
+
+## Key Features
+
+- **Fully static content:** All services, portfolio projects, team profiles, and testimonials are TypeScript data files — instant page loads with no API calls
+- **Nested service pages:** MEP services break down into four sub-services with dedicated detail pages
+- **Portfolio gallery:** 13 project showcases with full-screen lightbox image browsing
+- **Dual-layer CAPTCHA:** reCAPTCHA v3 invisible scoring combined with Enterprise verification for maximum bot protection
+- **Minimal infrastructure:** No database, no CMS, no backend API — just a single Next.js Docker container
+
+---
+
+## Architecture
+
+A **single-service, fully static** architecture:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | Static corporate website with 2 API routes |
+
+Two minimal Next.js API routes handle all server-side functionality:
+- `POST /api/contact` — sends contact form submissions via AWS SES
+- `POST /api/verify-captcha` — verifies Google reCAPTCHA Enterprise tokens
+
+All content (services, portfolio, team members, testimonials) is defined in `src/static-data/` as TypeScript arrays. This makes the site blazing fast and eliminates any infrastructure dependencies beyond the Next.js server itself.
+
+---
+
+## Frontend — Next.js App Router
+
+Built with Next.js 14 App Router and Tailwind CSS, using a deep red (`#690101`) as the brand primary color.
+
+### Pages
+
+- **Home** — Hero, services overview, portfolio highlights, testimonials
+- **About Us** — Company history and mission
+- **Services** — Four main service areas, each with sub-services:
+  - **MEP** → Mechanical, Electrical & ELV, Plumbing, Fire & Life Safety
+  - **ELV** — Extra Low Voltage systems
+  - **Interior Fit-Out** — Commercial and residential interiors
+  - **Maintenance** — Ongoing support contracts
+- **Portfolio** — 13 project showcases with lightbox gallery (Yet Another React Lightbox)
+- **Contact** — Multi-field contact form with AWS SES delivery and dual-layer CAPTCHA protection
+- **Docs** — Company documentation
+
+### Contact Form Security
+
+The contact form implements **dual-layer CAPTCHA** — Google reCAPTCHA v3 (invisible scoring) plus reCAPTCHA Enterprise verification. This provides robust bot protection while maintaining a smooth user experience. Submissions are delivered as HTML/text emails to the company's sales team via AWS SES.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js (App Router), React, TypeScript, Tailwind CSS |
+| **Image Gallery** | Yet Another React Lightbox |
+| **Email** | AWS SES (contact form) |
+| **CAPTCHA** | Google reCAPTCHA v3 + Enterprise |
+| **Social Widget** | Elfsight embedded widget |

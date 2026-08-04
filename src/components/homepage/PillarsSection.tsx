@@ -1,5 +1,5 @@
 import React from "react";
-import { Layers, FileText, Search, Monitor } from "lucide-react";
+import { Layers, FileText, Braces, BookOpen } from "lucide-react";
 
 interface FeatureCard {
   title: string;
@@ -26,18 +26,18 @@ const features: FeatureCard[] = [
     delay: "0.08s",
   },
   {
-    title: "Tag-Based Discovery",
+    title: "Flat Architecture",
     description:
-      "Flat directory structures powered by robust front-matter tags and full-text search. Ensures immediate content retrieval without deep hierarchies.",
-    icon: <Search className="w-[22px] h-[22px]" color="#f59e0b" />,
+      "Content organized in flat directories with front-matter tags and full-text search. No nested sub-folders — metadata drives discovery.",
+    icon: <Braces className="w-[22px] h-[22px]" color="#f59e0b" />,
     iconBg: "bg-amber-500/10",
     delay: "0.16s",
   },
   {
-    title: "Project Showcase",
+    title: "Engineering Journal",
     description:
-      "A portfolio integrated into the platform to display past engineering work and open-source contributions.",
-    icon: <Monitor className="w-[22px] h-[22px]" color="#8b5cf6" />,
+      "A running log of projects, homelab experiments, and technical articles — captured as dated entries alongside the reference material.",
+    icon: <BookOpen className="w-[22px] h-[22px]" color="#8b5cf6" />,
     iconBg: "bg-violet-500/10",
     delay: "0.24s",
   },

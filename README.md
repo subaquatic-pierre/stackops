@@ -14,10 +14,10 @@ Whether you are executing an under-pressure incident response playbook or review
 
 ## Core Features
 
-- **Actionable Cookbooks:** Goal-oriented recipes, playbooks, and copy-paste commands designed for rapid execution (e.g., `revoke-aws-keys.mdx`).
-- **Reference Material:** Deep-dive explanations of system architectures, config locations, and theoretical concepts.
-- **Tag-Based Discovery:** A strictly flat directory structure powered by robust front-matter tags, ensuring immediate content retrieval without digging through folders.
-- **Engineering Journal:** A running log of engineering work, homelab experiments, and open-source contributions — captured as dated entries rather than polished portfolio pieces.
+- **Actionable Cookbooks:** Goal-oriented recipes, incident response playbooks, and copy-paste commands designed for rapid execution (e.g., `revoke-aws-keys.mdx`).
+- **Reference Material:** Deep-dive explanations of system architectures, configuration locations, and theoretical concepts.
+- **Flat Architecture:** Content organized in flat directories with front-matter tags and full-text search. Metadata drives discovery without nested sub-folders.
+- **Engineering Journal:** A running log of projects, homelab experiments, and technical articles — captured as dated entries rather than polished portfolio pieces.
 - **Modern UI/UX:** Built with a custom glassmorphism theme, strict Dark/Light mode adherence, dynamic gradient typography, and seamless transitions.
 
 ## Tech Stack

@@ -1,0 +1,100 @@
+---
+title: "OxideAuth — Centralized Authentication Service"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [rust, nextjs, postgresql, jwt, oauth2, authentication, authorization, google-oauth, aws-ses]
+image: /img/journal-placeholder.png
+description: >
+  A custom-built authentication and authorization service powering all
+  CODATIVITY client applications. Rust API backend handling JWT issuance,
+  OAuth2 (Google) social login, service accounts for machine-to-machine auth,
+  email delivery via AWS SES, and file storage via AWS S3.
+website: https://oxideauth.codaweb.co
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**OxideAuth** is CODATIVITY's centralized identity and access management service. It provides authentication and authorization for all client applications — Booking Clinic, Maven Platform, RAK NYE CarPass, and others — ensuring consistent user identity, permissions, and security policy across the entire portfolio.
+
+Built with a **Rust backend** for performance and safety, OxideAuth handles JWT token issuance (with configurable 24-hour default expiry), OAuth2 integration for Google social login, service accounts for machine-to-machine communication between backend services, email delivery through AWS SES, and file storage via AWS S3.
+
+---
+
+## Key Features
+
+- **Centralized auth for all CODATIVITY apps:** Single identity provider across Booking Clinic, Maven, RAK NYE, and more
+- **JWT-based tokens:** Configurable secrets and expiration with standard Bearer token authentication
+- **Google OAuth2:** Social login integration for end-user convenience
+- **Service accounts:** Machine-to-machine authentication for secure backend-to-backend communication
+- **Multi-environment:** Separate configurations for local development and production deployments
+- **Rust performance:** The auth API is built in Rust for speed and memory safety — critical for a service that sits on the hot path of every API request
+
+---
+
+## Architecture
+
+A two-service system with an external PostgreSQL database:
+
+| Service | Role |
+|---------|------|
+| **oxideauth-api** (Rust) | Core auth API — JWT, OAuth2, email, storage |
+| **oxideauth-dashboard** (Next.js) | Admin interface for managing auth configurations |
+| **PostgreSQL** | External database for user accounts and tokens |
+
+The Rust API's source lives in a separate repository; this project repo contains only the Docker/Kubernetes deployment configuration.
+
+---
+
+## oxideauth-api — Rust Backend
+
+The API is the heart of OxideAuth, built in Rust for performance and safety. It handles:
+
+- **JWT token lifecycle** — Issuance, validation, and expiration with configurable secrets and token lifetimes
+- **OAuth2 / Google social login** — Endpoint at `/auth/oauth/google` for Sign In with Google
+- **Owner account seeding** — Automatic provisioning of the platform owner account
+- **Service accounts** — Machine-to-machine authentication for backend services communicating with each other
+- **Email delivery** — Transactional emails via AWS SES from `oxideauth@nebuladev.io` and `projects@codativity.com`
+- **File storage** — User uploads to AWS S3
+- **Database auto-migration** — Schema management with destructive reset capability for development
+- **CORS whitelisting** — Dashboard origin access control
+
+Clients integrate with OxideAuth by sending authentication requests, receiving JWTs, and validating tokens on every API call. This centralized approach means implementing auth in a new application is as simple as adding a token validation middleware.
+
+---
+
+## oxideauth-dashboard — Admin Interface
+
+The dashboard is a Next.js/React application that provides an administrative interface for managing OxideAuth configurations. Administrators can view user accounts, manage service account credentials, configure OAuth2 providers, and monitor authentication activity.
+
+---
+
+## How Client Apps Use OxideAuth
+
+Client applications (Booking Clinic, Maven, RAK NYE) delegate all authentication to OxideAuth:
+
+```
+Client App  →  POST /auth/login  →  OxideAuth validates credentials
+             ←  JWT returned
+Client App  →  API request with JWT  →  OxideAuth validates token
+             ←  User identity + permissions
+```
+
+For machine-to-machine communication, backend services use service account JWTs — long-lived tokens with scoped permissions that allow, for example, the Booking Clinic API to verify a user's identity without exposing OxideAuth's internal API keys.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Auth API** | Rust (high-performance auth server) |
+| **Admin Dashboard** | Next.js, React |
+| **Database** | PostgreSQL |
+| **Authentication** | JWT (24-hour default expiry), OAuth2 (Google) |
+| **Email** | AWS SES |
+| **Storage** | AWS S3 |
+| **Deployment** | Docker, Kubernetes, Kustomize |

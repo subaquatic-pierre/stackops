@@ -1,0 +1,116 @@
+---
+title: "Luke Stays — Short-Term Rental & Property Platform"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, mui, azure-functions, wordpress, stripe, i18n, typescript, rental, real-estate, booking]
+image: /img/journal/lukestays-logo.png
+featured: true
+description: >
+  A full-scale online travel agency and property management platform combining
+  short-term rental bookings, a landlord/partner portal, and Dubai real estate
+  listings. Three portals in one Next.js app serving guests, partners, and
+  property seekers across the UK and Dubai.
+website: https://www.lukestays.com
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**Luke Stays** is a comprehensive property platform that operates as three distinct portals within a single Next.js application. It combines short-term rental bookings (like Airbnb), a partner/landlord management portal, and a Dubai real estate marketplace — all powered by a serverless backend layer and headless WordPress blog.
+
+The platform connects to a network of third-party services through Azure Functions: Uplisting for property management, Stripe for payments, PriceLabs for dynamic pricing, Superhog for guest verification, and Goyzer for property management, with ActiveCampaign driving a sophisticated CRM-based marketing engine.
+
+---
+
+## Key Features
+
+- **Three-in-one portal:** Guests, Partners, and Dubai Real Estate all in a single Next.js app with URL-path routing
+- **Full booking funnel:** Multi-step pre-booking → calendar selection → guest details → payment → verification
+- **Dynamic pricing:** PriceLabs integration for real-time property pricing with seasonal adjustments
+- **CRM-driven marketing:** ActiveCampaign with abandoned cart recovery, booking confirmation lists, WiFi opt-in
+- **Component-level i18n:** 173 translation namespaces auto-translated via Google Cloud Translate at build
+- **Mixed rendering:** SSG for static pages, SSR for property detail pages
+- **Legacy migration:** 495-line redirect map handling old URL structure
+
+---
+
+## Architecture
+
+A **serverless-proxy architecture** — the Next.js frontend is the only service in this repository:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | Three portals in one app — guests, partners, real estate |
+| **Azure Functions** | Serverless proxy layer to Uplisting, Stripe, PriceLabs, Superhog, Goyzer |
+| **WordPress** | Headless blog via GraphQL |
+| **ActiveCampaign** | CRM with 40+ per-city contact tags |
+
+No local database, no Next.js API routes for business logic — all backend operations go through Azure Functions which act as a secure proxy layer between the frontend and third-party services.
+
+---
+
+## Frontend — Three Portals in One App
+
+The Next.js application uses the Pages Router with MUI v5 and MUI X Pro components. It contains **143 components**, **10 context providers**, **10 custom hooks**, and **24 type definition files** — making it one of the largest CODATIVITY frontends.
+
+### Guests Portal (`/guests`)
+
+The main booking experience — property search with Google Maps integration, a multi-step booking funnel (city → dates → guest details → season pricing → payment), Stripe checkout, and Superhog guest verification. Properties display dynamic pricing from PriceLabs and availability from Uplisting.
+
+### Partners Portal (`/partners`)
+
+A landing-page-style experience for property owners and landlords covering franchise opportunities, the academy program, and listing management. Includes dedicated pages for landlord services, franchise partnerships, and trade stays.
+
+### Dubai Real Estate (`/dubai-real-estate`)
+
+A property marketplace for the Dubai market with buying/renting guides, off-plan property listings, and real estate agent resources. Features dedicated hero sections, area guides, and financing process overviews.
+
+---
+
+## Internationalization
+
+The platform supports **English and Russian** through `next-translate-plugin` with **173 component-level translation namespaces**. Google Cloud Translate auto-generates Russian translations at build time — ensuring every piece of content is available in both languages without manual translation overhead.
+
+---
+
+## Backend — Azure Functions & Integrations
+
+Eight Azure Functions serve as the serverless backend:
+
+| Function | Purpose |
+|----------|---------|
+| GetUplistingData | Property listings, details, and availability |
+| GetProperties | Aggregated property data |
+| GetCalendar | Real-time availability calendars |
+| CreateBooking | Booking submission and confirmation |
+| CreatePaymentIntent | Stripe payment intent creation |
+| ProductPaymentHandler | Additional product/service purchases |
+| SuperhogHandler | Guest identity verification |
+| Goyzer | Property management operations |
+
+This serverless architecture keeps credentials server-side (the frontend never sees Uplisting, Stripe, or Superhog API keys) while providing scalable, cost-efficient compute.
+
+---
+
+## CRM-Powered Marketing
+
+ActiveCampaign drives the marketing engine with 40+ per-city contact tags, abandoned cart recovery flows, booking confirmation email sequences, and WiFi opt-in campaigns. This allows highly targeted communication based on user location, booking stage, and property interest.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js (Pages Router), React, TypeScript, MUI v5, Emotion, SCSS |
+| **Backend** | Azure Functions (serverless proxy layer) |
+| **CMS / Blog** | WordPress (headless, GraphQL) |
+| **Payments** | Stripe (payment intents, checkout sessions) |
+| **PMS** | Uplisting (property management system) |
+| **Pricing** | PriceLabs (dynamic pricing) |
+| **Verification** | Superhog (guest identity) |
+| **CRM** | ActiveCampaign (email marketing, abandoned cart) |
+| **i18n** | `next-translate-plugin` (EN/RU, 173 namespaces) |

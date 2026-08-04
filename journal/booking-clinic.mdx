@@ -1,0 +1,112 @@
+---
+title: "Booking Clinic — Multi-Tenant Healthcare Platform"
+date: 2026-08-03
+authors:
+  - pierre
+tags:
+  [
+    nextjs,
+    react,
+    express,
+    rust,
+    postgresql,
+    redis,
+    typescript,
+    fullcalendar,
+    healthcare,
+    saas,
+    booking,
+  ]
+image: /img/journal/booking-clinic-logo.png
+description: >
+  A multi-tenant booking and CRM platform for healthcare clinics and
+  appointment-based businesses. Shared admin dashboards for managing services,
+  staff, locations, schedules, and bookings across multiple client workspaces,
+  plus customizable public-facing booking websites.
+website: https://booking.codaweb.co
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Booking Clinic** is a multi-tenant SaaS platform that lets healthcare clinics and appointment-based businesses manage their entire booking workflow. Each client (tenant) gets their own workspace with customizable branding, services, staff profiles, locations, and scheduling — all managed through a shared admin dashboard. End customers can book appointments through personalized public booking pages, with deep-link URLs that securely embed tenant and provider context.
+
+The platform handles everything from provider schedules (recurring weekly slots) to public booking tokens, appointment confirmations, and email notifications — powered by a dedicated Rust email microservice that dispatches templated messages through AWS SES.
+
+---
+
+## Key Features
+
+- **Multi-tenant isolation:** Workspace-scoped entities via BaseWorkspaceEntity, per-tenant branding, settings, and users
+- **Public booking with deep links:** Cryptographically-secure time-limited tokens allow unauthenticated visitors to book appointments
+- **Advanced scheduling:** Recurring weekly slots via `daysOfWeek` JSON, templates for standardizing provider availability
+- **Polyglot architecture:** Node.js API for business logic, Next.js for the UI, and Rust for high-performance email dispatch — each in the right language for the job
+- **Fine-grained RBAC:** Permissions like `booking.serviceOfferingSlot.create` validated through OxideAuth on every request
+- **Generic CRUD framework:** 14 entities get full Create-Read-Update-Delete with RBAC through a single BaseModelRouter pattern
+
+---
+
+## Architecture
+
+Booking Clinic runs as a **polyglot multi-service system** orchestrated via Docker Compose or Kubernetes:
+
+- **www** — Next.js administrative dashboard and public booking frontend
+- **api** — Express.js REST API with generic CRUD framework and RBAC
+- **email** — Rust/Axum microservice for event-driven email delivery
+- **PostgreSQL** — primary relational database for bookings and tenant data
+- **Redis** — caching layer and pub/sub event bus for email dispatch
+
+The API proxies all authentication through **OxideAuth**, CODATIVITY's centralized auth service, using service account JWTs. This keeps identity management separate from business logic.
+
+### Service-to-service flow
+
+```
+Public user  →  www (booking form)  →  api (validates token, creates booking)
+                                         │
+                                    PostgreSQL (stores booking)
+                                         │
+                                    Redis pub/sub (emits event)
+                                         │
+                                    email (Rust) → AWS SES (sends confirmations)
+```
+
+---
+
+## Services
+
+### www — Next.js Dashboard + Public Booking
+
+The frontend is a Next.js App Router application using MUI for the UI layer and FullCalendar for the scheduling interface. It serves two audiences through route groups:
+
+- **(auth)** — login, registration, and auth flow pages
+- **(dashboard)/[tenant]** — admin dashboard with Schedule (FullCalendar), Bookings, Services, Providers, Locations, Users, Templates, Settings, Workspaces, and Notifications
+- **(simple)** — public-facing booking pages accessed via secure deep links
+
+Key frontend features include a compile-time typed service registry using a custom `useServiceSWR` hook that provides type-safe API calls and automatic caching.
+
+### api — Express.js REST Backend
+
+The API is built on Express.js with TypeScript, using MikroORM for database access. It employs a **generic BaseModelRouter pattern** — 14 entity types (User, Workspace, Provider, ServiceOffering, Booking, etc.) each get automatic CRUD endpoints with RBAC enforcement.
+
+Authentication goes through OxideAuth: the API validates incoming JWTs and enforces fine-grained permissions like `booking.serviceOfferingSlot.create` on every route. Storage backends are swappable between local, Azure Blob, and Hetzner S3 via configuration.
+
+### email — Rust Microservice
+
+A dedicated email service written in Rust using the Axum framework. It listens on Redis pub/sub channels for events (booking created, cancelled, reminder triggers) and sends formatted emails via AWS SES. Templates use Handlebars/Tera for flexible HTML generation. Has its own PostgreSQL database for email tracking and logs.
+
+---
+
+## Tech Stack
+
+| Layer                  | Technology                                                                |
+| ---------------------- | ------------------------------------------------------------------------- |
+| **Frontend**           | Next.js (App Router), React, MUI, FullCalendar, Emotion, Ant Design Icons |
+| **API Backend**        | Express.js, TypeScript, SWC, MikroORM                                     |
+| **Email Microservice** | Rust, Axum, SQLx, Redis pub/sub, AWS SES                                  |
+| **Databases**          | PostgreSQL (primary + email), Redis (cache + pub/sub)                     |
+| **Auth**               | OxideAuth (JWT-based centralized auth)                                    |
+| **Storage**            | Local / Azure Blob / Hetzner S3 (configurable)                            |
+| **Orchestration**      | Docker Compose (dev), Kubernetes + Kustomize + ArgoCD (prod)              |

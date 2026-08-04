@@ -1,0 +1,119 @@
+---
+title: "The Craft Safari — E-Commerce Storefront"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, woocommerce, wordpress, bootstrap, scss, typescript, ecommerce, stripe, geidea, bunny-cdn]
+image: /img/journal/tcs-logo.svg
+featured: true
+description: >
+  A production e-commerce storefront for Indian handcrafted goods and artisan
+  products. Headless WordPress + WooCommerce backend with a Next.js 15 frontend
+  featuring three-layer caching, secure WooCommerce proxy, Geidea payment
+  gateway (UAE), and 3D product visualization.
+website: https://thecraftsafari.shop
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**The Craft Safari** is a full-featured e-commerce storefront selling Indian handcrafted goods and artisan products — from home decor and textiles to craft tours and art atelier experiences. The store operates in the UAE market with AED pricing and Geidea payment processing.
+
+The architecture is **headless WooCommerce** — WordPress handles the product catalog, orders, and blog content through its REST API, while Next.js 15 owns all rendering, caching, and the customer experience. A secure proxy layer keeps WooCommerce API credentials on the server, never exposing them to the browser.
+
+---
+
+## Key Features
+
+- **Headless WooCommerce with secure proxy:** WC credentials are server-side only — all API calls funnel through an allowlisted proxy route
+- **Three-layer caching:** ISR (10min), server memory (5min), TanStack Query (5s) — tiered for performance and freshness
+- **Custom post types:** Beyond standard WooCommerce — `home-banner`, `home-promotion`, `craft-tour`, `event`, `workshops` for rich content experiences
+- **Bunny CDN media offloading:** Custom WordPress plugin rewrites attachment URLs to CDN
+- **Geidea payment integration:** UAE-specific gateway supporting card payments and digital wallets in AED
+- **3D model viewer:** `@google/model-viewer` for interactive product visualization
+- **Bootstrap 5 + SCSS:** Extensive custom styling framework — not Tailwind — with page-level SCSS modules
+- **Yoast SEO integration:** WordPress SEO metadata consumed via `yoast_head_json` for Next.js `generateMetadata()`
+- **Dynamic sitemap:** Fetches all products, categories, and blogs from WooCommerce at build time
+- **Cookie consent + analytics:** GDPR-compliant cookie banner with Google Analytics and Meta Pixel integration
+
+---
+
+## Architecture
+
+A **single Next.js frontend with an external WooCommerce backend**:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | E-commerce storefront with three-layer caching |
+| **WordPress + WooCommerce** (external) | Product catalog, orders, blog, custom post types |
+| **Bunny CDN** | Media delivery with custom WordPress CDN plugin |
+
+No database is managed in this repository — all product, order, and customer data lives in the external WordPress/WooCommerce instance at `admin.thecraftsafari.shop`.
+
+---
+
+## Frontend — Next.js App Router with Bootstrap 5
+
+Built with Next.js 15 App Router, Bootstrap 5 + SCSS, and TanStack Query. Notably, this project uses Bootstrap/SCSS instead of Tailwind — with extensive custom styles in `public/scss/main.scss` and page-local `*.module.scss` files.
+
+### Pages
+
+- **Home** — Hero, category grid, featured products, promotional banner, social proof
+- **Shop** — Product listing with filters, sorting, and search (Fuse.js fuzzy search)
+- **Category** — Category-specific product display
+- **Product Detail** — Full product page with PhotoSwipe gallery, 3D model viewer (`@google/model-viewer`), product attributes, and add-to-cart
+- **Blog** — WooCommerce blog posts
+- **Travel Diaries** — Custom post type for travel content
+- **About, Contact** — Brand story and contact form
+- **Indian Crafts / Craft Tours / Art Atelier / Events** — Custom post type pages
+- **Checkout** — Multi-step checkout with Geidea payment
+- **Payment** — Payment processing page
+- **My Account** — Orders, addresses, wishlist, profile management
+- **Cart** — Shopping cart with quantity management
+- **15 modals** — Ask Question, Color Compare, Login, Quick Add, Quick View, Share, Search, and more
+
+---
+
+## WooCommerce Secure Proxy
+
+All WooCommerce API calls flow through a single Next.js API route at `/api/wc`. A proxy utility determines which endpoints are public (GET products, categories, tags) vs. authorized (orders, customers, coupons) and enforces the appropriate access rules. The WooCommerce consumer key and secret remain server-side only — the browser never sees them.
+
+Guest checkout is supported through carve-outs that allow anonymous order creation.
+
+---
+
+## Three-Layer Caching
+
+The storefront implements a tiered caching strategy for performance:
+
+1. **Next.js ISR** — Pages revalidate every 10 minutes; `generateStaticParams()` pre-builds category and product pages at build time
+2. **Server memory cache** — Products and categories cached for 5 minutes with a `setInterval` sweeper for invalidation
+3. **TanStack Query** — Client-side cache with 5-second `staleTime` for instant UI updates
+
+This means category and product pages load instantly from static cache, while data freshness is maintained through multiple cache layers.
+
+---
+
+## Media Delivery — Bunny CDN
+
+A custom WordPress PHP plugin rewrites all attachment URLs from the WordPress origin to Bunny CDN (`cdt-tcs.b-cdn.net`). This offloads media delivery to the CDN edge, reducing load on the WordPress server and improving image load times globally.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js (App Router), React, TypeScript, Bootstrap 5 + SCSS |
+| **Data Fetching** | TanStack Query, Axios |
+| **E-commerce** | WooCommerce (headless, REST API) |
+| **Payments** | Geidea (UAE payment gateway with card + digital wallet) |
+| **CMS** | WordPress (headless, custom post types) |
+| **Search** | Fuse.js (client-side fuzzy search) |
+| **Images** | PhotoSwipe (gallery), `@google/model-viewer` (3D products) |
+| **CDN** | Bunny CDN with custom WordPress offloading plugin |
+| **Analytics** | Google Analytics, Meta Pixel |
+| **CRM** | Zoho (newsletter subscriptions) |
+| **SEO** | Yoast SEO (WordPress) consumed via `yoast_head_json` |

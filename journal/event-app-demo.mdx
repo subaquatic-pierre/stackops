@@ -1,0 +1,100 @@
+---
+title: "Event Hoster — Conference & Event Management Platform"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, strapi, cms, postgresql, mui, ant-design, fullcalendar, typescript, events, qr-code, bilingual]
+image: /img/journal/event-app-demo-logo.svg
+featured: true
+description: >
+  Full-stack event management platform for conference organizers. Supports
+  multi-day events with speakers, agendas, attendee registration, ticket
+  generation, QR code check-in, certificates, messaging, and feedback
+  collection —   with bilingual English/Arabic support.
+website: https://event-app-demo.codaweb.co
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**Event Hoster** is a complete event management platform designed for conference organizers. Originally built as a demo for a 3-day conference in Ras Al Khaimah, UAE, it has evolved into a full-featured system that handles every aspect of running a professional event — from the public marketing website to attendee check-in at the venue.
+
+The platform supports English and Arabic (with RTL layout), role-based access control across seven user roles, and integrations for QR-based check-in, PDF certificate generation, ticket management, real-time messaging, and attendee feedback collection.
+
+---
+
+## Key Features
+
+- **Seven-role RBAC:** admin, member, author, organizer, speaker, visitor — each with custom dashboard menus and permissions
+- **QR-based check-in:** Camera scanner at venue entrances + QR generation on tickets and certificates
+- **PDF certificate generation:** Dynamic certificates with attendee name, session hours, and verifiable QR codes
+- **Multi-day agenda:** 3-day schedule with hall-based filtering (A, B, C)
+- **Bilingual support:** Full English and Arabic interface with RTL layout and flag-based language switcher
+- **Countdown timer:** Eye-catching landing page countdown to event date
+- **Feedback collection:** 12-question satisfaction survey for post-event analytics
+- **Notification system:** In-app notifications for profile updates, registrations, and abstract reviews
+
+---
+
+## Architecture
+
+A **three-frontend split** with a shared Strapi CMS backend:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | Public event website (bilingual EN/AR) |
+| **dashboard** (Next.js) | Admin and user dashboard with RBAC |
+| **api** (Strapi) | Headless CMS + custom API routes |
+| **PostgreSQL** | CMS database |
+
+This three-app split creates clean separation: the public site is optimized for visitors browsing event details, while the dashboard is a full-featured SPA for organizers and attendees.
+
+---
+
+## www — Public Event Website
+
+The public-facing site serves as the conference's digital storefront. Built with Next.js 13 Pages Router, it uses MUI v5 for the component library and `react-intl` for bilingual English/Arabic with RTL support.
+
+Landing page features a countdown timer to the event date. The agenda view displays a 3-day schedule filterable by hall (A/B/C). Speaker profiles show headshots and bios, and visitors can register, purchase tickets via Stripe, and verify certificates through a public lookup tool.
+
+---
+
+## dashboard — Admin & User Application
+
+The dashboard is a comprehensive management interface built with Next.js, Redux Toolkit for state, and FullCalendar for scheduling. Seven user roles each get customized navigation menus: **admin**, **member**, **author**, **organizer**, **speaker**, and **visitor**.
+
+### Dashboard Capabilities
+
+- **QR code scanner** — Camera-based attendee check-in using `html5-qrcode`
+- **Schedule management** — FullCalendar with drag-and-drop event CRUD
+- **Certificate generation** — Dynamic PDF certificates with embedded QR codes using `pdf-lib`
+- **Ticket generation** — QR-coded entry tickets for attendees
+- **Chat/messaging** — Real-time messaging between users with emoji picker
+- **Attendance tracking** — Per-day, per-hall records with online/in-person status
+- **Blog management** — CRUD for news articles
+- **Registration management** — Attendee approval and session abstract review
+
+---
+
+## Backend — Strapi CMS
+
+Strapi manages all content through a rich data model: Event, Profile, Abstract, Blog, AttendRecord, FeedbackForm, Message, Notification, TicketType, and ProfileLog collections. Custom API endpoints provide profile lookups, admin queries, and attendance record operations.
+
+Files are stored in Azure Blob Storage — particularly important for generated certificates and tickets that need durable, scalable storage. Emails are delivered through SendGrid in production, with a local MailDev instance for development testing.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend (www)** | Next.js, React, TypeScript, MUI v5, `react-intl` (EN/AR + RTL) |
+| **Frontend (dashboard)** | Next.js, Redux Toolkit, FullCalendar, Ant Design, `next-auth` |
+| **CMS / Backend** | Strapi (headless), PostgreSQL |
+| **QR / Barcode** | `html5-qrcode` for scanning, embedded QR in PDFs |
+| **PDF Generation** | `pdf-lib` for dynamic certificates and tickets |
+| **Payments** | Stripe client-side integration |
+| **Email** | SendGrid (prod), MailDev (dev) |
+| **Storage** | Azure Blob Storage |

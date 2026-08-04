@@ -1,0 +1,109 @@
+---
+title: "Busa Woodward — Experience Engineering Corporate Site"
+date: 2026-08-03
+authors:
+  - pierre
+tags:
+  [
+    nextjs,
+    react,
+    tailwind,
+    directus,
+    cms,
+    postgresql,
+    aws-ses,
+    corporate,
+    typescript,
+  ]
+image: /img/journal/busa-woodward-logo.svg
+description: >
+  Corporate website for Busa Woodward, a Dubai-based experience engineering
+  firm operating at the intersection of strategy, design, and identity — working
+  on mega-events, cultural districts, urban developments, and destination
+  projects.
+website: https://busawoodward.com
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Busa Woodward** is a Dubai-based "Experience Engineering" firm that shapes cultural narratives and public experiences — from mega-events and cultural districts to urban developments and destination-building projects. Their corporate website is a fully CMS-driven Next.js application that presents the firm's studio, projects, labs, people, story, and insights through a rich visual experience.
+
+Every page, every hero carousel, every testimonial, and every FAQ section is composed from **block-based content** managed in Directus — no content is hardcoded. When editors update content in the CMS, webhooks trigger Next.js ISR revalidation so changes go live immediately without a redeploy.
+
+---
+
+## Key Features
+
+- **Fully CMS-driven:** All pages are dynamic block compositions from Directus — editors have complete control without touching code
+- **WordPress migration:** Extensive redirect map handles legacy WordPress URLs seamlessly
+- **Complex hero carousel:** Multi-category navigation with animated sidebar tabs and Embla smooth scrolling
+- **Rich typography:** 58 custom OTF font files self-hosted for branded visual identity
+- **GitOps deployment:** GitHub Actions builds the Docker image, updates the GitOps repository, and ArgoCD syncs to Kubernetes
+- **SEO:** Dynamic sitemap, per-page metadata from CMS, OpenGraph images
+
+---
+
+## Architecture
+
+Busa Woodward follows the **headless CMS pattern** — a single Next.js frontend talking directly to Directus via its SDK:
+
+| Service                     | Role                                                      |
+| --------------------------- | --------------------------------------------------------- |
+| **www** (Next.js)           | Public-facing corporate website with block-rendered pages |
+| **directus** (Headless CMS) | Content management with 28 collections                    |
+| **PostgreSQL**              | CMS database                                              |
+
+No separate API backend — the frontend fetches everything from Directus SDK calls. Three minimal Next.js API routes handle the contact form (AWS SES), ISR revalidation webhooks, and cache busting.
+
+---
+
+## Frontend — Next.js App Router
+
+The frontend is built with Next.js App Router and styled with Tailwind CSS, featuring a custom purple theme. It ships with 58 self-hosted OTF font files across the Aktiv Grotesk and Gestura families.
+
+### Key Pages
+
+- **Home** — Hero carousel with sidebar tabs, language-section typewriter effect, project highlights
+- **Studio** — Firm philosophy and approach
+- **Projects** — Case study gallery with filtering
+- **Labs** — Innovation and experimental work
+- **Story** — Brand narrative and history
+- **People** — Team profiles and leadership
+- **Insights** — Articles, thought leadership, and blog content
+- **Expos** — Exhibition showcase
+- **Gallery** — Visual portfolio
+- **Contact** — Contact form with AWS SES email delivery
+
+### Notable Components
+
+- **HeroCarousel** — Multi-category Embla carousel with color-coded sidebar tab navigation and autoplay
+- **HomeLanguageSection** — Typewriter text animation for taglines
+- **FAQ accordion** — Expandable Q&A sections
+- **Testimonials slider** — Client testimonial carousel
+
+---
+
+## CMS — Directus Headless Backend
+
+Directus manages 28 collections including pages, projects, articles, team members, headers, footers, global settings, and reusable content blocks (hero sections, sliders, FAQs, testimonials, SEO metadata).
+
+Content flows to the frontend through Directus SDK calls. When editors publish changes, Directus fires a webhook to `/api/revalidate`, triggering Next.js Incremental Static Regeneration — the site rebuilds affected pages without a full deployment.
+
+Static assets (images, documents) are stored in a Hetzner S3 bucket and served through Bunny CDN (`cdt-busa-woodward.b-cdn.net`) for fast global delivery.
+
+---
+
+## Tech Stack
+
+| Layer             | Technology                                           |
+| ----------------- | ---------------------------------------------------- |
+| **Frontend**      | Next.js (App Router), React, Tailwind CSS            |
+| **CMS**           | Directus (headless), PostgreSQL                      |
+| **Email**         | AWS SES (contact form)                               |
+| **Storage**       | Hetzner S3 + Bunny CDN                               |
+| **ISR**           | Next.js on-demand revalidation via Directus webhooks |
+| **Orchestration** | Docker, Kubernetes, ArgoCD                           |

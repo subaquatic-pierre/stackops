@@ -1,0 +1,111 @@
+---
+title: "Champions Karate — Martial Arts Academy Platform"
+date: 2026-08-03
+authors:
+  - pierre
+tags:
+  [
+    nextjs,
+    react,
+    strapi,
+    cms,
+    postgresql,
+    mui,
+    fullcalendar,
+    typescript,
+    martial-arts,
+    academy,
+  ]
+image: /img/journal/champions-karate-logo.svg
+description: >
+  Full-stack web application for a Dubai martial arts academy offering karate,
+  kickboxing, self-defence, and fitness programs across five dojo locations.
+  Public marketing website plus internal admin dashboard with class scheduling
+  and contact management.
+website: https://www.champions-uae.com
+---
+
+{/* truncate */}
+
+---
+
+## Overview
+
+**Champions Karate** is a full-stack web platform for a martial arts academy operating across five locations in Dubai. The site serves two audiences: prospective students browsing the public marketing website, and academy staff managing the business through an internal admin dashboard.
+
+Built as a single Next.js application with a Strapi headless CMS backend, the platform handles everything from class scheduling and blog management to contact form processing and file uploads. The admin dashboard provides a complete business management interface with Redux state management, role-based access control, and a class timing system that accommodates multiple programs, age groups, and locations.
+
+---
+
+## Key Features
+
+- **Class scheduling system:** Enum-based scheduling covering multiple class types, age groups, 5 locations, and 7 days — all configurable from the admin dashboard
+- **Admin dashboard:** Full MUI-themed business management interface with Redux state management
+- **Contact form with reCAPTCHA:** Google reCAPTCHA Enterprise verification for spam prevention
+- **RTL/LTR layout support:** Ready for Arabic with `stylis-plugin-rtl`
+- **ISR with 10-second revalidation:** Static pages rebuild on content changes via Strapi webhooks
+- **AWS S3 integration:** File uploads stored in S3 for scalability
+
+---
+
+## Architecture
+
+A **www + api split** pattern with Strapi serving as both CMS and API:
+
+| Service           | Role                                                |
+| ----------------- | --------------------------------------------------- |
+| **www** (Next.js) | Public marketing site + admin dashboard             |
+| **api** (Strapi)  | Headless CMS, custom API routes, content management |
+| **PostgreSQL**    | CMS database (production)                           |
+
+The frontend communicates with Strapi through REST API calls at the `/cms` prefix. Strapi handles authentication via its built-in users-permissions plugin and provides content types for blog posts, contact forms, pages, class timings, profiles, and site settings.
+
+---
+
+## Frontend — Next.js Pages Router
+
+The frontend is a single Next.js 14 application using the Pages Router, styled with MUI v5 and enhanced with Framer Motion and AOS animations.
+
+### Public Site Pages
+
+- **Home** — Hero, program showcase, location finder, calls-to-action
+- **About** — Academy philosophy, instructors, facilities
+- **Contact** — Contact form with Google reCAPTCHA Enterprise verification
+- **Classes** — Program listings (Karate, Kickboxing, Self-Defence, Fitness, Tots, Private)
+- **Dojo Locations** — Five locations with maps
+- **Holiday Camps** — Seasonal program information
+- **Blog** — Articles and updates
+
+### Admin Dashboard
+
+The dashboard is an MUI-themed SPA-within-Next.js, managed through Redux for state. It provides:
+
+- **Dashboard overview** — Business metrics and activity
+- **Blog management** — CRUD for articles with rich content
+- **Classes management** — Schedule configuration for multiple programs, age groups, locations, and days
+- **Contact forms** — View and respond to inquiries
+- **Page editor** — Update site content without touching code
+- **Settings** — Site-wide configuration
+
+---
+
+## Backend — Strapi CMS
+
+Strapi manages all content through a REST API at `/cms`. Custom endpoints like `/cms/profiles/me` and `/cms/profiles/change-password` extend the built-in users-permissions system. Lifecycle hooks automatically create user profiles on registration. The `strapi-plugin-email-designer` plugin provides customizable email templates for automated communications.
+
+Content types include Blog, ContactForm, Page, ClassTiming, Profile, and SiteSetting — giving non-technical staff full control over the website's content.
+
+---
+
+## Tech Stack
+
+| Layer             | Technology                                                                     |
+| ----------------- | ------------------------------------------------------------------------------ |
+| **Frontend**      | Next.js (Pages Router), React, TypeScript, MUI v5, Emotion, Framer Motion, AOS |
+| **Calendar**      | FullCalendar for class schedule visualization                                  |
+| **CMS / Backend** | Strapi (headless), PostgreSQL                                                  |
+| **Auth**          | Strapi users-permissions plugin                                                |
+| **Email**         | Strapi Email Designer plugin                                                   |
+| **CAPTCHA**       | Google reCAPTCHA Enterprise                                                    |
+| **Storage**       | AWS S3 for uploads                                                             |
+| **State**         | Redux for admin dashboard state                                                |

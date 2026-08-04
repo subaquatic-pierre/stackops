@@ -1,0 +1,109 @@
+---
+title: "Maven Platform — Bill of Quantities Management"
+date: 2026-08-03
+authors:
+  - pierre
+tags: [nextjs, react, express, dotnet, csharp, postgresql, mui, tanstack-table, typescript, construction, procurement, excel]
+image: /img/journal/maven-platform-logo.png
+featured: true
+description: >
+  A Bill of Quantities management platform for the construction and procurement
+  industry. Manages projects, work orders, BOQs, work items, and checklists with
+  a specialized .NET export engine   producing formatted Excel and PDF documents.
+website: https://erp.mavenpdc.cloud
+---
+{/* truncate */}
+
+---
+
+## Overview
+
+**Maven Platform** is a specialized Bill of Quantities (BOQ) management system built for the construction and procurement industry. It handles the entire BOQ workflow — from project creation and work order generation to work item classification, checklist management, and professional document export.
+
+What sets Maven apart is its **.NET BOQ Exporter** — a dedicated microservice that generates commercial-grade multi-sheet Excel (XLSX) and PDF documents with professional formatting: table of contents, preambles, section sheets, page numbers, watermarks, and A4 print layouts. This is powered by Aspose.Cells, a licensed Excel generation engine.
+
+---
+
+## Key Features
+
+- **Five-role RBAC:** SuperAdmin, TeamManager, TeamLeader, QS, OfficeManager with entity-level permissions
+- **BOQ Export Engine:** Commercial-grade XLSX/PDF generation with Aspose.Cells — multi-sheet, table of contents, watermarks, A4 formatting
+- **TanStack React Table:** Performant data grids with sorting, filtering, and pagination for large BOQ datasets
+- **Flexible query protocol:** `$and`/`$or` JSON filters, population, pagination, fuzzy search, soft delete — all through a clean REST API
+- **Drag-and-drop editing:** DnD Kit for interactive reordering of work items and sections
+- **QR code tracking:** Generated QR codes on uploads and documents for traceability
+- **Dual deployment mode:** Kubernetes for staging, bare-metal VMs via systemd for production (with Cloudflare load balancing)
+
+---
+
+## Architecture
+
+A **polyglot three-service system** with OxideAuth for authentication:
+
+| Service | Role |
+|---------|------|
+| **www** (Next.js) | Administrative dashboard |
+| **api** (Express.js) | REST API with 25 service files |
+| **BOQExporter** (.NET) | Professional XLSX/PDF document generation |
+| **PostgreSQL** | Primary database |
+
+The API uses five role types (SuperAdmin, TeamManager, TeamLeader, QS, OfficeManager) with fine-grained permissions on every entity. Auth is delegated to OxideAuth.
+
+---
+
+## www — Dashboard
+
+The frontend is a Next.js App Router application with MUI v7, MUI X Pro (Tree View), and TanStack React Table for performant data grids. It supports English and Arabic with full RTL layout.
+
+### Dashboard Sections
+
+- **Projects & Clients** — Project lifecycle management and client relationships
+- **Work Orders & BOQs** — The core BOQ workflow
+- **Work Items** — Classified line items within BOQs
+- **Templates** — Reusable BOQ templates for standardization
+- **Checklists** — QA/QC checklists with response tracking
+- **Section Editor** — BOQ section organization
+- **Suppliers, Tenders & Bids** — Procurement workflow
+- **Invoice** — Billing and payment tracking
+- **Variable Option Sets** — Dynamic pricing configuration
+- **Settings & Users** — Platform administration
+
+### Rich Content Editing
+
+The dashboard includes TipTap for rich text editing (with color, highlighting, images, alignment) and DnD Kit for drag-and-drop reordering. Puck CMS (`@measured/puck`) provides a visual page builder for custom layouts.
+
+---
+
+## api — Express.js Backend
+
+The Express.js API uses MikroORM for database access with 22 entity models and 22+ route sets. A **flexible query protocol** supports `$and`/`$or` JSON filters, population, pagination, fuzzy search, and soft deletion — giving the frontend powerful querying without exposing SQL.
+
+All routes enforce OxideAuth-based RBAC with permissions like `maven.boq.create` and `maven.ui.admin`. The API also handles file uploads with drag-and-drop support, QR code generation for document tracking, and integration with the .NET export engine.
+
+---
+
+## BOQExporter — .NET 8 Export Engine
+
+The BOQ Exporter is a .NET 8 ASP.NET Core Minimal API that uses Aspose.Cells (licensed) to generate professional BOQ documents:
+
+- **Multi-sheet XLSX:** Cover page, table of contents, preambles, individual section sheets, summary sheet
+- **Custom formatting:** Fonts, colors, borders, print area, A4 portrait, page numbers, watermarks
+- **PDF generation:** Via SkiaSharp for non-editable distribution
+- **Storage integration:** Uploads generated files to Hetzner S3 and returns download URLs
+
+Endpoints: `POST /export-boq`, `POST /export-section`, `GET /ping`. The production Docker image includes LibreOffice Calc for server-side document format conversion.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js (App Router), React, TypeScript, MUI v7, TanStack Table, ApexCharts |
+| **Rich Editing** | TipTap (rich text), DnD Kit (drag-and-drop), Puck CMS (page builder) |
+| **API Backend** | Express.js, TypeScript, MikroORM |
+| **Export Engine** | .NET 8 C#, ASP.NET Core Minimal API, Aspose.Cells, SkiaSharp |
+| **Database** | PostgreSQL |
+| **Auth** | OxideAuth (JWT-based centralized auth) |
+| **Storage** | Hetzner S3, Azure Blob (alternative) |
+| **i18n** | English + Arabic with RTL |
