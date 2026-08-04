@@ -1,6 +1,6 @@
 ---
 title: "PostManager — Python Library for Blog Post & Media Management"
-date: 2026-07-17
+date: 2023-07-17
 authors:
   - pierre
 tags: [python, library, storage, aws, s3, blog, content-management, pypi]
@@ -61,29 +61,29 @@ A **clean adapter/proxy architecture** separating domain objects from storage:
                                               (pathlib)          (boto3 S3)
 ```
 
-| Component             | Role                                              |
-| --------------------- | ------------------------------------------------- |
-| `StorageInterface`    | Abstract base class — `get_json`, `save_json`, `save_bytes`, `get_bytes`, `delete_file`, `list_files` |
-| `StorageProxy`        | Abstract bridge holding `root_dir` + `client`, extended by concrete implementations |
-| `StorageAdapter`      | Base class all domain objects extend; delegates to a `StorageProxy`; provides `new_storage_proxy()` for scoped child operations |
-| `PostManager`         | Root orchestrator managing an index of all posts |
-| `Post`                | Single post — contains `MetaData` + `MediaData` + content |
-| `MetaData`            | Dynamic attribute bag with JSON serialization |
-| `MediaData`           | Base64 Data URL media manager with buffered operations |
+| Component          | Role                                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `StorageInterface` | Abstract base class — `get_json`, `save_json`, `save_bytes`, `get_bytes`, `delete_file`, `list_files`                           |
+| `StorageProxy`     | Abstract bridge holding `root_dir` + `client`, extended by concrete implementations                                             |
+| `StorageAdapter`   | Base class all domain objects extend; delegates to a `StorageProxy`; provides `new_storage_proxy()` for scoped child operations |
+| `PostManager`      | Root orchestrator managing an index of all posts                                                                                |
+| `Post`             | Single post — contains `MetaData` + `MediaData` + content                                                                       |
+| `MetaData`         | Dynamic attribute bag with JSON serialization                                                                                   |
+| `MediaData`        | Base64 Data URL media manager with buffered operations                                                                          |
 
 ---
 
 ## Tech Stack
 
-| Layer              | Technology                                      |
-| ------------------ | ----------------------------------------------- |
-| **Language**       | Python 3.9+                                     |
-| **Package mgmt**   | setuptools, `setup.cfg`                         |
-| **Cloud storage**  | AWS S3 via `boto3`                              |
-| **Local storage**  | `pathlib.Path`                                  |
-| **Type checking**  | mypy (strict mode), flake8                      |
-| **Testing**        | pytest, coverage (Codecov)                       |
-| **Docs**           | MkDocs Material, mkdocstrings (Google-style)    |
-| **CI/CD**          | GitHub Actions (6 workflows)                    |
-| **Distribution**   | PyPI (v0.1.6)                                   |
-| **License**        | MIT                                             |
+| Layer             | Technology                                   |
+| ----------------- | -------------------------------------------- |
+| **Language**      | Python 3.9+                                  |
+| **Package mgmt**  | setuptools, `setup.cfg`                      |
+| **Cloud storage** | AWS S3 via `boto3`                           |
+| **Local storage** | `pathlib.Path`                               |
+| **Type checking** | mypy (strict mode), flake8                   |
+| **Testing**       | pytest, coverage (Codecov)                   |
+| **Docs**          | MkDocs Material, mkdocstrings (Google-style) |
+| **CI/CD**         | GitHub Actions (6 workflows)                 |
+| **Distribution**  | PyPI (v0.1.6)                                |
+| **License**       | MIT                                          |

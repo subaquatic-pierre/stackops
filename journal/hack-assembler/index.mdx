@@ -1,9 +1,10 @@
 ---
 title: "Hack Assembler — Two-Pass Assembler in Rust"
-date: 2026-02-07
+date: 2023-02-07
 authors:
   - pierre
-tags: [rust, assembler, hack, nand2tetris, systems-programming, binary-translation]
+tags:
+  [rust, assembler, hack, nand2tetris, systems-programming, binary-translation]
 image: /img/journal-placeholder.png
 featured: false
 description: >
@@ -65,11 +66,11 @@ A clean modular pipeline with clear separation of concerns:
 
 ## Tech Stack
 
-| Layer            | Technology                        |
-| ---------------- | --------------------------------- |
-| **Language**     | Rust (edition 2021)               |
-| **Dependencies** | None (stdlib only)               |
+| Layer            | Technology                              |
+| ---------------- | --------------------------------------- |
+| **Language**     | Rust (edition 2021)                     |
+| **Dependencies** | None (stdlib only)                      |
 | **Build**        | `cargo build --release` or `make build` |
 | **Test data**    | `data/Pong.asm` (28,375-line Hack game) |
-| **Output**       | `out.hack` (16-bit binary per line) |
-| **License**      | MIT                              |
+| **Output**       | `out.hack` (16-bit binary per line)     |
+| **License**      | MIT                                     |

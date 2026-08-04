@@ -1,9 +1,19 @@
 ---
 title: "PyCrypto — Bitcoin ECC & Transaction Library in Python"
-date: 2023-11-22
+date: 2023-03-22
 authors:
   - pierre
-tags: [python, bitcoin, cryptography, ecc, blockchain, secp256k1, ecdsa, transactions]
+tags:
+  [
+    python,
+    bitcoin,
+    cryptography,
+    ecc,
+    blockchain,
+    secp256k1,
+    ecdsa,
+    transactions,
+  ]
 image: /img/journal-placeholder.png
 featured: false
 description: >
@@ -43,10 +53,10 @@ The library requires no compiled extensions — all finite field arithmetic, poi
 
 A **two-layer architecture** separating pure cryptography from Bitcoin wire-format parsing:
 
-| Layer              | Role                                                    |
-| ------------------ | ------------------------------------------------------- |
-| **ECC Core**       | `FieldElement` → `Point`/`S256Point` → `PrivateKey` → `Signature` |
-| **Transaction**    | `Transaction`, `Input`, `Output`, `Script`, `Address`, `TxFetcher` |
+| Layer           | Role                                                               |
+| --------------- | ------------------------------------------------------------------ |
+| **ECC Core**    | `FieldElement` → `Point`/`S256Point` → `PrivateKey` → `Signature`  |
+| **Transaction** | `Transaction`, `Input`, `Output`, `Script`, `Address`, `TxFetcher` |
 
 ```
 ┌──────────────────────────────────┐
@@ -71,12 +81,12 @@ A **two-layer architecture** separating pure cryptography from Bitcoin wire-form
 
 ## Tech Stack
 
-| Layer            | Technology                                      |
-| ---------------- | ----------------------------------------------- |
-| **Language**     | Python 3 (pure, no compiled extensions)         |
+| Layer            | Technology                                              |
+| ---------------- | ------------------------------------------------------- |
+| **Language**     | Python 3 (pure, no compiled extensions)                 |
 | **Crypto curve** | secp256k1 (Bitcoin's curve, prime P = 2²⁵⁶ - 2³² - 977) |
-| **Hashing**      | SHA-256, RIPEMD-160 (stdlib + low-level ops)    |
-| **HTTP client**  | `requests` (for Blockstream API)                |
-| **Config**       | `python-dotenv` (API keys)                      |
-| **Testing**      | `unittest` (stdlib)                             |
-| **License**      | MIT                                             |
+| **Hashing**      | SHA-256, RIPEMD-160 (stdlib + low-level ops)            |
+| **HTTP client**  | `requests` (for Blockstream API)                        |
+| **Config**       | `python-dotenv` (API keys)                              |
+| **Testing**      | `unittest` (stdlib)                                     |
+| **License**      | MIT                                                     |
