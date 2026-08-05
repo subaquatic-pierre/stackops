@@ -14,6 +14,8 @@ Kustomize is a Kubernetes-native configuration management tool that lets you cus
 
 ## Directory layout
 
+The base + overlays layout is the core organizing principle of Kustomize. The base holds resources shared by every environment; each overlay directory references that base and layers environment-specific patches and settings on top of it.
+
 ```
 ├── base/
 │   ├── kustomization.yaml
@@ -34,6 +36,8 @@ Kustomize is a Kubernetes-native configuration management tool that lets you cus
 
 ### Minimal base
 
+At minimum, a `kustomization.yaml` lists the resources to include. This is enough for a base whose manifests are deployed unchanged across all environments.
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -44,6 +48,8 @@ resources:
 ```
 
 ### Full-featured base
+
+A full base can do much more: set a namespace for every resource, stamp shared labels and annotations across the whole set, prefix or suffix resource names, and override image tags — all before any overlay is involved.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -209,6 +215,8 @@ patches:
 
 ### ConfigMap from literals
 
+Instead of hand-writing ConfigMap YAML, use `configMapGenerator` to build one from key=value literals or files. Kustomize appends a content hash to the generated name, so changing a value automatically triggers a rolling restart of every consumer.
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -228,6 +236,8 @@ configMapGenerator:
 ```
 
 ### Secret from files and literals
+
+`secretGenerator` works the same way for Secrets, building them from literals or files such as a TLS keypair or a Docker config. Set `type` to control the Secret kind — for example, `kubernetes.io/dockerconfigjson` for registry credentials.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -256,6 +266,8 @@ When `disableNameSuffixHash` is `false` (the default), Kustomize appends a conte
 
 ### Name manipulation
 
+`namePrefix` and `nameSuffix` transform every resource name in the kustomization. This is how you deploy the same base twice into one cluster — for example, per-team namespaces — without resource-name collisions.
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -269,6 +281,8 @@ nameSuffix: -prod
 ```
 
 ### Replacements (advanced field substitution)
+
+Replacements copy a field from one resource into arbitrary locations of another — for example, injecting a Service's name as an environment variable in a Deployment. This is the modern mechanism that replaces the older `vars` feature.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -290,6 +304,8 @@ replacements:
 
 ### Vars (legacy — prefer replacements)
 
+`vars` was the original way to inject a value from one resource into another, but it required `$()`-style references in the YAML and had edge cases with quoting and escaping. Keep it in mind only when reading older kustomizations — new configurations should use `replacements`.
+
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -305,6 +321,8 @@ vars:
 ```
 
 ## Image transformation
+
+The `images` transformer rewrites image names, tags, and digests across every container that references them. It's the standard way to promote a new version through environments or to repoint images at a private registry without editing individual manifests.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -326,6 +344,8 @@ images:
 ```
 
 ## Common commands
+
+Kustomize's CLI — also built into `kubectl` via the `-k` flag — renders the final manifest set from a base or overlay. Use `build` to preview the rendered YAML, `diff` to compare it against the live cluster before applying, and `apply -k` to deploy.
 
 ```bash
 # Preview rendered manifests (dry run)
@@ -352,6 +372,8 @@ kustomize build overlays/production/ | kubectl apply --dry-run=client -f -
 ## Real-world example: base + production overlay
 
 ### Base: `base/deployment.yaml`
+
+This is the shared Deployment manifest. It defines the application with modest default resource requests — anything environment-specific (replicas, resources, health checks) is layered on later by overlays.
 
 ```yaml
 apiVersion: apps/v1
@@ -386,6 +408,8 @@ spec:
 
 ### Base: `base/service.yaml`
 
+The base Service selects the pods by the `app: my-app` label applied by the base Deployment. When an overlay adds `commonLabels` or a `namePrefix`, Kustomize updates the Service's selector and target names consistently.
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -400,6 +424,8 @@ spec:
 ```
 
 ### Base: `base/kustomization.yaml`
+
+The base kustomization ties the Deployment and Service together, stamps them with shared `commonLabels`, and pins the base image tag to `1.5.0`. Overlays inherit all of this and only change what differs per environment.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -419,6 +445,8 @@ images:
 ```
 
 ### Production overlay: `overlays/production/kustomization.yaml`
+
+The production overlay references the base, then layers on environment-specific changes: a `production` namespace, a `prod-` name prefix, an environment label, production config values, and patches that raise replicas and resource limits.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -448,6 +476,8 @@ configMapGenerator:
 ```
 
 ### Production patches
+
+The patches the overlay references apply the production-specific values. Each is a small file that overrides only the fields that differ from the base:
 
 `overlays/production/patch-replicas.yaml`:
 

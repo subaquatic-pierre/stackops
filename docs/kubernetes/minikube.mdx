@@ -16,12 +16,16 @@ Minikube runs a single-node Kubernetes cluster locally on macOS, Linux, or Windo
 
 ### Linux (x86-64)
 
+Download the minikube binary for your architecture and install it into `/usr/local/bin`. This step is the same on every Linux distribution regardless of which virtualization driver you plan to use.
+
 ```bash
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 ```
 
 ### macOS (Intel / Apple Silicon)
+
+On macOS, pick the binary that matches your chip — amd64 for Intel Macs, arm64 for Apple Silicon. The rest of the install is identical either way.
 
 ```bash
 # Intel
@@ -34,6 +38,8 @@ sudo install minikube-darwin-arm64 /usr/local/bin/minikube
 ```
 
 ### Verify
+
+Confirm the binary was installed correctly before going further. A version string that matches the latest release means you're ready to start a cluster.
 
 ```bash
 minikube version
@@ -63,6 +69,8 @@ minikube config set driver docker
 
 ### Starting a cluster
 
+`minikube start` creates and boots your local cluster, downloading the Kubernetes components on first run. Pass flags to size the VM, choose a driver, or pin a Kubernetes version — settings you pass here become the cluster's defaults.
+
 ```bash
 # Basic start
 minikube start
@@ -79,6 +87,8 @@ minikube start --nodes=2
 
 ### Cluster status
 
+`minikube status` reports the health of the host VM and the Kubernetes components inside it. Whenever kubectl behaves oddly, this is the quickest way to tell whether the problem is the cluster or your client configuration.
+
 ```bash
 minikube status
 # minikube
@@ -91,6 +101,8 @@ minikube status
 
 ### Stopping, pausing, deleting
 
+These commands manage the cluster lifecycle. `stop` shuts the cluster down but preserves its state, `pause` suspends the VM for the fastest possible resume, and `delete` tears everything down — use it to reclaim disk space or start from a clean slate.
+
 ```bash
 minikube stop          # Stop the cluster (preserves state)
 minikube pause         # Pause the VM (fast resume)
@@ -100,6 +112,8 @@ minikube delete --all  # Delete all clusters
 ```
 
 ### Multiple profiles (clusters)
+
+Profiles let you run several independent clusters side by side — for example, one per project or one per Kubernetes version. Each profile gets its own kubeconfig context named after the profile.
 
 ```bash
 minikube start -p dev-cluster
@@ -128,12 +142,16 @@ kubectl get nodes
 
 ### Dashboard
 
+The Kubernetes web dashboard shows cluster state, workloads, and logs in a browser. It's great for learning and for exploring resources interactively without typing kubectl commands.
+
 ```bash
 minikube dashboard                        # Opens in browser
 minikube dashboard --url                  # Print URL without opening
 ```
 
 ### SSH into the node
+
+`minikube ssh` drops you into the cluster's VM. Use it to inspect the node filesystem, the container runtime, or any component running inside the VM.
 
 ```bash
 minikube ssh              # SSH into the VM
@@ -188,6 +206,8 @@ docker build -t my-app:v1 .
 
 ### Registry addon
 
+The `registry` addon runs a private Docker registry inside the cluster. Push images to it from your machine, then reference them from pods as `localhost:5000/<image>` — no external registry required.
+
 ```bash
 minikube addons enable registry
 
@@ -204,6 +224,8 @@ docker push localhost:5000/my-app:v1
 ## Networking
 
 ### Exposing services
+
+Minikube offers three ways to reach a service: NodePort via `minikube service`, LoadBalancer via `minikube tunnel`, and Ingress for host-based routing. Pick based on whether you need a browser URL, a stable external IP, or domain-based routing.
 
 ```bash
 # NodePort — accessible on the minikube VM IP
@@ -222,11 +244,13 @@ minikube ip                           # Use this IP in /etc/hosts or curl
 
 ### Common networking commands
 
+These commands show the VM's IP and which services are exposed — the quickest way to figure out where your cluster is reachable from.
+
 ```bash
 minikube ip          # VM IP address
 minikube ssh "ip a"  # All interfaces inside the VM
 minikube service list                   # All exposed services
-kubectl cluster-info                    # Cluster endpoint URLs
+kubectl cluster-info                    # API server and service endpoint URLs
 ```
 
 ## Volumes and Storage
@@ -269,6 +293,8 @@ minikube mount /home/user/projects:/data
 
 ### Cluster won't start
 
+If the cluster fails to boot, start by reading the logs — they usually name the failing component directly. Verbose startup output and a clean recreate isolate driver or resource problems.
+
 ```bash
 # Check logs
 minikube logs
@@ -287,6 +313,8 @@ minikube start --driver=docker
 
 ### kubectl can't connect
 
+Connection failures are usually a stale kubeconfig or a stopped VM. Verify which context kubectl is using, then let `update-context` regenerate it against the running cluster.
+
 ```bash
 # Verify kubeconfig
 kubectl config view --minify
@@ -300,6 +328,8 @@ minikube status
 ```
 
 ### Ingress not resolving
+
+Locally, an ingress host like `myapp.local` has no DNS entry pointing at the cluster. Enable the `ingress-dns` addon or add a `/etc/hosts` entry so requests resolve to the minikube VM IP.
 
 ```bash
 # Enable DNS addon for local resolution
@@ -315,6 +345,8 @@ kubectl describe ingress <name>
 
 ### Image pull failures
 
+Pods can only pull images that exist in minikube's Docker daemon — your host daemon isn't visible to the cluster. Make sure the image was built with `minikube docker-env`, or set `imagePullPolicy: Never` for locally built images.
+
 ```bash
 # Check if image is in minikube's Docker
 eval $(minikube docker-env)
@@ -326,6 +358,8 @@ docker images | grep my-app
 ```
 
 ### VM disk full
+
+When the VM runs out of disk, pods get evicted and the cluster starts misbehaving. Check usage first, then reclaim space by pruning images or recreate the VM with a larger `--disk-size`.
 
 ```bash
 minikube ssh "df -h"
@@ -340,6 +374,8 @@ docker system prune -a
 ```
 
 ## Quick Reference — Common Commands
+
+A condensed list of the most-used minikube commands, grouped by task — bookmark this section for everyday work.
 
 ```bash
 # Start / Stop

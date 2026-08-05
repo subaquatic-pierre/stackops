@@ -1,51 +1,59 @@
 ---
 sidebar_position: 1
 title: 'Kubernetes Deployment Manifest Examples'
-description: 'Reference Deployment manifests for common workload patterns.'
+description: 'Reference Deployment manifests for common workload patterns with detailed field explanations and best practices.'
 tags: [kubernetes, k8s, reference, manifests, deployments]
-last_updated: '2026-08-04'
+last_updated: '2026-08-05'
 ---
 
 # Kubernetes Deployment Manifest Examples
 
 ## Overview
 
-A Deployment manages a set of identical Pods and provides declarative updates. It is the default controller for stateless workloads in Kubernetes.
+A **Deployment** is the standard Kubernetes controller for stateless workloads. It manages a set of identical Pods, provides declarative rolling updates, and retains a revision history for rollback. Every Deployment creates a ReplicaSet underneath and reconciles the current state of the cluster toward the desired state defined in the manifest.
 
 ## Key concepts
 
-- **ReplicaSet**: Created and managed by the Deployment to ensure the desired number of Pods are running.
-- **Rolling update**: The default strategy for updating Pods without downtime.
-- **Revision history**: Deployments retain previous ReplicaSets for rollback.
-- **Selector**: Labels used to match Pods owned by the Deployment.
+- **ReplicaSet** — Created and managed automatically by the Deployment. Ensures exactly `replicas` Pods are running at any time.
+- **Rolling update** — The default update strategy. Replaces old Pods with new ones gradually, keeping the application available throughout. Controlled by `maxSurge` (how many extra Pods can be created during the update) and `maxUnavailable` (how many Pods can be unavailable).
+- **Revision history** — Deployments retain previous ReplicaSets (default: 10). You can roll back to any previous revision with `kubectl rollout undo`.
+- **Selector** — The `matchLabels` field defines which Pods the Deployment manages. This must match the labels in the Pod template.
+- **Pod template** — The `spec.template` section defines the Pod spec used for every replica. This is identical to a standalone Pod manifest.
 
 ## Basic Deployment
 
+This is a minimal, production-ready Deployment manifest. It runs 3 replicas of an application listening on port 8080. The `selector.matchLabels` and `template.metadata.labels` must match — this is how the Deployment knows which Pods to manage.
+
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: apps/v1           # API group and version (apps/v1 is stable)
+kind: Deployment              # Resource type
 metadata:
-  name: app
-  labels:
+  name: app                   # Name of the Deployment (must be unique within namespace)
+  labels:                     # Labels on the Deployment itself (used for filtering/discovery)
     app: app
 spec:
-  replicas: 3
+  replicas: 3                 # Desired number of identical Pods
   selector:
-    matchLabels:
+    matchLabels:              # Pods with these labels belong to this Deployment
       app: app
-  template:
+  template:                   # Pod template — every replica is created from this spec
     metadata:
-      labels:
+      labels:                 # Labels applied to each Pod (MUST match selector above)
         app: app
     spec:
       containers:
-        - name: app
-          image: app:1.0.0
+        - name: app           # Container name (used for log access, exec, etc.)
+          image: app:1.0.0    # Container image with tag (pin a specific version, not :latest)
           ports:
-            - containerPort: 8080
+            - containerPort: 8080  # Port the application listens on inside the container
 ```
 
 ## Deployment with resource limits
+
+Adding `resources.requests` and `resources.limits` tells the scheduler how much CPU and memory each Pod needs, and caps what the Pod can consume at runtime. This is critical for cluster stability — without limits, a single misbehaving Pod can starve other workloads.
+
+- **requests**: The amount of CPU/memory the scheduler reserves for this Pod. The Pod is guaranteed this amount. Used to decide which Node the Pod lands on.
+- **limits**: The maximum the Pod is allowed to use. If the container exceeds its memory limit, it is OOMKilled. If it exceeds its CPU limit, it is throttled (but not killed).
 
 ```yaml
 apiVersion: apps/v1
@@ -70,20 +78,43 @@ spec:
           ports:
             - containerPort: 8080
           resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "200m"
+            requests:              # Guaranteed resources — scheduler uses these to place Pods
+              memory: "128Mi"      # 128 mebibytes of RAM
+              cpu: "100m"          # 100 millicpu = 0.1 CPU core
+            limits:                # Hard ceiling — Pod cannot exceed these
+              memory: "256Mi"      # OOMKilled if usage exceeds 256 Mi
+              cpu: "200m"          # Throttled if usage exceeds 200 millicpu
 ```
+
+### Setting the right values
+
+| Resource | How to determine |
+|---|---|
+| **Memory requests** | Use `kubectl top pod` over time to observe steady-state usage; set requests to the 75th percentile. |
+| **Memory limits** | Add a safety margin above requests (2–4×). Start high, then tighten based on observed peaks. |
+| **CPU requests** | Set to the minimum the Pod needs to function. Many apps work fine with `50m–100m`. |
+| **CPU limits** | Optional — consider omitting CPU limits unless you need to cap noisy neighbors. Throttling can cause latency spikes. |
+
+## Decision tree: when to use a Deployment vs. other controllers
+
+| Workload type | Recommended controller |
+|---|---|
+| Stateless web app or API | **Deployment** |
+| Stateful database or queue (ordered, persistent identity) | **StatefulSet** |
+| One-per-node agent (log collector, monitoring) | **DaemonSet** |
+| One-shot task (migration, batch job) | **Job** |
+| Recurring task (cron) | **CronJob** |
 
 ## Common locations
 
-- Workload definitions: `deployments/`, `workloads/`, or `base/` in a Kustomize or Helm layout.
-- Production overrides: `overlays/production/` in a Kustomize repository.
-- Chart templates: `templates/deployment.yaml` in a Helm chart.
+Where to store Deployment manifests in a repository depends on the tooling used to apply them:
+
+- **Standalone manifests**: `deployments/`, `workloads/`, or `base/` in a Kustomize or raw-manifest layout.
+- **Kustomize overlays**: `overlays/production/` — inherits from a base and overrides replicas, image tags, and resource limits per environment.
+- **Helm charts**: `templates/deployment.yaml` — uses Go templates to inject values from `values.yaml`.
 
 ## See also
 
-- [Force Delete a Stuck Kubernetes Pod](./force-delete-stuck-pod.mdx)
+- [Force Delete a Stuck Kubernetes Pod](./force-delete-stuck-pod.mdx) — troubleshooting stuck Pods
+- [Kubernetes Configuration & Node Setup](./config.mdx) — cluster-level configuration
+- [Kubernetes Common Design Patterns](./common-design-patterns.mdx) — anti-affinity, topology spread, and health probes

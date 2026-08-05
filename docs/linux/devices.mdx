@@ -16,6 +16,8 @@ In Linux, everything is a file — including devices. Physical hardware, virtual
 
 ### Block devices (disks, partitions)
 
+`lsblk` lists block devices and their partitions in a tree view, while the `ls -l` variants show the raw device nodes themselves.
+
 ```bash
 lsblk                                # tree view of all block devices
 lsblk -f                             # include filesystem type and UUID
@@ -28,6 +30,8 @@ ls -l /dev/vd*                       # VirtIO (virtual) block devices
 
 ### USB devices
 
+`lsusb` enumerates the USB buses and the devices attached to them — with `-t` as a hierarchy tree and `-v` with full descriptor details.
+
 ```bash
 lsusb                                # list USB buses and devices
 lsusb -t                             # tree view of USB hierarchy
@@ -36,6 +40,8 @@ lsusb -s 001:003                     # specific bus:device
 ```
 
 ### PCI devices
+
+`lspci` lists devices on the PCI bus — the standard way to identify network adapters, graphics cards, and other add-in hardware, including which kernel driver each uses.
 
 ```bash
 lspci                                # list all PCI devices
@@ -48,6 +54,8 @@ lspci | grep -i vga                  # list graphics cards
 
 ### CPU information
 
+`lscpu` summarizes CPU architecture, cores, and features, backed by the raw `/proc/cpuinfo` data.
+
 ```bash
 lscpu                                # CPU architecture details
 cat /proc/cpuinfo                    # raw CPU info
@@ -58,6 +66,8 @@ lscpu | grep "CPU(s)"
 
 ### Memory information
 
+`lsmem` and `free` describe system memory from the OS perspective, while `dmidecode -t memory` reports the physical sticks — their size, speed, and slots.
+
 ```bash
 lsmem                                # memory block list
 free -h                              # memory summary
@@ -66,6 +76,8 @@ dmidecode -t memory                  # physical memory details (requires root)
 ```
 
 ### All hardware summary
+
+`lshw` gives a comprehensive hardware inventory, filterable by class (disk, network, memory) and exportable to HTML.
 
 ```bash
 lshw -short                          # concise hardware list (install lshw)
@@ -77,6 +89,8 @@ lshw -html > hardware.html           # export to HTML
 ## Device files (/dev)
 
 ### Device node types
+
+Device nodes come in two kinds: character devices transfer data byte by byte, and block devices transfer data in fixed-size blocks. The first letter of `ls -l` output, plus the major/minor numbers, identify them.
 
 ```bash
 ls -l /dev | head -10
@@ -104,6 +118,8 @@ ls -l /dev | head -10
 
 ### Device by-* directories
 
+The `/dev/disk/by-*` directories contain symlinks to disks keyed by stable attributes — id, UUID, label, or physical path — which are safer than raw device names in configuration.
+
 ```bash
 /dev/disk/by-id/                     # by manufacturer/model/serial
 /dev/disk/by-uuid/                   # by filesystem UUID
@@ -119,6 +135,8 @@ blkid /dev/sda1
 
 ### Listing modules
 
+`lsmod` shows which kernel modules (drivers) are loaded, and `modinfo` details a module's description, parameters, and dependencies.
+
 ```bash
 lsmod                                # list loaded kernel modules
 lsmod | grep nvidia                  # check if a module is loaded
@@ -127,6 +145,8 @@ modinfo -d ext4                      # module description
 ```
 
 ### Loading and unloading modules
+
+`modprobe` loads a driver with dependency resolution, `modprobe -r` unloads it, and parameters or blacklists are set at load time.
 
 ```bash
 # Load a module
@@ -146,6 +166,8 @@ echo "blacklist nouveau" > /etc/modprobe.d/blacklist-nouveau.conf
 
 ### Module configuration files
 
+Boot-time module loading and module options are configured in `/etc/modules`, `/etc/modules-load.d/`, and `/etc/modprobe.d/`.
+
 ```bash
 /etc/modules                         # modules to load at boot (Debian)
 /etc/modules-load.d/                 # systemd module loading
@@ -159,6 +181,8 @@ options e1000e InterruptThrottleRate=3000
 ## Hardware inspection commands
 
 ### Detailed hardware info
+
+`dmidecode` reads the DMI/SMBIOS table for physical hardware facts — system model, RAM, CPU, and BIOS. `sensors` and `hddtemp` add temperature readings.
 
 ```bash
 dmidecode                            # DMI/SMBIOS table (BIOS, system, baseboard)
@@ -175,6 +199,8 @@ smartctl -a /dev/sda                 # S.M.A.R.T. drive health (install smartmon
 
 ### USB device details
 
+`usb-devices` prints a verbose USB device tree, and `dmesg` shows the kernel's view of USB enumeration.
+
 ```bash
 usb-devices                          # verbose USB device tree
 lsusb -v -s 001:003                  # verbosity for specific device
@@ -182,6 +208,8 @@ dmesg | grep -i usb                  # kernel messages about USB devices
 ```
 
 ### Network device details
+
+`ethtool` inspects a NIC's driver, speed, duplex, and statistics; `iwconfig` covers wireless interface details.
 
 ```bash
 ethtool eth0                         # driver, speed, duplex, link status
@@ -195,6 +223,8 @@ iwconfig                             # wireless interface details
 
 ### Checking kernel messages
 
+When a device misbehaves, the kernel log is the first place to look — scan `dmesg` for errors, or watch it live while plugging in the device.
+
 ```bash
 dmesg | grep -i "error\|fail\|warn"  # scan for problems
 dmesg -w                             # watch kernel messages in real-time
@@ -205,6 +235,8 @@ dmesg | tail -20
 ```
 
 ### Checking device drivers
+
+These commands connect a device to its driver: `lspci -k` shows which module binds each PCI device, and `lsmod` confirms it is loaded.
 
 ```bash
 # Find driver for a device
@@ -219,6 +251,8 @@ lspci -nn -d 8086:  # check Intel devices by vendor ID
 
 ### udev monitoring
 
+`udevadm monitor` shows device events in real time as devices are added or removed, and `udevadm info` inspects a device's sysfs attributes and paths.
+
 ```bash
 udevadm monitor                       # watch real-time device events
 udevadm monitor --property            # include property changes
@@ -228,6 +262,8 @@ udevadm info -q path -n /dev/sda      # sysfs path for device
 ```
 
 ### Testing devices
+
+These tools stress-test hardware: `hdparm` benchmarks disk speed, `dd` verifies writability, and `badblocks` scans for bad sectors.
 
 ```bash
 # Test disk read speed
@@ -261,6 +297,8 @@ echo 1 > /sys/class/scsi_device/0:0:0:0/device/rescan
 ```
 
 ## /proc filesystem (device-related)
+
+The `/proc` filesystem exposes the kernel's device tables: registered devices, I/O and memory regions, IRQ assignments, input devices, and SCSI or sound buses.
 
 ```bash
 /proc/devices                        # registered character and block devices

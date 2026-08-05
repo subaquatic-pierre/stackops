@@ -14,27 +14,31 @@ PostgreSQL is a powerful, open-source relational database known for reliability,
 
 ## Connection
 
+PostgreSQL is accessed through the `psql` command-line client. You can connect with just a username or database, pass a full connection string, or set the default connection parameters via environment variables to shorten the command.
+
 ```bash
 # Local connection
 psql -U postgres
 psql -U myuser -d mydb
 psql -U myuser -h localhost -p 5432 -d mydb
 
-# Connection string
+# Connection string (embedded credentials, no prompts)
 psql "postgresql://user:password@host:5432/mydb"
 
-# Set connection defaults via environment
+# Set connection defaults via environment variables
 export PGHOST=localhost
 export PGPORT=5432
 export PGUSER=myuser
 export PGDATABASE=mydb
-psql       # uses env vars
+psql       # picks up host/port/user/db from env vars
 ```
 
 ## User management
 
+Users and roles control who can log in and what they can do. The statements below create login users, define group roles, grant role membership, alter credentials and privileges, list users, and safely remove them.
+
 ```sql
--- Create a user (login role)
+-- Create a login role that can connect and authenticate
 CREATE USER myuser WITH PASSWORD 'secure_password';
 CREATE USER readonly WITH PASSWORD 'readonly_password' NOCREATEDB;
 
@@ -42,7 +46,7 @@ CREATE USER readonly WITH PASSWORD 'readonly_password' NOCREATEDB;
 CREATE ROLE app_readers;
 CREATE ROLE app_writers;
 
--- Grant role membership
+-- Grant role membership to bundle privileges from multiple roles
 GRANT app_readers TO myuser;
 GRANT app_writers TO myuser;
 
@@ -52,17 +56,19 @@ ALTER USER myuser WITH SUPERUSER;
 ALTER USER myuser WITH CREATEDB;
 ALTER USER myuser VALID UNTIL '2026-12-31';
 
--- List users
+-- List users (psql meta-command and raw SQL query)
 \du
 SELECT rolname, rolsuper, rolcanlogin FROM pg_roles;
 
--- Drop a user
+-- Drop a user (reassign or drop owned objects first to avoid failures)
 DROP USER myuser;
 REASSIGN OWNED BY myuser TO postgres;  -- reassign objects before dropping
 DROP OWNED BY myuser;                 -- drop all objects owned
 ```
 
 ### Authentication (pg_hba.conf)
+
+The `pg_hba.conf` file (host-based authentication) defines which authentication method is allowed for each host, database, and user combination. Rules are evaluated top to bottom and the first match wins, so the `reject` line must come last.
 
 ```
 # /etc/postgresql/<version>/main/pg_hba.conf
@@ -84,6 +90,8 @@ psql -c "SELECT pg_reload_conf();"
 
 ## Database management
 
+These statements create, list, rename, and drop databases, and report their on-disk sizes. Note that all connections to a database must be terminated before it can be dropped.
+
 ```sql
 -- Create database
 CREATE DATABASE mydb;
@@ -97,16 +105,18 @@ SELECT datname FROM pg_database;
 -- Rename database
 ALTER DATABASE oldname RENAME TO newname;
 
--- Drop database (disconnect all users first)
+-- Disconnect all active sessions, then drop the database
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'mydb';
 DROP DATABASE mydb;
 
--- Size information
+-- Size information (raw bytes and human-readable format)
 SELECT pg_database_size('mydb');
 SELECT pg_size_pretty(pg_database_size('mydb'));
 ```
 
 ## Schema and table operations
+
+Schemas group related tables, and tables define the structure of your data. The examples below create a schema and table, add indexes for common lookup paths, alter the table definition, and list what already exists.
 
 ```sql
 -- Create schema
@@ -122,17 +132,17 @@ CREATE TABLE app.users (
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes
+-- Indexes for fast lookups and uniqueness constraints
 CREATE INDEX idx_users_email ON app.users(email);
 CREATE INDEX idx_users_created ON app.users(created_at);
 CREATE UNIQUE INDEX idx_users_email_lower ON app.users(LOWER(email));
 
--- Alter table
+-- Alter the table structure (add, modify, drop a column)
 ALTER TABLE app.users ADD COLUMN active BOOLEAN DEFAULT true;
 ALTER TABLE app.users ALTER COLUMN role SET NOT NULL;
 ALTER TABLE app.users DROP COLUMN active;
 
--- List tables
+-- List tables (psql meta-commands and raw SQL query)
 \dt
 \dt app.*
 SELECT table_name FROM information_schema.tables WHERE table_schema = 'app';
@@ -142,10 +152,13 @@ SELECT table_name FROM information_schema.tables WHERE table_schema = 'app';
 
 ### Create
 
+`INSERT` adds rows to a table. The examples cover inserting a single row, inserting multiple rows in one statement, and using `RETURNING` to fetch generated values (such as `id` and `created_at`) without a follow-up query.
+
 ```sql
 INSERT INTO app.users (name, email, role)
 VALUES ('Alice', 'alice@example.com', 'admin');
 
+-- Insert multiple rows in a single statement
 INSERT INTO app.users (name, email)
 VALUES
     ('Bob', 'bob@example.com'),
@@ -158,21 +171,23 @@ RETURNING id, created_at;
 
 ### Read
 
+`SELECT` retrieves data from tables. These queries demonstrate selecting all or specific columns, filtering with `WHERE`, ordering and limiting results, aggregating with `GROUP BY`, joining tables, and using window functions.
+
 ```sql
--- All columns
+-- Select all columns
 SELECT * FROM app.users;
 
--- Specific columns with filter
+-- Select specific columns with a combined filter
 SELECT id, name, email FROM app.users
 WHERE role = 'admin' AND active = true;
 
--- Ordering and limiting
+-- Order results and cap the number of rows returned
 SELECT * FROM app.users ORDER BY created_at DESC LIMIT 10;
 
--- Aggregation
+-- Aggregate: count users per role
 SELECT role, COUNT(*) FROM app.users GROUP BY role;
 
--- Join example (with orders table)
+-- Join users with their orders from the last 30 days
 SELECT u.name, o.total, o.created_at
 FROM app.users u
 JOIN app.orders o ON u.id = o.user_id
@@ -185,6 +200,8 @@ FROM app.users;
 ```
 
 ### Update
+
+`UPDATE` changes existing rows. The examples show setting one or more columns for rows that match a `WHERE` filter, and using `RETURNING` to inspect the rows that were modified.
 
 ```sql
 UPDATE app.users
@@ -200,6 +217,8 @@ RETURNING id, name, active;
 
 ### Delete
 
+`DELETE` permanently removes rows (a hard delete). Because that data is gone for good, a soft delete — marking the row inactive with `UPDATE` instead — is often the preferred pattern when you need to keep history or be able to restore records.
+
 ```sql
 DELETE FROM app.users WHERE id = 5;
 
@@ -208,6 +227,8 @@ UPDATE app.users SET active = false, updated_at = NOW() WHERE id = 5;
 ```
 
 ### Transactions
+
+Transactions bundle multiple statements into a single atomic unit: either every statement commits, or none of them take effect. Wrap related writes in `BEGIN;` ... `COMMIT;`, and substitute `ROLLBACK;` for `COMMIT;` to undo everything.
 
 ```sql
 BEGIN;
@@ -221,6 +242,8 @@ COMMIT;
 
 ### Key configuration files
 
+On Debian/Ubuntu, PostgreSQL keeps its configuration under `/etc/postgresql/<version>/main/`. These three files control the server's core behavior, authentication rules, and user name mapping.
+
 ```bash
 /etc/postgresql/<version>/main/postgresql.conf    # main configuration
 /etc/postgresql/<version>/main/pg_hba.conf        # authentication
@@ -228,6 +251,8 @@ COMMIT;
 ```
 
 ### Essential postgresql.conf settings
+
+`postgresql.conf` holds the server's runtime settings. These are the values most often tuned for memory, connections, the write-ahead log, query planning, and logging.
 
 ```
 # Memory
@@ -273,12 +298,14 @@ psql -c "SELECT name, setting, unit, context FROM pg_settings WHERE name LIKE '%
 
 ### pg_dump / pg_restore
 
+`pg_dump` backs up a single database to a plain SQL file or a custom-format archive, and `pg_restore` restores custom-format dumps. Use `-Fc` for compressed backups that support parallel and selective restore.
+
 ```bash
-# Plain SQL dump
+# Plain SQL dump (readable, portable, restorable with psql)
 pg_dump mydb > backup.sql
 pg_dump -U myuser -h localhost mydb > backup.sql
 
-# Custom format (compressed, parallel restore support)
+# Custom format (compressed, supports parallel restore)
 pg_dump -Fc mydb > backup.dump
 pg_dump -Fc -j 4 mydb > backup.dump   # parallel dump
 
@@ -301,6 +328,8 @@ pg_restore -t app.users -d mydb backup.dump  # single table
 
 ### pg_dumpall (entire cluster)
 
+Use `pg_dumpall` when you need to back up the entire cluster — every database plus global objects such as roles and tablespaces, which `pg_dump` alone cannot capture. For a single database, stick with `pg_dump`; it produces a smaller backup that is easier to restore selectively.
+
 ```bash
 # Dump all databases and roles
 pg_dumpall > cluster_backup.sql
@@ -314,8 +343,10 @@ psql -f cluster_backup.sql postgres
 
 ## Performance monitoring
 
+PostgreSQL exposes live statistics through system views. These queries show currently running queries, cancel or terminate problematic sessions, and reveal table sizes, index usage, and tables that may be missing indexes.
+
 ```sql
--- Active queries
+-- Currently running queries, oldest first
 SELECT pid, now() - pg_stat_activity.query_start AS duration,
     query, state
 FROM pg_stat_activity
@@ -327,7 +358,7 @@ SELECT pg_cancel_backend(<pid>);
 -- Terminate a connection
 SELECT pg_terminate_backend(<pid>);
 
--- Table sizes
+-- Table sizes including indexes and TOAST data
 SELECT schemaname, tablename,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS total_size
 FROM pg_tables
@@ -350,8 +381,10 @@ ORDER BY seq_tup_read DESC;
 
 ### VACUUM and ANALYZE
 
+`VACUUM` reclaims storage occupied by dead rows left behind by `UPDATE` and `DELETE` operations, and `ANALYZE` refreshes the statistics the query planner relies on. Autovacuum does this automatically, but a manual `VACUUM` is worthwhile after large bulk changes.
+
 ```sql
--- Manual vacuum
+-- Manual vacuum (single table)
 VACUUM app.users;
 VACUUM FULL app.users;              -- reclaim disk space (locks table)
 VACUUM ANALYZE app.users;           -- vacuum + update statistics

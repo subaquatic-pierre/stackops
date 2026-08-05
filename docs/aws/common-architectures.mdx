@@ -23,6 +23,8 @@ Internet → ALB → EC2 (web server) → RDS (database)
 
 ### CLI workflow
 
+This pattern builds the network plumbing for a single-server app: a VPC, public and private subnets, an internet gateway, and a route table for outbound traffic. The commands capture each created resource's ID into a shell variable using `--query`, so later steps can reference them.
+
 ```bash
 # Create VPC
 VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query "Vpc.VpcId" --output text)
@@ -69,6 +71,8 @@ Internet → ALB
 
 ### CLI workflow
 
+This pattern replaces the single instance with a launch template and an Auto Scaling group spanning two availability zones, so a failure in one AZ does not take the app down. The scaling policy keeps average CPU near the configured target by launching or terminating instances automatically.
+
 ```bash
 # Create launch template
 aws ec2 create-launch-template \
@@ -113,6 +117,8 @@ Client → API Gateway → Lambda → DynamoDB
 ```
 
 ### CLI workflow
+
+This pattern wires up a serverless API: Lambda hosts the business logic, API Gateway exposes it as REST endpoints, and DynamoDB stores data. The commands package the function code, build the REST resource tree, connect the GET method to Lambda, and deploy it to a stage.
 
 ```bash
 # Create Lambda function
@@ -172,6 +178,8 @@ AWS Organization
 
 ### CLI workflow
 
+These commands run from the management account to manage the organization itself. They create a new child account, enable CloudFormation StackSets so infrastructure can be deployed consistently across accounts, and show how to assume a role into a child account.
+
 ```bash
 # Create new account in organization
 aws organizations create-account \
@@ -203,6 +211,8 @@ Internet → ALB
 ```
 
 ### ECS Fargate CLI workflow
+
+Fargate runs containers without you managing servers: the cluster groups services, the task definition describes the containers and resources each one needs, and the service maintains the desired instance count. This workflow creates all three from the CLI.
 
 ```bash
 # Create ECS cluster

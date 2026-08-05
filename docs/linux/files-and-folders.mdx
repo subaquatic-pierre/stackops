@@ -42,6 +42,8 @@ This reference covers the most common file operations on Linux: creating, readin
 
 ### Creating files and directories
 
+`touch` creates empty files (or updates their timestamps), and `mkdir` creates directories. Brace expansion and the `-p` flag cover multiple files and nested paths in one command.
+
 ```bash
 touch file.txt                       # create empty file
 touch file{1,2,3}.txt                # create multiple files
@@ -50,6 +52,8 @@ mkdir -p a/b/c                       # create nested directories
 ```
 
 ### Reading files
+
+Several tools read files depending on the need: `cat` dumps a whole file, `less` pages through large ones, and `head`/`tail` view just the beginning or the end.
 
 ```bash
 cat file.txt                         # print entire file
@@ -64,6 +68,8 @@ nl file.txt                          # number lines
 ```
 
 ### Copying, moving, deleting
+
+`cp`, `mv`, and `rm` are the core file operations. Their flags control recursion, preservation of attributes, and safety prompts before overwriting.
 
 ```bash
 cp source.txt dest.txt               # copy file
@@ -81,6 +87,8 @@ rmdir emptydir/                      # remove empty directory
 ```
 
 ### Linking files
+
+Links create additional names for the same file. A symbolic link points to a path and breaks if the target moves; a hard link points directly at the file's data and only breaks when the last link to it is removed.
 
 ```bash
 ln -s /actual/path/file.txt link.txt  # symbolic link (soft link)
@@ -119,6 +127,8 @@ sudo umount /srv/shared-app
 
 ### File comparison
 
+`diff` compares files line by line and directories recursively, producing output that can feed `patch`. `comm` compares two sorted files and reports lines unique to each or shared by both.
+
 ```bash
 diff file1.txt file2.txt             # line-by-line differences
 diff -u file1.txt file2.txt          # unified diff format (patch-compatible)
@@ -128,6 +138,8 @@ comm file1.txt file2.txt             # compare sorted files (columns: unique-to-
 ```
 
 ## File permissions (quick reference)
+
+These one-liners cover the permission and ownership changes you will use daily. `chmod` sets mode bits, while `chown` and `chgrp` set ownership.
 
 ```bash
 chmod 755 script.sh                  # rwxr-xr-x
@@ -144,6 +156,8 @@ See the full [Users & Permissions](./users-and-permissions.mdx) reference for co
 ## Finding and searching
 
 ### find
+
+`find` searches a directory tree by name, type, size, modification time, user, or permissions — and can run a command on every match.
 
 ```bash
 find /var/log -name "*.log"               # by filename pattern
@@ -175,6 +189,8 @@ find / -perm -u+s                          # files with SUID bit
 
 ### grep
 
+`grep` searches text for patterns, by default printing the matching lines. Flags control case sensitivity, recursion, context, and the shape of the output.
+
 ```bash
 grep "pattern" file.txt                     # basic search
 grep -i "pattern" file.txt                  # case-insensitive
@@ -195,6 +211,8 @@ grep --exclude="*.gz" -rn "error" /var/log/
 
 ### locate (fast, uses an index database)
 
+`locate` finds files by name almost instantly by querying a prebuilt database. `updatedb` rebuilds that database, so `locate` only sees files indexed since the last run.
+
 ```bash
 updatedb                            # update the file database
 locate nginx.conf                   # find files by name
@@ -203,6 +221,8 @@ locate -r '\.conf$'                 # regex match
 ```
 
 ### which / whereis / type
+
+These three commands tell you what a command name resolves to: `which` searches `PATH`, `whereis` also finds the binary's docs and sources, and `type` shows how the shell itself interprets the name.
 
 ```bash
 which python                         # locate a command in PATH
@@ -213,6 +233,8 @@ type python                          # show how the shell would interpret the co
 ## Archives and compression
 
 ### tar
+
+`tar` bundles files and directories into a single archive, with optional gzip, bzip2, or xz compression. The same `f` flag selects the archive file for creating, extracting, and listing.
 
 ```bash
 # Create archives
@@ -245,6 +267,8 @@ tar -czf backup.tar.gz dir/ --exclude='*.log' --exclude='node_modules'
 
 ### Compression utilities
 
+Standalone compression tools compress a single file at a time — `gzip`, `bzip2`, and `xz` are common on Linux, while `zip` packages multiple files and is portable to other systems.
+
 ```bash
 # gzip / gunzip
 gzip file.txt                       # compress to file.txt.gz
@@ -270,6 +294,8 @@ unzip -l archive.zip                # list contents
 
 ### Other archive tools
 
+`7z` and `rar` handle the proprietary archive formats of the same names, which you may receive from or need to send to Windows users.
+
 ```bash
 # 7z (install p7zip-full)
 7z a archive.7z dir/                 # create 7z archive
@@ -284,6 +310,8 @@ unrar x archive.rar
 ## Text processing
 
 ### sed (stream editor)
+
+`sed` edits text streams line by line. Its most common operations are substitution (`s/old/new/`), deletion, printing selected lines, and insert/append.
 
 ```bash
 # Substitution
@@ -321,6 +349,8 @@ sed 's/\([0-9]*\)-\([0-9]*\)/\2-\1/' file.txt  # swap captured groups
 
 ### awk
 
+`awk` is a text-processing language built around columns. It can extract fields, filter rows by conditions, accumulate summaries, and format output.
+
 ```bash
 # Column extraction
 awk '{print $1}' file.txt                              # first column
@@ -344,6 +374,8 @@ awk '{printf "%-20s %10d\n", $1, $2}' file.txt         # formatted output
 ```
 
 ### cut, sort, uniq, wc
+
+These small tools chain together for common text tasks: `cut` extracts fields or character ranges, `sort` orders lines, `uniq` collapses duplicates, and `wc` counts lines, words, or bytes.
 
 ```bash
 cut -d':' -f1,7 /etc/passwd            # extract fields by delimiter
@@ -379,6 +411,8 @@ wc -c file.txt                          # byte count only
 
 ### Navigation
 
+Move through a file quickly with single-key motions: word jumps, line starts and ends, page scrolls, and jump-to-line.
+
 ```vim
 h  j  k  l           " left, down, up, right
 w                    " next word
@@ -395,6 +429,8 @@ Ctrl+b               " page up (backward)
 ```
 
 ### Editing
+
+Normal-mode keys insert, delete, and change text without reaching for the mouse: `d` cuts, `y` yanks, `p` pastes, and `u`/`Ctrl+r` undo and redo.
 
 ```vim
 i                    " insert before cursor
@@ -420,6 +456,8 @@ r                    " replace single character
 
 ### Visual mode
 
+Visual mode selects a block of text before acting on it — character-wise, line-wise, or as a rectangular block — then delete, yank, change, or indent the selection.
+
 ```vim
 v                    " character-wise selection
 V                    " line-wise selection
@@ -429,6 +467,8 @@ d / y / c            " delete / yank / change selection
 ```
 
 ### Search and replace
+
+Search forward and backward with `/` and `?`, then scope a substitution with `:s` to a line, the whole file, or a line range — with optional confirmation.
 
 ```vim
 /pattern             " search forward
@@ -445,6 +485,8 @@ N                    " previous match
 
 ### File operations
 
+Ex commands handle saving and opening files: write the buffer, quit the editor, save under a new name, or switch to another file.
+
 ```vim
 :w                   " save (write)
 :q                   " quit
@@ -457,6 +499,8 @@ N                    " previous match
 
 ### Window splitting
 
+Split the window to view multiple files side by side, switching between splits with `Ctrl+w`.
+
 ```vim
 :vsp file.txt        " vertical split
 :sp file.txt         " horizontal split
@@ -466,6 +510,8 @@ Ctrl+w q             " close split
 ```
 
 ### Vim configuration
+
+Settings in `~/.vimrc` apply on every startup. `set` options control line numbers, indentation behavior, and search highlighting.
 
 ```vim
 # ~/.vimrc

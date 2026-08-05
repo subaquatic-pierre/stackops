@@ -14,6 +14,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 
 ## Essential settings
 
+This `settings.json` is the editor-wide baseline for the whole workflow. It tunes the editor core — fonts, formatting, bracket guides, inlay hints — along with the window, terminal, Git, spell checking, and the Vim extension.
+
 ```json
 {
   // ── Editor Core ──
@@ -170,6 +172,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 
 ### TypeScript / JavaScript
 
+These settings keep TS/TSX files formatted with Prettier, sync import paths automatically when a file is moved or renamed, and surface parameter names as inlay hints so signatures are readable without hovering.
+
 ```json
 {
   "[typescript]": {
@@ -186,6 +190,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 
 ### Python
 
+Python files are formatted with Black and wrapped at 100 columns, while the Pylance language server runs in basic type-checking mode so type errors surface in the editor before the code ever runs.
+
 ```json
 {
   "[python]": {
@@ -200,6 +206,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 
 ### Rust
 
+Rust Analyzer handles both formatting and language features here. Callable snippets auto-fill function arguments at call sites, and diagnostics for inactive code are disabled to keep the problems panel focused.
+
 ```json
 {
   "[rust]": {
@@ -211,6 +219,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 ```
 
 ### Go
+
+Go files use the official Go extension for formatting, with imports organized automatically on save — no manual `goimports` step. The Go toolchain also keeps itself updated in the background.
 
 ```json
 {
@@ -226,6 +236,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 ```
 
 ### Terraform
+
+Formatting is deferred to a save-time code action rather than running on every save, and the experimental features add on-save validation plus auto-filling of required resource fields.
 
 ```json
 {
@@ -243,6 +255,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 
 ### Docker / Compose
 
+Compose files are YAML, so they reuse the Red Hat YAML extension with two-space indentation and advanced auto-indent. The heavier Compose language server is disabled in favor of the lighter YAML tooling.
+
 ```json
 {
   "[dockercompose]": {
@@ -257,6 +271,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 
 ### Shell
 
+Shell scripts are formatted with `shfmt` on save and linted continuously by ShellCheck, catching syntax errors and quoting pitfalls before you run the script.
+
 ```json
 {
   "[shellscript]": {
@@ -269,6 +285,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 ```
 
 ### Markdown
+
+Markdown is set up for comfortable long-form writing: text wraps at 120 columns, whitespace is visible so tables stay aligned, and quick suggestions are disabled to keep the editor quiet while typing prose.
 
 ```json
 {
@@ -283,6 +301,8 @@ VS Code is a lightweight but extensible editor that dominates modern development
 ```
 
 ### SQL
+
+SQL files are formatted by Prettier-SQL with the dialect pinned to PostgreSQL, so keyword casing and quoting always match your database.
 
 ```json
 {

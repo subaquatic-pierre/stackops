@@ -16,6 +16,8 @@ Real-world Docker setups go beyond single-service containers. This reference pro
 
 ### Monorepo with multiple services
 
+The most common layout is a monorepo where each service lives in its own directory with its own Dockerfile, plus Compose files at the root that wire everything together. Keeping per-service files colocated with their source makes builds self-contained and easy to reason about.
+
 ```
 project/
 ├── docker-compose.yml
@@ -42,6 +44,8 @@ Use separate `Dockerfile` and `Dockerfile.dev` when development requires differe
 
 ### Node.js / Express (TypeScript)
 
+This two-stage Dockerfile builds a TypeScript Express app and ships a minimal production image: it compiles to `dist` in the builder stage, then copies only the compiled output, `node_modules`, and a non-root runtime user. `tini` is used as a lightweight init process so signals like SIGTERM reach the Node process correctly.
+
 ```dockerfile
 # ---- Build Stage ----
 FROM node:22.12.0-alpine AS builder
@@ -58,9 +62,11 @@ RUN npm run build
 FROM node:22.12.0-alpine
 WORKDIR /app
 
+# Create a non-root user; tini reaps signals and zombie processes
 RUN addgroup -S app && adduser -S app -G app
 RUN apk add --no-cache tini curl
 
+# Ship only the compiled output and production dependencies
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
@@ -92,6 +98,8 @@ CMD ["npx", "tsx", "watch", "src/server.ts"]
 
 ### Next.js
 
+This Dockerfile builds Next.js with the standalone output — the smallest deployable target Next.js can emit — so the production stage copies only `public`, the standalone server, and static assets. `NEXT_PUBLIC_*` values are baked in at build time via `ARG`, which means they are fixed per build and must be set when building.
+
 ```dockerfile
 # ---- Build Stage ----
 FROM node:22.12.0-alpine AS builder
@@ -110,9 +118,11 @@ RUN npm run build
 FROM node:22.12.0-alpine
 WORKDIR /app
 
+# Create a non-root user; tini reaps signals and zombie processes
 RUN addgroup -S app && adduser -S app -G app
 RUN apk add --no-cache tini curl
 
+# Copy only the standalone server, public assets, and static files
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
@@ -126,6 +136,8 @@ CMD ["node", "server.js"]
 ```
 
 ### Python / FastAPI
+
+This Dockerfile installs the FastAPI dependencies in a builder stage, then copies the installed `site-packages` and binaries into a clean runtime image — no source code or build tools in the final layer. It runs as a non-root user and launches `uvicorn` with the app entrypoint from `src/main.py`.
 
 ```dockerfile
 # ---- Build Stage ----
@@ -143,6 +155,7 @@ RUN groupadd -r app && useradd -r -g app app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl && rm -rf /var/lib/apt/lists/*
 
+# Copy installed packages and binaries, skipping the heavy build image
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY src/ ./src/
@@ -157,6 +170,8 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ### Rust / Axum
 
+This Dockerfile compiles an Axum server in a Rust builder stage and runs the resulting binary on plain Debian slim — the smallest image that still ships a working glibc binary. The dummy `src/main.rs` trick warms the dependency cache so the final build only recompiles your code, and `ca-certificates` are installed for HTTPS connections.
+
 ```dockerfile
 # ---- Build Stage ----
 FROM rust:1.80-slim-bookworm AS builder
@@ -165,11 +180,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
+# Warm the dependency cache before copying real source
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release
 RUN rm -rf src
 
+# Copy the real source; only our code recompiles now
 COPY src/ ./src/
 RUN cargo build --release
 
@@ -194,6 +211,8 @@ CMD ["/app/server"]
 ## Multi-service Compose examples
 
 ### Full-stack web application
+
+This Compose stack ties together everything from the language examples: a Next.js frontend behind an nginx reverse proxy, a FastAPI backend, a background worker, plus PostgreSQL and Redis. The frontend only talks to the API over the internal `frontend` network, the API and worker share the `backend` network with the data stores, and every service waits for its dependencies via `depends_on` health conditions.
 
 ```yaml
 services:
@@ -309,6 +328,8 @@ volumes:
 
 ### Development environment with hot-reload
 
+For development, bind-mount the source directories into the containers so edits on the host trigger hot-reload inside them, and use the `Dockerfile.dev` images that run watch tooling. Both services are gated behind the `dev` profile so a plain `up` stays production-shaped while `--profile dev` enables the live-reload stack.
+
 ```yaml
 services:
   www:
@@ -363,6 +384,8 @@ docker compose --profile dev up -d
 
 ## Docker entrypoint scripts
 
+An entrypoint script is the standard place to perform runtime setup that should not be baked into the image: waiting for a database to accept connections, running migrations, or generating configuration. The script ends by forwarding the container's arguments to the application with `exec`, which replaces the shell process so signals reach the app directly.
+
 ```bash
 #!/bin/sh
 # entrypoint.sh — wait for dependencies, then exec the application
@@ -388,6 +411,8 @@ fi
 exec "$@"
 ```
 
+Wire the script into the image and make it the container's entrypoint:
+
 ```dockerfile
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
@@ -396,6 +421,8 @@ CMD ["node", "server.js"]
 ```
 
 ## .dockerignore
+
+A `.dockerignore` file lists the paths excluded from the build context — the set of files sent to the Docker daemon when building. Excluding `node_modules`, build output, `.git`, and especially `.env` keeps builds fast, image layers small, and secrets out of the image entirely.
 
 ```
 # Dependencies

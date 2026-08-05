@@ -16,6 +16,8 @@ The AWS CLI is the unified command-line tool for interacting with every AWS serv
 
 ### Linux
 
+The official installer is the recommended way to get AWS CLI v2 on Linux — distro packages often lag behind releases or still ship the deprecated v1. It installs the binary to `/usr/local/bin/aws` and can be updated by re-running the same script.
+
 ```bash
 # Download and install
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
@@ -28,6 +30,8 @@ aws --version
 
 ### macOS
 
+Homebrew is the simplest option on macOS and stays current with each AWS release. Alternatively, the official `.pkg` installer provides a signed, controlled install if you prefer not to use Homebrew.
+
 ```bash
 brew install awscli
 
@@ -38,11 +42,15 @@ sudo installer -pkg AWSCLIV2.pkg -target /
 
 ### Windows
 
+Run the MSI installer — it configures `PATH` automatically so the `aws` command works in a new terminal. After installing, open a fresh PowerShell window and confirm with `aws --version`.
+
 ```powershell
 msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
 ```
 
 ## Configuration files
+
+The AWS CLI reads all of its settings from two plain-text files under `~/.aws`. Credentials live separately from non-secret profile settings, so you can share `~/.aws/config` (e.g. via dotfiles) without leaking secrets.
 
 ```bash
 ~/.aws/config          # Profiles and non-credential settings
@@ -50,6 +58,8 @@ msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
 ```
 
 ### Minimal config
+
+A working `~/.aws/config` only needs a default region and output format; `~/.aws/credentials` holds the matching access keys. The CLI merges the two files by matching section names, so `[default]` in one pairs with `[default]` in the other.
 
 ```ini
 # ~/.aws/config
@@ -101,15 +111,17 @@ aws_secret_access_key = ...
 
 ### Using profiles
 
+Profiles are selected per command, per shell session, or per command block. The `AWS_PROFILE` environment variable form is especially common in CI/CD, where each job targets a different account.
+
 ```bash
-# Set per-command
+# Use a specific profile for a single command
 aws s3 ls --profile production
 
-# Set for the session
+# Default to this profile for the rest of the shell session
 export AWS_PROFILE=staging
 aws s3 ls
 
-# Set in a specific command block
+# Apply a profile to a single command's environment
 AWS_PROFILE=production terraform plan
 ```
 
@@ -118,6 +130,8 @@ AWS_PROFILE=production terraform plan
 AWS SSO (now IAM Identity Center) is the recommended authentication method — no long-lived access keys needed.
 
 ### Configure a profile
+
+`aws configure sso` walks through SSO profile creation interactively. It opens a browser for authentication, then records the account, role, region, and output format you pick.
 
 ```bash
 aws configure sso
@@ -150,6 +164,8 @@ sso_registration_scopes = sso:account:access
 
 ### Login
 
+Authentication happens on demand: running `aws sso login` for a profile opens the browser and caches temporary credentials on disk. Re-run it when a token expires or your role changes.
+
 ```bash
 aws sso login --profile admin
 # Opens browser for authentication
@@ -159,6 +175,8 @@ aws sso login --profile admin
 SSO tokens expire after a configurable period (default 8 hours). Re-run `aws sso login` to refresh.
 
 ### Multiple accounts and roles
+
+A single `sso-session` can back many profiles, each mapping to a different account and role combination. This keeps sign-in to one browser flow while letting you scope each command to the right permission set.
 
 ```ini
 [profile dev-admin]
@@ -205,6 +223,8 @@ region = us-east-2
 
 ## Environment variables
 
+Environment variables override the config files, making them ideal for CI/CD, containers, and ephemeral shells. They take effect for every AWS CLI and SDK process that inherits them.
+
 ```bash
 export AWS_ACCESS_KEY_ID=AKIA...
 export AWS_SECRET_ACCESS_KEY=...
@@ -222,6 +242,8 @@ export AWS_EC2_METADATA_DISABLED=true  # disable IMDS
 Precedence: CLI parameters → environment variables → `~/.aws/credentials` → `~/.aws/config` → instance profile (on EC2) → container credentials (on ECS).
 
 ## Configuration settings
+
+Beyond the region and output format, `~/.aws/config` controls paging, retries, timestamp formatting, and S3 transfer behavior. The `s3` block tunes how large uploads and downloads are split and how aggressively they run in parallel.
 
 ```ini
 # ~/.aws/config
@@ -250,8 +272,10 @@ s3 =
 
 ### Account and identity
 
+These commands answer the first question of any access issue: who am I authenticated as, and what did the CLI pick up from my config? `aws configure list` shows the effective, merged settings for a profile.
+
 ```bash
-# Who am I?
+# Verify the current caller's account, ARN, and user ID
 aws sts get-caller-identity
 aws sts get-caller-identity --profile production
 
@@ -264,6 +288,8 @@ aws configure list --profile production
 ```
 
 ### Configuration management
+
+These commands read and write the config files without hand-editing them. `aws configure set` is script-friendly, letting automation set a region or access key for a specific profile in one line.
 
 ```bash
 # Interactive setup
@@ -284,6 +310,8 @@ aws configure import --csv file://credentials.csv
 
 ### Credential validation
 
+When credentials stop working, these commands confirm whether they are valid, what permissions they actually have, and what went wrong. `sts decode-authorization-message` translates opaque `AccessDenied` errors into readable policy details.
+
 ```bash
 # Test credentials by calling an API
 aws sts get-caller-identity
@@ -301,6 +329,8 @@ aws iam list-mfa-devices --user-name alice
 
 ### Auto-prompt
 
+The CLI v2 auto-prompt turns each invocation into an interactive form: it lists available parameters and offers autocompletion for things like resource IDs and `--filters`. It is a great discovery aid for unfamiliar commands.
+
 ```bash
 aws configure set cli_auto_prompt on
 
@@ -310,12 +340,16 @@ aws ec2 describe-instances  # shows available --filters interactively
 
 ### Wizard
 
+Wizards provide guided, step-by-step setup for common tasks. They are handy for one-off configurations or for learning which parameters a service actually requires.
+
 ```bash
 aws configure wizard         # guided setup
 aws dynamodb wizard          # guided table creation
 ```
 
 ### Binary parameter shorthand
+
+CLI v2 accepts JSON values inline on the command line instead of pointing at `file://` documents. Wrap the payload in single quotes so the shell does not interpret the braces and quotes.
 
 ```bash
 # Inline JSON (v1: file:// only, v2: inline supported)
@@ -325,6 +359,8 @@ aws dynamodb put-item \
 ```
 
 ## Docker usage
+
+The official `amazon/aws-cli` image runs the CLI inside a container, so no local installation is needed. Mount `~/.aws` read-only so the container picks up your existing profiles and credentials.
 
 ```bash
 # Mount ~/.aws into the container
@@ -342,6 +378,8 @@ docker run --rm \
 ```
 
 ## Troubleshooting
+
+When a command fails, these steps isolate the cause: debug logging reveals the exact credential chain and request details, while `aws configure list` verifies which profile and settings are actually in effect.
 
 ```bash
 # Enable debug output

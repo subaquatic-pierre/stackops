@@ -14,7 +14,11 @@ GitHub Actions automates builds, tests, and deployments directly from your repos
 
 ## Workflow syntax
 
+Every workflow shares the same YAML structure — a name, triggering events, and a set of jobs. This section covers the building blocks.
+
 ### File location and naming
+
+Workflows live as YAML files in the `.github/workflows/` directory — one file per workflow, each triggering on its own set of events. A typical repo keeps one workflow per concern:
 
 ```bash
 .github/workflows/ci.yml          # runs on push/PR
@@ -23,6 +27,8 @@ GitHub Actions automates builds, tests, and deployments directly from your repos
 ```
 
 ### Skeleton workflow
+
+The minimal structure every workflow shares: a name, the events that trigger it (`on`), and one or more jobs with steps. This example runs tests on pushes and pull requests to `main`:
 
 ```yaml
 name: CI
@@ -44,7 +50,11 @@ jobs:
 
 ## Triggers (`on`)
 
+The `on` key controls when a workflow runs.
+
 ### Event types
+
+The most common triggers are push, pull request, schedule (cron), manual dispatch, and tag pushes. Use filters to narrow when each event fires:
 
 ```yaml
 # Push to any branch
@@ -90,7 +100,11 @@ on: [push, pull_request]
 
 ## Jobs and steps
 
+Jobs are the units of work in a workflow; each job runs on its own runner.
+
 ### Job definition
+
+A job groups steps that share one runner and its configuration. This example builds and tests a Node.js app, then uploads the output as an artifact for later jobs:
 
 ```yaml
 jobs:
@@ -133,6 +147,8 @@ jobs:
 
 ### Job dependencies
 
+Use `needs` to order jobs: a job waits until its dependencies succeed, so `test` runs after `lint` and `deploy` after `test`. Add `if` conditions to gate jobs on the branch or context:
+
 ```yaml
 jobs:
   lint:
@@ -158,6 +174,8 @@ jobs:
 
 ## Matrix builds
 
+A matrix runs the same job across multiple combinations of values from a single definition — ideal for testing against several Node versions and operating systems:
+
 ```yaml
 jobs:
   test:
@@ -180,7 +198,11 @@ This runs 6 jobs in parallel (3 node versions × 2 operating systems).
 
 ## Secrets and environment variables
 
+Secrets keep credentials out of your workflow files. GitHub supports three scopes — repository, environment, and OIDC-based cloud credentials — each suited to different situations.
+
 ### Repository secrets
+
+Repository-level secrets (configured under **Settings → Secrets and variables → Actions**) are available to every workflow in the repository. Inject them into steps through the `env` block instead of hard-coding values:
 
 ```yaml
 steps:
@@ -192,6 +214,8 @@ steps:
 ```
 
 ### Environment-level secrets
+
+Environment-scoped secrets and protection rules let you gate deployments — for example, requiring approval before production runs while keeping production credentials separate from staging:
 
 ```yaml
 jobs:
@@ -205,6 +229,8 @@ jobs:
 Configure environment protection rules in repo settings: required reviewers, wait timer, deployment branches.
 
 ### OIDC (no long-lived secrets)
+
+With OpenID Connect, the runner exchanges a short-lived token for cloud credentials, so no long-lived secrets need to be stored in GitHub. This example assumes an AWS IAM role that trusts the GitHub Actions provider:
 
 ```yaml
 jobs:
@@ -229,7 +255,11 @@ jobs:
 
 ## Common workflow patterns
 
+Ready-to-adapt workflows for the most frequent CI/CD tasks.
+
 ### Node.js CI
+
+A complete Node.js pipeline: checkout, install dependencies with caching, then lint, typecheck, test with coverage, and build — run across a matrix of Node versions:
 
 ```yaml
 name: Node.js CI
@@ -258,6 +288,8 @@ jobs:
 ```
 
 ### Docker build and push
+
+Build an image with Buildx, tag it from the branch or tag that triggered the run, and push it to a registry. This is the standard pattern for publishing container images with GitHub Actions:
 
 ```yaml
 name: Docker
@@ -305,6 +337,8 @@ jobs:
 ```
 
 ### Terraform plan on PR
+
+On pull requests that touch `terraform/`, run a plan with OIDC credentials and post the output as a PR comment so reviewers can see the change before approving:
 
 ```yaml
 name: Terraform Plan
@@ -361,6 +395,8 @@ jobs:
 ```
 
 ### Deploy on merge
+
+The simplest production pipeline: every push to `main` runs a deploy script, gated by the `production` environment and its protection rules:
 
 ```yaml
 name: Deploy
@@ -501,6 +537,8 @@ jobs:
 ```
 
 ## GitHub CLI (`gh`)
+
+`gh` is GitHub's official command-line tool for working with repositories, issues, pull requests, releases, and workflows without leaving the terminal. Key commands, grouped by task:
 
 ```bash
 # Authentication

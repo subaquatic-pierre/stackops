@@ -40,6 +40,8 @@ Each crontab entry has five time fields followed by the command:
 
 ### Shorthand macros
 
+Named macros expand to the equivalent five-field schedules, making common intervals readable — `@daily`, `@hourly`, and friends.
+
 ```bash
 @reboot      → Run once at startup
 @yearly      → 0 0 1 1 *      (once per year)
@@ -53,6 +55,8 @@ Each crontab entry has five time fields followed by the command:
 
 ### Common schedule examples
 
+These are the schedule patterns you will use most: fixed times, working-hour windows, step intervals, and day-of-month lists.
+
 ```bash
 0 2 * * *          # Every day at 2:00 AM
 0 9-17 * * 1-5     # Every hour 9 AM–5 PM, Mon–Fri
@@ -65,6 +69,8 @@ Each crontab entry has five time fields followed by the command:
 ## Managing crontabs
 
 ### Commands
+
+`crontab` manages each user's own schedule: `-e` edits it, `-l` lists it, and `-r` removes it. With `-u`, root can manage other users' crontabs.
 
 ```bash
 crontab -e                  # edit current user's crontab
@@ -91,6 +97,8 @@ Always use absolute paths in cron commands. The working directory is the user's 
 
 ### Redirecting output
 
+Cron captures a job's output and emails it unless you redirect it. Send everything to a log file, log only errors, or discard it all — whatever suits the job.
+
 ```bash
 # Log everything
 0 3 * * * /opt/scripts/cleanup.sh >> /var/log/cleanup.log 2>&1
@@ -105,6 +113,8 @@ Always use absolute paths in cron commands. The working directory is the user's 
 Cron emails cron job output to the user by default (requires a local MTA). Use `MAILTO=""` at the top of the crontab to suppress emails.
 
 ## System-level cron directories
+
+System schedules live in `/etc/crontab` and `/etc/cron.d/`, while `/etc/cron.hourly/`, `.daily/`, `.weekly/`, and `.monthly/` run every executable script inside them via `run-parts`.
 
 ```bash
 /etc/crontab                    # system crontab (includes username field)
@@ -170,6 +180,8 @@ WantedBy=timers.target
 
 ### Timer expressions
 
+`OnCalendar` accepts the familiar cron-style syntax plus named values like `daily`, weekday ranges such as `Mon..Fri`, and boot- or activation-relative forms like `OnBootSec` and `OnUnitActiveSec`.
+
 ```ini
 OnCalendar=daily                       # every day at midnight
 OnCalendar=*-*-* 03:00:00             # every day at 3 AM
@@ -181,6 +193,8 @@ OnUnitActiveSec=1h                     # 1 hour after the unit last became activ
 
 ### Timer commands
 
+`systemctl` manages timers like services: list them, inspect a specific timer's next run, and enable or start it. `journalctl -u` shows the timer job's output.
+
 ```bash
 systemctl list-timers                              # list all active timers
 systemctl list-timers --all                        # include inactive timers
@@ -191,6 +205,8 @@ journalctl -u cleanup.service                      # view timer job output
 ```
 
 ## The `at` command (one-off tasks)
+
+`at` schedules one-off jobs for a specific time — absolute, relative like `now + 2 hours`, or named times — with `atq` and `atrm` managing the pending queue.
 
 ```bash
 # Schedule a one-time command
@@ -224,6 +240,8 @@ atrm 3                                # remove job number 3
 
 ## Troubleshooting
 
+These commands diagnose cron problems: confirm the daemon is running, search the logs for `CRON` entries, dump the environment cron sees, and sanity-check the crontab syntax.
+
 ```bash
 # Check if cron daemon is running
 systemctl status cron             # Debian/Ubuntu
@@ -237,7 +255,7 @@ grep CRON /var/log/cron           # RHEL-based
 * * * * * env > /tmp/cron-env.txt
 
 # Verify crontab syntax (run-cron only — dry run via parsing)
-cat /etc/crontab | grep -v '^#' | grep -v '^$'
+cat /etc/crontab | grep -v '^#' | grep -v '^$'   # show only active entries, stripping comments and blanks
 ```
 
 ## See also

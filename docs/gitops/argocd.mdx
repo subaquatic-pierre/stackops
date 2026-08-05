@@ -25,6 +25,8 @@ GitOps is an operational model where Git repositories serve as the single source
 
 ## Installation
 
+Install the ArgoCD control plane into a dedicated `argocd` namespace, then expose and secure the API server so you can manage applications from the CLI. Run these commands once per cluster, before creating any applications:
+
 ```bash
 # Create namespace
 kubectl create namespace argocd
@@ -45,7 +47,11 @@ argocd account update-password
 
 ## Application management
 
+Applications are the core ArgoCD resource — each one connects a Git source to a target cluster and namespace.
+
 ### Creating an application
+
+Declare an ArgoCD `Application` custom resource to connect a Git source to a destination namespace. ArgoCD watches this manifest and continuously reconciles the cluster to match Git — you apply it once and ArgoCD takes over:
 
 ```yaml
 # argocd-app.yaml
@@ -88,11 +94,15 @@ spec:
         maxDuration: 3m
 ```
 
+Register the application with the cluster by applying the manifest:
+
 ```bash
 kubectl apply -f argocd-app.yaml
 ```
 
 ### Sync status and operations
+
+Inspect applications and drive syncs from the CLI — whether you need to see what automated sync is doing or want manual control over a deployment. These commands cover status, sync, rollback, diff, and deletion:
 
 ```bash
 # Check sync status
@@ -220,6 +230,8 @@ kubectl argo rollouts abort my-app
 
 ## Git repository structure
 
+A well-organized GitOps repository keeps ArgoCD configuration separate from application manifests, and uses a base/overlay layout so the same app can be deployed to multiple environments. A common structure looks like this:
+
 ```
 infra-repo/
 ├── argocd/
@@ -249,12 +261,16 @@ infra-repo/
 
 ## GitOps workflow
 
+The end-to-end GitOps pipeline flows from a code push through CI to a manifest update that ArgoCD continuously watches:
+
 ```
 Developer pushes code → CI builds image → CI updates manifest repo with new tag
     → ArgoCD detects the change → ArgoCD syncs the cluster → App is updated
 ```
 
 ### Example: CI updates the deployment tag
+
+After CI builds and pushes an image, the pipeline updates the image tag in the manifest repository with kustomize and pushes the change — ArgoCD then deploys the new version automatically:
 
 ```bash
 # In CI pipeline after building and pushing the image

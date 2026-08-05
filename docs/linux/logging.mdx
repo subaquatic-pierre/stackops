@@ -55,6 +55,8 @@ Linux systems generate logs from the kernel, system services, applications, and 
 
 ### Querying the journal
 
+`journalctl` reads the structured journal with rich filters: by time window, service unit, priority level, or boot. Output can also be reformatted as JSON for programmatic parsing.
+
 ```bash
 # Basic viewing
 journalctl                                    # all logs (paginated)
@@ -109,6 +111,8 @@ journalctl --user -u pipewire.service
 
 ### journald configuration
 
+journald settings live in `/etc/systemd/journald.conf` and control where logs persist, how large they may grow, and how long they are kept.
+
 ```bash
 # /etc/systemd/journald.conf
 
@@ -131,6 +135,8 @@ systemctl restart systemd-journald
 Traditional syslog daemons route log messages from applications and services to files, remote servers, or other destinations.
 
 ### rsyslog configuration
+
+rsyslog rules live in `/etc/rsyslog.conf` and files under `/etc/rsyslog.d/`. Each line selects messages by facility and priority and sends them to a destination — a file, a terminal, or a remote server.
 
 ```bash
 # /etc/rsyslog.conf or /etc/rsyslog.d/50-custom.conf
@@ -165,6 +171,8 @@ $SystemLogRateLimitBurst 1000
 
 ### logger command
 
+`logger` sends a message from the command line or a script straight into the syslog system — useful for tagging your own events with a facility, priority, and program name.
+
 ```bash
 logger "Deployment started"
 logger -p local0.info -t "deploy-script" "Backup completed"
@@ -177,12 +185,16 @@ The `logrotate` utility compresses, archives, and prunes log files to prevent di
 
 ### Configuration files
 
+logrotate is driven by a global config with per-application rules in `/etc/logrotate.d/`, each controlling when and how that application's logs are rotated.
+
 ```bash
 /etc/logrotate.conf              # global defaults
 /etc/logrotate.d/                # per-application configurations
 ```
 
 ### Example configuration
+
+This typical rule rotates nginx's logs daily, keeps two weeks of history, compresses old files, and signals nginx to reopen its logs after rotation.
 
 ```
 # /etc/logrotate.d/nginx
@@ -221,6 +233,8 @@ The `logrotate` utility compresses, archives, and prunes log files to prevent di
 
 ### Manual operation
 
+`logrotate` normally runs from cron, but you can invoke it manually — a dry run previews what would happen without changing anything, and `-f` forces rotation immediately.
+
 ```bash
 logrotate -d /etc/logrotate.conf           # dry-run (debug mode)
 logrotate -f /etc/logrotate.conf           # force rotation
@@ -231,14 +245,18 @@ logrotate -s /var/lib/logrotate/status     # specify state file
 
 ### tail and head
 
+`tail` shows the last lines of a log — where new events appear — and `-f` follows the file as it grows. `head` shows the beginning of a file instead.
+
 ```bash
 tail -n 100 /var/log/syslog               # last 100 lines
 tail -f /var/log/nginx/access.log         # follow in real-time
 tail -F /var/log/nginx/access.log         # follow (reopens on rotation)
-tail -f /var/log/syslog | grep ERROR      # follow filtered
+tail -f /var/log/syslog | grep ERROR      # follow live, keeping only ERROR lines
 ```
 
 ### grep patterns
+
+`grep` is the workhorse for searching logs. Flags control case sensitivity, counting, regex, date filtering, and the context lines around each match.
 
 ```bash
 grep -i "error" /var/log/syslog                    # case-insensitive match
@@ -249,6 +267,8 @@ grep -B2 -A5 "error" /var/log/syslog               # 2 lines before, 5 after
 ```
 
 ### awk and sed
+
+`awk` extracts and aggregates columns — such as pulling and ranking IPs from an access log — while `sed` transforms the text itself.
 
 ```bash
 # Extract a specific column (e.g., IPs from access log)
@@ -262,6 +282,8 @@ sed 's/\x1b\[[0-9;]*m//g' colored.log
 ```
 
 ### Other useful tools
+
+A few extra commands cover time-window extraction, watching log growth, and dedicated log viewers like `multitail` and `lnav`.
 
 ```bash
 # Count log lines per hour
@@ -281,6 +303,8 @@ lnav /var/log/syslog
 ```
 
 ## Debugging with dmesg
+
+`dmesg` prints the kernel's ring buffer, where hardware, driver, and boot messages appear — invaluable for diagnosing issues at the kernel level.
 
 ```bash
 dmesg                       # print kernel ring buffer

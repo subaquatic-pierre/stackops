@@ -16,6 +16,8 @@ Bash (Bourne Again SHell) is the default command interpreter on most Linux syste
 
 ### Shebang and options
 
+A shebang on the first line tells the kernel which interpreter to run the script with. Using `env` keeps the script portable across systems that install Bash in different locations.
+
 ```bash
 #!/usr/bin/env bash
 ```
@@ -36,6 +38,8 @@ set -euo pipefail
 
 ### Running scripts
 
+Once saved, a script can be run several ways: make it executable and invoke it directly, pass it to an interpreter explicitly, or load it into your current shell.
+
 ```bash
 chmod +x script.sh       # make executable
 ./script.sh               # run directly
@@ -47,10 +51,12 @@ source script.sh          # run in current shell (or `. script.sh`)
 
 ### Assignment and expansion
 
+Variables store values for later use and are expanded with `$`. These patterns cover assignment plus the most common parameter expansions — supplying defaults, reporting unset variables, and conditional replacement.
+
 ```bash
 name="production"                     # no spaces around =
 readonly PI=3.14159                   # constant
-echo "${name}"                        # always quote expansions
+echo "${name}"                        # always quote expansions to prevent word-splitting
 echo "${name:-default}"               # default if unset or empty
 echo "${name:=default}"               # assign default if unset
 echo "${name:?error message}"         # error if unset
@@ -58,6 +64,8 @@ echo "${name:+replacement}"           # replace if set
 ```
 
 ### String manipulation
+
+Parameter expansion also manipulates strings directly — trimming prefixes and suffixes, slicing substrings, measuring length, and replacing text — all without external tools like `sed`.
 
 ```bash
 file="backup.tar.gz"
@@ -73,6 +81,8 @@ echo "${file//./_}"                   # replace all matches     → backup_tar_g
 
 ### Arrays
 
+Arrays hold multiple values under one variable name — ideal for lists of hosts, files, or arguments. They support indexing, appending, and iteration.
+
 ```bash
 hosts=("web1" "web2" "db1")          # declare array
 echo "${hosts[0]}"                   # first element
@@ -85,6 +95,8 @@ done
 ```
 
 ### Associative arrays (Bash 4+)
+
+Associative arrays map string keys to values — Bash's equivalent of a hash table. Use them for lookups such as a service-name-to-port mapping.
 
 ```bash
 declare -A ports
@@ -99,6 +111,8 @@ done
 
 ### If statements
 
+`if` branches on the exit status of a command or the result of a `[[ ]]` test. The `elif` and `else` clauses handle the subsequent cases.
+
 ```bash
 if [[ "$status" == "running" ]]; then
     echo "Service is up"
@@ -111,6 +125,8 @@ fi
 ```
 
 ### Test operators
+
+The `[[ ]]` builtin evaluates file, string, and numeric conditions. These are the operators you will reach for most often inside `if` and `while`.
 
 ```bash
 [[ -f "/etc/hostname" ]]             # file exists and is regular
@@ -127,6 +143,8 @@ fi
 
 ### Chaining operators
 
+Chaining runs commands conditionally on one line: `&&` executes the next command only on success, `||` only on failure, and `;` regardless of the outcome.
+
 ```bash
 command1 && command2                 # command2 runs only if command1 succeeds
 command1 || command2                 # command2 runs only if command1 fails
@@ -134,6 +152,8 @@ command1 ; command2                  # both run regardless
 ```
 
 ### Case statements
+
+A `case` statement matches a value against multiple patterns and runs the first branch that fits — often cleaner than long `if`/`elif` chains for dispatching on a command argument.
 
 ```bash
 case "$action" in
@@ -154,6 +174,8 @@ esac
 ```
 
 ### Loops
+
+Loops repeat a block of commands: iterate over a fixed list or numeric range, read input line by line, or keep looping until a condition is met.
 
 ```bash
 # For loop over a list
@@ -184,6 +206,8 @@ done
 ```
 
 ## Functions
+
+Functions group reusable blocks of code under a name. Arguments arrive as `$1`, `$2`, and so on; use `local` to scope variables and `return` to set an exit status.
 
 ```bash
 # Definition
@@ -217,6 +241,8 @@ fi
 
 ### Reading input
 
+`read` captures input from the user at runtime, optionally with a prompt and silent entry for passwords. The `while read` pattern also processes a file line by line.
+
 ```bash
 read -p "Enter database name: " db_name
 read -sp "Enter password: " db_pass     # silent input
@@ -231,6 +257,8 @@ done < config.conf
 
 ### Redirection
 
+Redirection controls where a command's output and error streams go — to files, devices, or nowhere at all — and where its standard input comes from.
+
 ```bash
 command > file.txt                     # stdout to file (overwrite)
 command >> file.txt                    # stdout to file (append)
@@ -241,6 +269,8 @@ command < input.txt                    # read stdin from file
 ```
 
 ### Heredocs
+
+A heredoc feeds a multi-line block of text into a command's stdin — convenient for generating configuration files. Quoting the delimiter stops the shell from expanding variables inside the block.
 
 ```bash
 cat > /etc/nginx/sites-available/app <<'EOF'
@@ -256,6 +286,8 @@ Use `'EOF'` (quoted) to prevent variable expansion; use `EOF` (unquoted) to allo
 
 ### Process substitution
 
+Process substitution `<(...)` presents a command's output as if it were a file. Use it when a tool expects a file path but you want to feed or compare live command output.
+
 ```bash
 diff <(ls /etc) <(ls /etc.bak)
 while read -r user uid; do ...; done < <(awk -F: '{print $1, $3}' /etc/passwd)
@@ -264,6 +296,8 @@ while read -r user uid; do ...; done < <(awk -F: '{print $1, $3}' /etc/passwd)
 ## Common patterns
 
 ### Trap for cleanup
+
+A `trap` registers a command to run when the script exits or receives a signal — the standard way to remove temporary files and release resources automatically.
 
 ```bash
 cleanup() {
@@ -275,6 +309,8 @@ trap cleanup EXIT
 
 ### Lock file for singleton
 
+A lock file combined with `flock` guarantees that only one instance of a script runs at a time. The `-n` flag fails immediately if the lock is already held, so the second instance can exit with a message.
+
 ```bash
 LOCKFILE="/var/run/$(basename "$0").lock"
 exec 200>"$LOCKFILE"
@@ -282,6 +318,8 @@ flock -n 200 || { echo "Another instance is running."; exit 1; }
 ```
 
 ### Retry with backoff
+
+This helper retries a failing command up to a fixed number of times, sleeping between attempts — useful for operations that fail intermittently, such as reaching an external API.
 
 ```bash
 retry() {
@@ -305,6 +343,8 @@ retry 5 10 curl -sSf https://api.example.com/health
 ```
 
 ### Argument parsing
+
+`getopts` parses command-line flags portably. This pattern collects options into variables, validates the required ones, and prints a usage message when they are missing.
 
 ```bash
 usage() {
@@ -331,6 +371,8 @@ shift $((OPTIND - 1))
 
 ### Subshells and command substitution
 
+Command substitution `$(...)` captures a command's output into a variable. Parenthesized commands run in a subshell, so changes like `cd` do not affect the calling script.
+
 ```bash
 current_branch=$(git rev-parse --abbrev-ref HEAD)
 file_count=$(find /var/log -type f -name "*.log" | wc -l)
@@ -341,6 +383,8 @@ timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 ```
 
 ## Debugging
+
+These techniques find script bugs before they reach production: check syntax without running, trace every command as it executes, and print the failing line and command.
 
 ```bash
 bash -n script.sh                     # syntax check (no execution)
@@ -357,6 +401,8 @@ trap 'echo "Error at line $LINENO: $BASH_COMMAND"' ERR
 ```
 
 ## Useful one-liners
+
+A handful of shell shortcuts and one-liners speed up everyday interactive work.
 
 ```bash
 # Run last command as root

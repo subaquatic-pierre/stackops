@@ -16,6 +16,8 @@ Debugging in Kubernetes requires fluency with a focused set of commands and tool
 
 ### Resource inspection
 
+Start every investigation with these read-only commands. `get` and `describe` show the current state of a resource plus the events that led to it, which is the fastest way to narrow down where a problem is — before you touch anything.
+
 ```bash
 # List and describe — your starting point for any issue
 kubectl get pods -n <namespace> -o wide
@@ -33,6 +35,8 @@ kubectl rollout history deployment/<name> -n <namespace>
 ```
 
 ### Output formatting
+
+Raw YAML and JSON output reveal fields that the default table view hides, such as status conditions and finalizers. Use `-o` flags with filters and custom columns to extract exactly the data you need, especially when scripting or comparing resources.
 
 ```bash
 # JSON / YAML output with filtering
@@ -53,6 +57,8 @@ kubectl get pods -l 'app in (my-app, my-worker)'
 ## Logging patterns
 
 ### kubectl logs
+
+The kubelet stores the output of every container on its node, and `kubectl logs` reads it per pod, per container, or across an entire label set. It also keeps logs from the previous (crashed) instance, which is often the only evidence of why a container died.
 
 ```bash
 # Basic log retrieval
@@ -103,6 +109,8 @@ stern my-app -n production --tail 50
 
 ### CrashLoopBackOff
 
+CrashLoopBackOff means a container starts and then exits repeatedly, so Kubernetes keeps restarting it with a growing backoff delay. Diagnose it by checking the exit reason and code, reading the logs from the crashed instance, and, if the app exits too fast to inspect, overriding its command to keep it alive.
+
 ```bash
 # 1. Check the reason
 kubectl describe pod <pod>
@@ -122,6 +130,8 @@ kubectl edit deployment <name>
 ```
 
 ### OOMKilled (Out of Memory)
+
+OOMKilled (exit code 137) means the kernel terminated the container because it exceeded its memory limit or pushed the node into memory pressure. Check the container's actual usage against its requests/limits and look for memory pressure on the node before tuning limits or fixing leaks.
 
 ```bash
 # Check termination reason
@@ -144,6 +154,8 @@ kubectl describe node <node> | grep -A5 "Conditions"
 ```
 
 ### ImagePullBackOff / ErrImagePull
+
+ImagePullBackOff and ErrImagePull mean the container runtime failed to fetch the image — typically a missing or mistyped tag, missing registry credentials, or an unreachable registry. These commands pinpoint which of those is the cause and show how to fix a credentials problem.
 
 ```bash
 # Check the exact error
@@ -169,6 +181,8 @@ kubectl create secret docker-registry regcred \
 
 ### Pending pods
 
+A pod stuck in `Pending` means the scheduler couldn't place it on any node. The describe output's Events section lists the typical culprits — insufficient CPU or memory, unmet affinity rules, an unbound PVC, or taints no pod tolerates — so read those events before adjusting anything.
+
 ```bash
 # Check why a pod won't schedule
 kubectl describe pod <pod> | grep -A10 "Events"
@@ -188,6 +202,8 @@ kubectl get pvc -n <namespace>
 
 ### Pods stuck in Terminating
 
+A pod that won't leave the `Terminating` state usually has a leftover finalizer, a stuck volume mount, or a kubelet that lost contact with the API server. These commands identify the blocker and force-remove the pod when graceful deletion has already failed.
+
 ```bash
 # Identify stuck pod
 kubectl get pods -n <namespace> | grep Terminating
@@ -206,6 +222,8 @@ kubectl describe pod <pod> | grep -A5 "Finalizers"
 
 ### Connectivity testing
 
+To test networking from inside the cluster, run a throwaway pod with the common network tools installed. From there you can reach Services, DNS names, and external endpoints exactly the way your application does — which isolates the problem to the network rather than to your app's configuration.
+
 ```bash
 # Run a temporary debug pod with networking tools
 kubectl run netshoot --rm -it --image=nicolaka/netshoot -- /bin/bash
@@ -215,7 +233,7 @@ kubectl run netshoot --rm -it --image=nicolaka/netshoot -- /bin/bash
 # Lightweight option
 kubectl run dnsutils --rm -it --image=registry.k8s.io/e2e-test-images/jessie-dnsutils:1.3 -- sh
 
-# Test DNS resolution from a pod
+# Test full-qualified DNS resolution from inside a pod
 kubectl exec <pod> -- nslookup kubernetes.default.svc.cluster.local
 
 # Test connectivity to a service
@@ -224,6 +242,8 @@ kubectl exec <pod> -- nc -zv <service-name>.<namespace>.svc 80
 ```
 
 ### DNS debugging
+
+Most DNS failures trace back to CoreDNS or to a pod's `resolv.conf`. These commands test resolution from inside a pod, inspect the CoreDNS service and endpoints, and show the kube-dns logs for upstream errors.
 
 ```bash
 # Test CoreDNS
@@ -242,6 +262,8 @@ kubectl get endpoints -n kube-system kube-dns
 
 ### Service and ingress debugging
 
+When a Service is unreachable, check its endpoints first — empty endpoints mean no pod matches the selector. Port-forwarding lets you test the Service in isolation, and `describe` on an Ingress surfaces controller errors and backend health issues.
+
 ```bash
 # Verify service endpoints are healthy
 kubectl get endpoints <service> -n <namespace>
@@ -257,6 +279,8 @@ kubectl get ingress -A
 ```
 
 ### Network policy debugging
+
+If traffic works between some pods but not others, a NetworkPolicy is likely blocking it. Check which policies exist cluster-wide, then test connectivity from pods with different namespaces and labels to confirm the rules that apply to each.
 
 ```bash
 # Check if network policies are blocking traffic
@@ -297,6 +321,8 @@ kubectl debug node/<node> -it --image=nicolaka/netshoot -- sh
 
 ## Storage and volume debugging
 
+Storage failures usually surface as a pod stuck in `ContainerCreating` or `Pending`, or as a PVC that never binds to a PV. These commands check the PVC/PV binding status, verify the volume is actually writable from inside the pod, and check disk usage on the node.
+
 ```bash
 # Check PVC/PV status
 kubectl get pvc -A
@@ -314,6 +340,8 @@ kubectl debug node/<node> -it --image=nicolaka/netshoot -- sh -c "chroot /host d
 ```
 
 ## RBAC and permission debugging
+
+When you hit a `forbidden` error, these commands answer two questions: what can the current identity actually do, and which Role/Binding grants (or withholds) that access. `kubectl auth can-i` even lets you simulate another user, group, or ServiceAccount without impersonating them for real.
 
 ```bash
 # Check what the current user can do
@@ -334,12 +362,14 @@ kubectl describe pod <pod> 2>&1 | grep "forbidden\|Unauthorized"
 
 ## Resource and cluster-wide inspection
 
+For cluster-wide issues, start with an overview: node health, pods that aren't running anywhere, and resource usage across namespaces. These commands surface problems that are invisible when you look at a single namespace.
+
 ```bash
 # Cluster health overview
 kubectl get nodes
 kubectl describe nodes | grep -A5 Conditions
 kubectl get pods -A --field-selector=status.phase!=Running
-kubectl get componentstatuses   # Deprecated but still useful
+kubectl get componentstatuses   # Deprecated, but a quick control-plane health check
 
 # Resource usage summary
 kubectl top nodes
@@ -361,6 +391,8 @@ PID:.status.conditions[?(@.type=="PIDPressure")].status
 ## Essential third-party tools
 
 ### k9s — Terminal-based UI
+
+k9s is a terminal UI for browsing and managing Kubernetes resources with keyboard shortcuts instead of long `kubectl` invocations. It's especially useful for interactive troubleshooting — switching namespaces, watching logs, and editing resources without leaving the terminal.
 
 ```bash
 # Install
@@ -387,6 +419,8 @@ k9s
 
 ### kubectx + kubens — Context/namespace switching
 
+kubectx and kubens are two tiny commands that reduce switching clusters and namespaces to a single short command, and both remember your previous selection for toggling back. They're a major quality-of-life improvement when you work across several clusters.
+
 ```bash
 # Install
 # Linux/macOS: brew install kubectx
@@ -404,6 +438,8 @@ kubens -                         # Switch back to previous
 ```
 
 ### kubectl plugins (krew)
+
+krew is the package manager for `kubectl` plugins, working like `apt` or `brew`. It installs community-built subcommands that extend kubectl with specialized features such as decoding Secrets, sniffing pod network traffic, and auditing who can do what via RBAC.
 
 ```bash
 # Install krew plugin manager

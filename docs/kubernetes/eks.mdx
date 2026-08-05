@@ -18,6 +18,8 @@ The AWS EBS CSI driver provisions persistent block storage for pods using EBS vo
 
 ### Installation (via EKS add-on or Helm)
 
+The EBS CSI driver is the standard way to provide persistent block storage to pods on EKS. Installing it through the managed add-on is recommended over Helm because AWS keeps the driver updated and wires up the required IAM role for you.
+
 ```bash
 # Via EKS add-on (recommended)
 aws eks create-addon --cluster-name my-cluster \
@@ -29,6 +31,8 @@ aws eks describe-addon --cluster-name my-cluster --addon-name aws-ebs-csi-driver
 ```
 
 ### IAM role for the CSI driver
+
+The driver needs permission to call EBS APIs (CreateVolume, AttachVolume, etc.). This trust policy lets the driver's ServiceAccount assume an IAM role through IRSA, scoped to the cluster's OIDC provider so only that ServiceAccount can use it.
 
 ```json
 {
@@ -49,6 +53,8 @@ aws eks describe-addon --cluster-name my-cluster --addon-name aws-ebs-csi-driver
 ```
 
 ### StorageClass and PVC
+
+With the driver installed, define a StorageClass that maps to an EBS volume type and a PVC that requests storage. `WaitForFirstConsumer` delays volume creation until a pod actually uses the PVC, which avoids provisioning volumes that never get attached.
 
 ```yaml
 apiVersion: storage.k8s.io/v1
@@ -78,6 +84,8 @@ spec:
 
 ### Using in a pod
 
+Finally, mount the PVC into a pod by referencing it in a volume. The CSI driver attaches the EBS volume to the node and mounts it at the container's `mountPath` before the container starts.
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -99,6 +107,8 @@ spec:
 ## EFS CSI driver
 
 For shared (ReadWriteMany) filesystem access across pods:
+
+The EFS CSI driver lets many pods mount the same filesystem simultaneously — something EBS block volumes can't do. Install it via the EKS add-on, then define a StorageClass that points at it:
 
 ```bash
 # Install via add-on
@@ -139,6 +149,8 @@ The VPC CNI plugin assigns native VPC IP addresses to pods, enabling direct comm
 
 ### Common configurations
 
+The VPC CNI is tuned through environment variables on the `aws-node` DaemonSet. These settings trade off IP consumption, pod density per node, and pod startup latency — adjust them to match your subnet sizes and workload patterns.
+
 ```bash
 # Enable prefix delegation (more pods per node)
 kubectl set env daemonset aws-node -n kube-system ENABLE_PREFIX_DELEGATION=true
@@ -153,6 +165,8 @@ kubectl set env daemonset aws-node -n kube-system ENI_CONFIG_LABEL_DEF=topology.
 
 ### IP exhaustion troubleshooting
 
+Because every pod consumes a VPC IP address, large or dense clusters can exhaust a subnet's address space and leave pods stuck in `ContainerCreating`. These commands show how many addresses remain per node and how to reclaim or conserve them.
+
 ```bash
 # Check available IPs per node
 kubectl describe nodes | grep -A5 "Allocatable"
@@ -160,7 +174,8 @@ kubectl describe nodes | grep -A5 "Allocatable"
 # View CNI metrics
 kubectl logs -n kube-system daemonset/aws-node | grep "ip address"
 
-# Enable SNAT for pods accessing external services (if running out of IPs)
+# Enable SNAT for pod traffic leaving the VPC (use this to conserve
+# pod IPs when running with custom networking / prefix delegation)
 kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_EXTERNALSNAT=true
 ```
 
@@ -169,6 +184,8 @@ kubectl set env daemonset aws-node -n kube-system AWS_VPC_K8S_CNI_EXTERNALSNAT=t
 Replaces the in-tree cloud provider for provisioning ALBs and NLBs from Kubernetes Ingress and Service resources.
 
 ### Installation
+
+The AWS Load Balancer Controller replaces the legacy in-tree cloud provider and provisions ALBs (from Ingress resources) and NLBs (from LoadBalancer Services). It needs its own IAM role, which `eksctl` creates alongside a dedicated ServiceAccount:
 
 ```bash
 # Create IAM policy and role (using eksctl or manual)
@@ -189,6 +206,8 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 ```
 
 ### Ingress with ALB
+
+An Ingress with `ingressClassName: alb` tells the controller to provision an Application Load Balancer in front of your service. Annotations control the ALB's scheme (public or internal), TLS certificates, listener ports, and health-check path.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -218,6 +237,8 @@ spec:
 ```
 
 ### Service with NLB
+
+A Service of type `LoadBalancer` carrying the NLB annotations makes the controller provision a Network Load Balancer instead — the right choice for TCP/UDP traffic and for workloads that must preserve client IP addresses.
 
 ```yaml
 apiVersion: v1
@@ -250,6 +271,8 @@ eksctl create iamserviceaccount \
   --attach-policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
   --approve
 ```
+
+Once the ServiceAccount exists, assign it to a pod. The pod's AWS SDK automatically assumes the IAM role scoped to that ServiceAccount:
 
 ```yaml
 apiVersion: v1

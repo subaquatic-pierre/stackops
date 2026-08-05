@@ -1,108 +1,175 @@
 ---
 sidebar_position: 1
 title: 'Databases'
-description: 'Reference for common database configuration and operations across Linux systems.'
+description: 'Reference for common database configuration, quick-start setup, and core operations across PostgreSQL, MySQL/MariaDB, and Redis.'
 tags: [databases, postgresql, mysql, redis, reference]
-last_updated: '2026-08-03'
+last_updated: '2026-08-05'
 ---
 
 # Databases
 
 ## Overview
 
-Reference material for configuring, managing, and troubleshooting common database systems on Linux. More detailed guides coming soon.
+This reference covers quick-start installation, connection, and basic operations for the three most common database systems found in production Linux environments. Each database has its own detailed reference page linked in the [See also](#see-also) section — use this page as a fast cheatsheet or to compare syntax across systems.
+
+All commands assume a freshly installed database on a Debian/Ubuntu system (use `dnf` or `yum` on RHEL-based distributions).
 
 ## Quick starts
 
 ### PostgreSQL
 
+PostgreSQL is a powerful, ACID-compliant relational database. After installing the `postgresql` package, the server starts automatically and listens on port `5432`. The `postgres` system user is the default superuser — peer authentication allows local connections as that user without a password.
+
 ```bash
-# Install
+# Install the server and client packages
 apt install postgresql
 
-# Connect
+# The postgres system user is the default admin — switch to it for first-time access
 sudo -u postgres psql
 
-# Create database and user
+# Inside psql: create an application database, a dedicated user, and grant ownership
 CREATE DATABASE myapp;
 CREATE USER myuser WITH PASSWORD 'secret';
 GRANT ALL PRIVILEGES ON DATABASE myapp TO myuser;
+
+# Connect as the new user from the shell (replace values with yours)
+psql -U myuser -d myapp -h localhost
 ```
 
 ### MySQL / MariaDB
 
+MySQL and its drop-in fork MariaDB follow similar conventions. The server listens on port `3306` and runs as the `mysql` system user. On first install you may be prompted to set the root password — alternatively use `mysql_secure_installation` to harden the instance.
+
 ```bash
-# Install
+# Install the server (MariaDB is the default on many modern distros:
+# apt install mariadb-server)
 apt install mysql-server
 
-# Connect
+# Secure the installation — sets root password, removes anonymous users, etc.
+mysql_secure_installation
+
+# Connect as root (password set during secure installation)
 mysql -u root -p
 
-# Create database and user
+# Inside the mysql shell: create a database and grant a user full access
 CREATE DATABASE myapp;
 CREATE USER 'myuser'@'localhost' IDENTIFIED BY 'secret';
 GRANT ALL PRIVILEGES ON myapp.* TO 'myuser'@'localhost';
 FLUSH PRIVILEGES;
+
+# Connect as the new user
+mysql -u myuser -p myapp
 ```
 
 ### Redis
 
+Redis is an in-memory data structure store often used as a cache, message broker, or session store. It listens on port `6379` by default and stores data in memory with optional persistence via RDB snapshots or AOF logs.
+
 ```bash
-# Install
+# Install the server
 apt install redis-server
 
-# Connect
+# Ping the server to verify it is running and responding
+redis-cli ping
+
+# Launch the interactive CLI — from here you can SET/GET keys, run INFO, etc.
 redis-cli
 
-# Check status
-redis-cli ping
+# Inside redis-cli: check memory usage, connected clients, and server statistics
 redis-cli info
+
+# Redis persists data asynchronously — trigger an immediate snapshot
+redis-cli SAVE
 ```
 
 ## Common commands
 
 ### Backup
 
-```bash
-# PostgreSQL
-pg_dump myapp > backup.sql
-pg_dump -Fc myapp > backup.dump          # compressed custom format
+Backing up a database before schema migrations or maintenance windows is standard practice. Each database system provides its own dump tool that captures a consistent snapshot of the data at a specific point in time.
 
-# MySQL
+```bash
+# --- PostgreSQL ---
+# Plain SQL dump (human-readable, can be restored with psql)
+pg_dump myapp > backup.sql
+
+# Custom compressed format (smaller, supports parallel restore, not human-readable)
+pg_dump -Fc myapp > backup.dump
+
+# Dump a specific table only
+pg_dump -t users myapp > users_backup.sql
+
+# --- MySQL ---
+# Dump a single database to SQL
 mysqldump myapp > backup.sql
+
+# Dump all databases (requires root or SUPER privilege)
 mysqldump --all-databases > all.sql
 
-# Redis
-redis-cli SAVE                           # trigger RDB snapshot
-cp /var/lib/redis/dump.rdb backup.rdb    # copy RDB file
+# Dump only the schema, no data
+mysqldump --no-data myapp > schema.sql
+
+# --- Redis ---
+# Trigger an RDB snapshot synchronously (blocks until complete)
+redis-cli SAVE
+
+# Trigger a background snapshot (non-blocking, recommended for production)
+redis-cli BGSAVE
+
+# Direct file copy while server is running (SAVE or BGSAVE should be triggered first
+# to ensure the RDB file is current)
+cp /var/lib/redis/dump.rdb backup.rdb
 ```
 
 ### Restore
 
-```bash
-# PostgreSQL
-psql myapp < backup.sql
-pg_restore -d myapp backup.dump
+Restoring follows the inverse of the backup process. Always verify the target database exists before restoring, and consider restoring to a temporary database first in production environments.
 
-# MySQL
+```bash
+# --- PostgreSQL ---
+# Restore a plain SQL dump
+psql myapp < backup.sql
+
+# Restore a custom-format dump (supports selective table restore and parallelism)
+pg_restore -d myapp backup.dump
+pg_restore -d myapp -j 4 backup.dump              # parallel restore with 4 workers
+pg_restore -d myapp --clean backup.dump            # drop existing objects first
+pg_restore -t users -d myapp backup.dump           # restore a single table
+
+# --- MySQL ---
+# Restore from a SQL dump file
 mysql myapp < backup.sql
 
-# Redis
+# Restore while logged into mysql
+mysql -u root -p
+USE myapp;
+SOURCE /path/to/backup.sql;
+
+# --- Redis ---
+# Stop the server before replacing the RDB file to avoid corrupting the data
 systemctl stop redis
+
+# Copy the backup file to the Redis data directory (default: /var/lib/redis)
 cp backup.rdb /var/lib/redis/dump.rdb
+
+# Start the server — it will load the new RDB file into memory
 systemctl start redis
 ```
 
 ## Configuration files
 
-| Database | Config location |
-|---|---|
-| PostgreSQL | `/etc/postgresql/<version>/main/postgresql.conf` |
-| PostgreSQL (client auth) | `/etc/postgresql/<version>/main/pg_hba.conf` |
-| MySQL / MariaDB | `/etc/mysql/my.cnf` or `/etc/mysql/mariadb.conf.d/` |
-| Redis | `/etc/redis/redis.conf` |
+Each database system stores its configuration in a predictable location. The table below lists the primary config file for each. Changes typically require a service reload or restart to take effect.
+
+| Database | Config location | Reload command |
+|---|---|---|
+| PostgreSQL | `/etc/postgresql/<version>/main/postgresql.conf` | `systemctl reload postgresql` |
+| PostgreSQL (client auth) | `/etc/postgresql/<version>/main/pg_hba.conf` | `systemctl reload postgresql` |
+| MySQL / MariaDB | `/etc/mysql/my.cnf` or `/etc/mysql/mariadb.conf.d/` | `systemctl reload mysql` (or `mariadb`) |
+| Redis | `/etc/redis/redis.conf` | `systemctl restart redis` (Redis requires restart) |
 
 ## See also
 
-- [Logging & Log Management](../linux/logging.mdx) — database log locations
-- [Process Management](../linux/processes.mdx) — managing database services
+- [PostgreSQL Reference](./postgres.mdx) — in-depth user management, CRUD operations, performance tuning, and backup patterns
+- [MongoDB Reference](./mongodb.mdx) — document database operations, indexing, and aggregation pipeline
+- [Logging & Log Management](../linux/logging.mdx) — locating database log output on disk
+- [Process Management](../linux/processes.mdx) — managing database services with systemd

@@ -43,6 +43,8 @@ kernel.core_pattern = /var/log/core.%e.%p.%t
 
 ### Installation (Debian/Ubuntu)
 
+On Debian/Ubuntu, install containerd from the distribution packages. Afterwards, generate the default configuration and flip on the `SystemdCgroup` driver — the kubelet requires it to manage container cgroups correctly.
+
 ```bash
 # Install containerd
 apt-get update
@@ -52,7 +54,8 @@ apt-get install -y containerd
 mkdir -p /etc/containerd
 containerd config default > /etc/containerd/config.toml
 
-# Enable SystemdCgroup driver (CRITICAL for Kubernetes)
+# Enable the SystemdCgroup driver (CRITICAL: the kubelet requires
+# this cgroup driver to manage container resources correctly)
 sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
 # Restart
@@ -60,6 +63,8 @@ systemctl restart containerd
 ```
 
 ### containerd config.toml (essential sections)
+
+The generated `config.toml` has a few sections that matter for Kubernetes. The essential ones are the cgroup driver, the pause/sandbox image, and registry mirror endpoints for pulling container images.
 
 ```toml
 [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
@@ -78,6 +83,8 @@ systemctl restart containerd
 ## Worker node setup
 
 ### Prerequisites
+
+Before installing the Kubernetes binaries, prepare the node at the OS level: disable swap (the kubelet refuses to run with it enabled), load the kernel modules needed for overlay networking, apply the sysctl settings, and add the Kubernetes apt repository.
 
 ```bash
 # Disable swap (REQUIRED by kubelet)
@@ -109,6 +116,8 @@ apt-mark hold kubelet kubeadm kubectl
 
 ### kubelet configuration
 
+The kubelet config file controls how the node runs pods: the maximum number of pods, how much CPU/memory is reserved for the system and kubelet itself, and when to evict pods under memory or disk pressure.
+
 ```yaml
 # /var/lib/kubelet/config.yaml
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -135,6 +144,8 @@ featureGates:
 
 ### Joining the cluster
 
+On the control plane, generate a join token and command, then run it on each worker node. The command carries the API server address, a short-lived token, and the CA hash that proves the worker is joining the right cluster.
+
 ```bash
 # On the control plane node, generate a join command
 kubeadm token create --print-join-command
@@ -149,6 +160,8 @@ kubeadm join <control-plane-ip>:6443 \
 
 ### kubeadm init
 
+`kubeadm init` bootstraps the entire control plane. The pod and service CIDRs must match what your CNI plugin expects, and `--control-plane-endpoint` is the address nodes and clients use to reach the API server.
+
 ```bash
 kubeadm init \
   --pod-network-cidr=10.244.0.0/16 \
@@ -158,6 +171,8 @@ kubeadm init \
 ```
 
 ### Networking (CNI)
+
+The CNI plugin provides the cluster's pod network — without one, nodes stay `NotReady`. Choose a plugin to fit your needs: Flannel for simplicity, Calico for network policies, or Cilium for eBPF-based performance and security features.
 
 ```bash
 # Flannel (simple)
@@ -200,6 +215,8 @@ scheduler:
 
 ### Cordoning and draining
 
+Before maintenance on a node, cordon it to stop new pods from scheduling, then drain it to evict the running pods gracefully. When the work is done, `uncordon` makes the node schedulable again.
+
 ```bash
 # Mark node as unschedulable (no new pods)
 kubectl cordon worker-1
@@ -213,6 +230,8 @@ kubectl uncordon worker-1
 
 ### Node updates
 
+Upgrade kubelet and kubeadm on each node in order, restarting the kubelet after the packages land. Control plane nodes additionally need `kubeadm upgrade plan` and `apply` to move the control plane components to the new version.
+
 ```bash
 # Update packages on a node
 apt-get update && apt-get upgrade -y kubelet kubeadm kubectl
@@ -225,6 +244,8 @@ kubeadm upgrade apply v1.30.1
 
 ### Node deletion
 
+To remove a node permanently, delete it from the cluster first, then reset kubeadm on the node and clean its state directories. This leaves the machine ready to be re-provisioned cleanly later.
+
 ```bash
 kubectl delete node worker-1
 # Then on the node itself:
@@ -235,6 +256,8 @@ rm -rf /etc/cni /etc/kubernetes /var/lib/kubelet /var/lib/etcd
 ## Storage
 
 ### Provisioning storage on nodes
+
+Nodes can provide persistent storage through hostPath volumes or by mounting an external disk. Prepare the directory or filesystem and register the mount in `/etc/fstab` so it survives reboots.
 
 ```bash
 # Create a directory for hostPath volumes
@@ -249,6 +272,8 @@ mount -a
 ```
 
 ## Security hardening
+
+These CIS-inspired checks lock down a node: restrict permissions on config files, require TLS, and disable anonymous API access. Run through them before putting a node into production.
 
 ```bash
 # CIS benchmark essentials

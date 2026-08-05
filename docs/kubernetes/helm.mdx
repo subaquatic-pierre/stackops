@@ -14,6 +14,8 @@ Helm is the package manager for Kubernetes. It bundles Kubernetes manifests into
 
 ## Core commands
 
+These are the commands you'll use most often when working with Helm: adding and searching chart repositories, installing and upgrading releases, rolling back a bad release, and inspecting what's currently deployed and with which values.
+
 ```bash
 # Add a chart repository
 helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -30,7 +32,7 @@ helm install my-release bitnami/nginx --namespace production --create-namespace
 helm install my-release bitnami/nginx -f values-prod.yaml
 helm install my-release bitnami/nginx --set replicaCount=3
 
-# Dry-run (render templates without applying)
+# Dry-run: render the templates and show what would be applied, without touching the cluster
 helm install my-release bitnami/nginx --dry-run --debug
 helm template my-release bitnami/nginx -f values.yaml
 
@@ -64,6 +66,8 @@ helm show values bitnami/nginx            # chart's default values
 
 ## Chart structure
 
+A chart is simply a directory of files following a standard layout. Helm reads this structure to know what to render, which values to use, what dependencies to pull in, and which files to ship when the chart is packaged.
+
 ```
 mychart/
 ├── Chart.yaml            # Chart metadata
@@ -83,6 +87,8 @@ mychart/
 ```
 
 ### Chart.yaml
+
+`Chart.yaml` is the chart's metadata file — it declares the chart name, version, and type, and lists any dependencies (other charts to install alongside it). Its `version` field also drives Helm's upgrade and rollback logic.
 
 ```yaml
 apiVersion: v2
@@ -108,6 +114,8 @@ dependencies:
 
 ### _helpers.tpl
 
+Files prefixed with `_` are never rendered as Kubernetes resources — they only hold reusable template definitions. `_helpers.tpl` is where you define the labels and selector labels that every other manifest includes, keeping them consistent across all resources in the chart.
+
 ```yaml
 {{/* Common labels */}}
 {{- define "my-app.labels" -}}
@@ -125,6 +133,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 ```
 
 ### Common template patterns
+
+Templates use Go's text/template syntax plus Helm-specific functions. These are the patterns you'll see in almost every chart: conditionals, defaults, `with` to scope context, `range` to iterate, named-template includes, and `tpl` for values that are themselves templates.
 
 ```yaml
 # Conditionals
@@ -158,6 +168,8 @@ value: {{ tpl .Values.dynamicValue . }}
 ```
 
 ### Values injection (values.yaml)
+
+`values.yaml` defines the chart's configurable settings and their defaults. Operators override these at install or upgrade time with `--set` or `-f`, so keep every tunable an operator might need — replicas, image, resources, feature toggles — here rather than hardcoded in templates.
 
 ```yaml
 replicaCount: 3
@@ -206,6 +218,8 @@ postgresql:
 ```
 
 ### Deployment template
+
+This is a typical Deployment template in a chart. Note how every value comes from `.Values`, labels are injected via the `_helpers.tpl` includes, and YAML indentation is handled with `nindent` — so the rendered output is always valid, no matter how values are overridden.
 
 ```yaml
 # templates/deployment.yaml
@@ -256,6 +270,8 @@ Helm hooks run Kubernetes jobs at specific lifecycle points:
 | `test` | On `helm test` |
 
 ### Database migration hook
+
+Database migrations should run once per release, before new pods start serving traffic — not on every pod startup. This Job is annotated as a `post-install,post-upgrade` hook, so Helm runs it after resources are created and again on each upgrade, with a `hook-weight` ordering it and a delete policy that cleans it up once it succeeds.
 
 ```yaml
 apiVersion: batch/v1

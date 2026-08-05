@@ -144,6 +144,8 @@ spec:
 
 ### Liveness vs Readiness vs Startup
 
+Kubernetes runs three kinds of probes for different purposes: **liveness** restarts deadlocked containers, **readiness** removes containers from Service traffic until they're able to serve, and **startup** protects slow-initializing apps from being killed by the liveness probe before they finish booting. This example configures all three.
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -187,6 +189,8 @@ spec:
 ## Resource management
 
 ### Requests and limits
+
+Requests and limits tell the scheduler how much CPU and memory a container needs and how much it may use. Requests guarantee the minimum and inform pod placement; limits cap usage, throttling CPU and OOM-killing containers that exceed their memory.
 
 ```yaml
 apiVersion: apps/v1
@@ -257,6 +261,8 @@ spec:
 
 ### Pod anti-affinity (spread across nodes)
 
+Anti-affinity spreads replicas across different nodes so that a single node failure doesn't take down every copy. This example prefers spreading `my-app` pods across hosts — the `topologyKey` defines the spread domain, here the node.
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -281,6 +287,8 @@ spec:
 
 ### Node affinity
 
+Node affinity constrains which nodes a pod can land on — for example, only instance types with enough resources. `requiredDuringSchedulingIgnoredDuringExecution` is a hard constraint the scheduler must satisfy, while `preferredDuringScheduling...` is a soft preference it tries to honor.
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -303,6 +311,8 @@ spec:
 ```
 
 ### Topology spread constraints
+
+Spread constraints distribute pods evenly across a domain such as zones or hosts, balancing more predictably than affinity rules. `maxSkew` caps how far any two domains can diverge in pod count, and `whenUnsatisfiable: DoNotSchedule` makes the constraint hard.
 
 ```yaml
 apiVersion: v1

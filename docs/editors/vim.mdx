@@ -24,6 +24,8 @@ Vim is a modal text editor designed for efficient keyboard-driven editing. It sh
 
 ## Essential navigation
 
+Movement is the foundation of Vim — everything else builds on getting the cursor where you need it. These keys navigate without leaving Normal mode, so you never need to touch the mouse.
+
 ```vim
 h  j  k  l           " left, down, up, right
 w  b                 " next / previous word start
@@ -40,6 +42,8 @@ t<char>  T<char>     " find until char forward / backward
 ```
 
 ## Editing
+
+Editing commands change text around the cursor. Most follow the `operator + motion` pattern: `dw` deletes a word, `d3w` deletes three, and `c<motion>` deletes the target then drops you into Insert mode.
 
 ```vim
 i  a                 " insert before / after cursor
@@ -62,6 +66,8 @@ J                    " join next line to current
 
 ## Visual mode
 
+Visual mode lets you select text first and act on it afterward. Pick a selection, then press `d`, `y`, or `c` to delete, copy, or change exactly the highlighted region.
+
 ```vim
 v  V  Ctrl+v         " character / line / block select
 d  y  c              " delete / yank / change selection
@@ -70,6 +76,8 @@ gv                   " reselect last visual selection
 ```
 
 ## Search and replace
+
+Searching jumps you to matches across the file, while `:s` runs substitutions on the current line. Prefix a substitute with a range (like `%` for the whole file) to control where replacements apply.
 
 ```vim
 /pattern             " search forward
@@ -85,6 +93,8 @@ n  N                 " next / previous match
 ```
 
 ## Window and buffer management
+
+Windows are viewports into your buffers, letting you view several files side by side. These commands open, navigate, and resize splits, plus switch between the buffers backing each window.
 
 ```vim
 :vsp  :sp            " vertical / horizontal split
@@ -106,6 +116,8 @@ Ctrl+w q             " close split
 
 ## Marks and jumps
 
+Marks bookmark positions within a file so you can return to them instantly, while the jump and change lists remember everywhere you have been.
+
 ```vim
 ma                   " set mark 'a' at cursor
 'a                   " jump to line of mark 'a'
@@ -119,6 +131,8 @@ g;  g,               " go to older / newer change position
 
 ## Macros
 
+Macros record a sequence of keystrokes into a register and replay it on demand, turning repetitive multi-key edits into a single `@` command.
+
 ```vim
 qa                   " start recording macro 'a'
 ...                  " perform actions
@@ -129,6 +143,8 @@ q                    " stop recording
 ```
 
 ## Registers
+
+Registers are named clipboards. Every yank, delete, and paste reads and writes one, and named registers let you stash several snippets at once instead of overwriting the last copy.
 
 ```vim
 :reg                 " list all registers
@@ -141,74 +157,78 @@ q                    " stop recording
 
 ## Configuration (.vimrc)
 
+The `.vimrc` is sourced every time Vim launches, which makes it the place to define persistent behavior. This example sets sane defaults across core behavior, appearance, search, indentation, mappings, and file-specific tweaks.
+
 ```vim
 " ── Core ──
-set nocompatible              " use Vim defaults, not vi
-filetype plugin indent on     " enable filetype detection
-syntax on                     " syntax highlighting
-set encoding=utf-8
+set nocompatible              " use Vim defaults, not legacy vi behavior
+filetype plugin indent on     " load per-filetype plugins and indentation rules
+syntax on                     " enable syntax highlighting
+set encoding=utf-8            " read and write files as UTF-8
 
 " ── Appearance ──
-set number                    " line numbers
-set relativenumber            " relative line numbers
-set cursorline                " highlight current line
-set colorcolumn=80,100        " ruler at 80 and 100
-set showmatch                 " highlight matching brackets
-set listchars=tab:→\ ,trail:· " show tabs and trailing spaces
-set list
+set number                    " show absolute line numbers in the gutter
+set relativenumber            " also show distance from the cursor for easy jumps
+set cursorline                " highlight the line under the cursor
+set colorcolumn=80,100        " draw a ruler at columns 80 and 100
+set showmatch                 " flash the matching bracket while typing
+set listchars=tab:→\ ,trail:· " visibly render tabs and trailing whitespace
+set list                      " enable the whitespace markers configured above
 
 " ── Search ──
-set hlsearch                  " highlight search results
-set incsearch                 " incremental search
-set ignorecase smartcase      " smart case sensitivity
-nnoremap <leader><space> :noh<CR>   " clear search highlight
+set hlsearch                  " keep matches highlighted after the search ends
+set incsearch                 " highlight matches live while you type the pattern
+set ignorecase smartcase      " case-insensitive unless the pattern has capitals
+nnoremap <leader><space> :noh<CR>   " clear search highlight with Space Space
 
 " ── Indent ──
-set expandtab                 " spaces instead of tabs
-set tabstop=2
-set shiftwidth=2
-set autoindent
-set smartindent
+set expandtab                 " insert spaces instead of literal tab characters
+set tabstop=2                 " width of a tab character in the file
+set shiftwidth=2              " width used by >>, << and auto-indentation
+set autoindent                " copy indentation from the previous line
+set smartindent               " add extra, language-aware indentation
 
 " ── Behavior ──
-set backspace=indent,eol,start
-set hidden                    " allow switching unsaved buffers
-set history=1000
-set undofile undodir=~/.vim/undo
-set undolevels=1000
-set mouse=a                   " enable mouse
-set clipboard=unnamedplus     " use system clipboard
-set splitbelow splitright     " natural split directions
+set backspace=indent,eol,start  " backspace over auto-indent, line breaks, insert point
+set hidden                    " switch buffers without forcing a save first
+set history=1000              " keep 1000 ex-commands and search patterns
+set undofile undodir=~/.vim/undo  " persist undo history between sessions
+set undolevels=1000           " keep up to 1000 levels of undo per session
+set mouse=a                   " enable mouse in normal, visual, and insert mode
+set clipboard=unnamedplus     " share the default register with the system clipboard
+set splitbelow splitright     " open new splits below and to the right
 
 " ── Key mappings ──
-let mapleader = " "
-nnoremap <leader>w :w<CR>
-nnoremap <leader>q :q<CR>
-nnoremap <leader>x :x<CR>
-nnoremap <leader>h :noh<CR>
-nnoremap <leader>e :Explore<CR>
-nnoremap <C-h> <C-w>h
+let mapleader = " "           " use Space as the <leader> key
+nnoremap <leader>w :w<CR>     " <leader>w → write the current file
+nnoremap <leader>q :q<CR>     " <leader>q → quit the current window
+nnoremap <leader>x :x<CR>     " <leader>x → write and quit
+nnoremap <leader>h :noh<CR>   " <leader>h → clear search highlighting
+nnoremap <leader>e :Explore<CR>   " <leader>e → open the file explorer
+nnoremap <C-h> <C-w>h         " Ctrl+h/j/k/l → move to the split in that direction
 nnoremap <C-j> <C-w>j
 nnoremap <C-k> <C-w>k
 nnoremap <C-l> <C-w>l
 
-" Move lines up/down
+" Move the selected lines down (J) / up (K) while keeping the selection
 vnoremap J :m '>+1<CR>gv=gv
 vnoremap K :m '<-2<CR>gv=gv
 
 " ── File-specific ──
-autocmd FileType python setlocal ts=4 sw=4
-autocmd FileType yaml setlocal ts=2 sw=2
-autocmd FileType markdown setlocal spell wrap linebreak
+autocmd FileType python setlocal ts=4 sw=4          " Python: 4-space indentation
+autocmd FileType yaml setlocal ts=2 sw=2            " YAML: 2-space indentation
+autocmd FileType markdown setlocal spell wrap linebreak  " Markdown: spellcheck + soft wrap
 
 " ── Status line ──
-set laststatus=2
-set statusline=%f\ %m%r%h%w\ [%{&ff}]\ [%Y]\ [%l/%L,%c]
+set laststatus=2              " always display the status line
+set statusline=%f\ %m%r%h%w\ [%{&ff}]\ [%Y]\ [%l/%L,%c]  " file, flags, type, position
 ```
 
 ## Common workflows
 
 ### Find and replace across files
+
+To change a symbol everywhere, search first and let the quickfix list hold the matches — then `:cdo` (or `:cfdo`) applies a substitution to each line (or file) in the list.
 
 ```vim
 " Use :grep then :cdo to replace across matches
@@ -221,6 +241,8 @@ set statusline=%f\ %m%r%h%w\ [%{&ff}]\ [%Y]\ [%l/%L,%c]
 ```
 
 ### Editing remote files
+
+Vim ships with the `netrw` plugin, which can open files over SSH, SCP, and HTTP. Use a URL-style path to edit a remote file in place, then save normally — Vim handles the transfer.
 
 ```vim
 :e scp://user@host//etc/nginx/nginx.conf

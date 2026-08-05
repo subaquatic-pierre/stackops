@@ -16,6 +16,8 @@ Rust is a systems programming language that guarantees memory safety without a g
 
 ### Project commands
 
+`cargo` is both the build system and package manager, so nearly every interaction with a Rust project starts here. These are the day-to-day commands: create projects, build, test, lint, format, and manage dependencies.
+
 ```bash
 # Create a new project
 cargo new myproject
@@ -53,6 +55,8 @@ cargo doc --no-deps             # only your crate, skip dependencies
 
 ### Cargo.toml essentials
 
+`Cargo.toml` is the single source of truth for a Rust project — package metadata, dependencies, and build settings. Dependency features (like `serde`'s `derive`) opt into optional functionality, and the `[profile.release]` section tunes the size and speed of the production binary.
+
 ```toml
 [package]
 name = "myproject"
@@ -83,6 +87,8 @@ strip = true            # strip symbols
 
 ### Minimal server
 
+axum is built on top of `tokio`, so handlers are `async` and the whole app runs inside a `#[tokio::main]` runtime. Each handler returns something that implements `IntoResponse` — here JSON — and the `Router` maps URLs to handlers before being served on a TCP listener.
+
 ```rust
 use axum::{Router, response::Json, routing::get};
 use serde_json::{json, Value};
@@ -108,6 +114,8 @@ async fn main() {
 ```
 
 ### Structured routes with state
+
+Real applications need shared state — here, a thread-safe in-memory user store behind a read/write lock. `State` injects that state into handlers, `Path` extracts URL parameters, and the `Json` extractor both parses request bodies and serializes responses.
 
 ```rust
 use axum::{
@@ -190,6 +198,8 @@ async fn main() {
 
 ### Middleware with tower
 
+tower layers wrap every request that flows through the router, so they're ideal for cross-cutting concerns. `ServiceBuilder` composes layers in order — tracing, CORS, and a 30-second timeout — and a single `.layer(middleware)` applies the whole stack to the app.
+
 ```rust
 use tower_http::{trace::TraceLayer, cors::CorsLayer};
 use std::time::Duration;
@@ -206,6 +216,8 @@ let app = Router::new()
 ```
 
 ### Error handling
+
+Define one app-wide error enum with `thiserror` for ergonomic error messages, then implement `IntoResponse` for it. Handlers can then return `Result<T, AppError>` directly, and failures become structured JSON responses with the right status code instead of panics.
 
 ```rust
 use axum::response::{IntoResponse, Response};
@@ -240,6 +252,8 @@ impl IntoResponse for AppError {
 
 ### Cargo.toml for WASM
 
+Compiling Rust to WebAssembly requires a `cdylib` crate type, which produces the final `.wasm` module. `wasm-bindgen` is the bridge between Rust and JavaScript, and `serde-wasm-bindgen` converts serializable Rust types into native JS values.
+
 ```toml
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -251,6 +265,8 @@ serde-wasm-bindgen = "0.6"
 ```
 
 ### Rust WASM module
+
+Functions marked `#[wasm_bindgen]` become callable from JavaScript with no glue code. Returning a serializable struct instead of a bare number keeps the API richer — it arrives in JS as a plain object with typed fields.
 
 ```rust
 use wasm_bindgen::prelude::*;
@@ -288,6 +304,8 @@ pub fn process_data(json_input: &str) -> String {
 
 ### Build and integrate with React
 
+`wasm-pack build --target web` compiles the crate into a ready-to-import module. The generated bindings export an `init()` function that must be awaited once to load the wasm binary, plus one function per `#[wasm_bindgen]` export.
+
 ```bash
 # Build WASM package
 wasm-pack build --target web --out-dir ../www/src/wasm
@@ -317,6 +335,8 @@ function App() {
 
 ## no_std for kernel / bare-metal projects
 
+`#![no_std]` drops the standard library (which requires an OS) and leaves only the `core` crate, while `#![no_main]` replaces the runtime's entry point with your own `_start` function. Bare-metal code must also set `panic = "abort"` and provide a `#[panic_handler]`, since there's no OS to clean up after a panic.
+
 ```rust
 # Cargo.toml
 [package]
@@ -342,7 +362,7 @@ use core::panic::PanicInfo;
 // Entry point (never returns)
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    // Set up stack pointer, zero BSS, etc.
+    // Set up the stack pointer, zero BSS, and init any hardware
 
     loop {
         // Kernel main loop
@@ -357,11 +377,13 @@ pub extern "C" fn _start() -> ! {
 // Panic handler required for no_std
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    loop {} // Halt
+    loop {} // Halt the CPU — there is no OS to unwind to
 }
 ```
 
 ### Linker script (kernel.ld)
+
+The linker script tells the linker where to place code and data in the final binary. This one loads the kernel at the conventional 1 MB mark (above x86 low memory) and groups the output into text, read-only data, data, and BSS sections.
 
 ```ld
 ENTRY(_start)
@@ -388,6 +410,8 @@ SECTIONS {
 ```
 
 ### Building for no_std targets
+
+`rustup target add` installs a cross-compilation target — here ARM Cortex-M (`thumbv7em-none-eabihf`), a `*-none-*` target meaning "no host OS". For custom hardware, point `cargo build --target` at a JSON target spec file instead.
 
 ```bash
 # Install target

@@ -16,6 +16,8 @@ Block storage is the abstraction layer Linux uses for hard drives, SSDs, NVMe de
 
 ### Block device overview
 
+`lsblk` gives a tree view of all block devices and their partitions, optionally annotated with filesystem type, UUID, label, and mount point. `fdisk -l` and `parted -l` show the raw partition tables.
+
 ```bash
 lsblk                                # tree view of all block devices
 lsblk -f                             # include filesystem type, UUID, labels
@@ -27,6 +29,8 @@ parted -l                            # list partitions (alternative)
 ```
 
 ### Disk identification
+
+Devices appear as nodes under `/dev/` — `sd*` for SCSI/SATA, `nvme*` for NVMe, `vd*` for virtual disks. The `/dev/disk/by-*` directories expose stable, human-meaningful names, and `blkid` reports UUIDs and filesystem types.
 
 ```bash
 ls /dev/sd*                          # SCSI/SATA devices
@@ -42,6 +46,8 @@ blkid /dev/sda1
 ```
 
 ### Disk information
+
+These commands dump a device's partition table, open an interactive partition editor, and pull low-level drive details: ATA identification, read-speed benchmarks, and S.M.A.R.T. health data.
 
 ```bash
 fdisk -l /dev/sda                    # partition table for a device
@@ -67,6 +73,8 @@ smartctl -t short /dev/sda           # run short self-test
 
 ### fdisk (MBR and GPT)
 
+`fdisk` is an interactive, menu-driven partition editor that handles both MBR and GPT tables. Its one-letter commands create, delete, and retype partitions, then write the table.
+
 ```bash
 fdisk /dev/sdb                       # interactive partitioning
 
@@ -82,6 +90,8 @@ fdisk /dev/sdb                       # interactive partitioning
 ```
 
 ### parted (scriptable)
+
+`parted` is scriptable, so partitioning commands can be typed directly or embedded in automation. It handles GPT labels, partition creation by size or percentage, and partition flags.
 
 ```bash
 # Create GPT partition table
@@ -103,6 +113,8 @@ parted /dev/sdb print
 
 ### sgdisk (GPT-specific, non-interactive)
 
+`sgdisk` is a non-interactive, GPT-only tool — ideal for scripts. One line creates a partition of a given size with a given type code.
+
 ```bash
 sgdisk -n 1:0:+10G -t 1:8300 /dev/sdb       # create 10GB Linux partition
 sgdisk -p /dev/sdb                            # print partition table
@@ -112,6 +124,8 @@ sgdisk --zap-all /dev/sdb                     # wipe GPT data
 ## Filesystem creation and management
 
 ### Creating filesystems
+
+After partitioning, a filesystem must be written to the partition. The `mkfs.*` tools create ext4, XFS, Btrfs, FAT32, or exFAT, and `mkswap` initializes swap space.
 
 ```bash
 # ext4 (default on most Linux distros)
@@ -139,6 +153,8 @@ mkswap -L "swap" /dev/sdb1
 
 ### Filesystem inspection and tuning
 
+These tools read and adjust filesystem parameters — labels, UUIDs, and detailed metadata — and run consistency checks and repairs. Most require the filesystem to be unmounted.
+
 ```bash
 tune2fs -l /dev/sda1                 # ext filesystem parameters
 dumpe2fs -h /dev/sda1                # superblock info (ext)
@@ -164,6 +180,8 @@ btrfs check /dev/sda1                # Btrfs check
 
 ### Temporary mounts
 
+`mount` attaches a filesystem at a directory for the current session. Options select the filesystem type or read-only mode, and `-o remount` re-applies options to an already-mounted device.
+
 ```bash
 mount /dev/sdb1 /mnt/data
 mount -t ext4 /dev/sdb1 /mnt/data    # specify filesystem type
@@ -172,6 +190,8 @@ mount -o remount,rw /                # remount root as read-write
 ```
 
 ### Persistent mounts (fstab)
+
+To survive reboots, add the filesystem to `/etc/fstab`. Each line lists the device, mount point, type, options, and dump/pass fields for backup and boot-time checking.
 
 ```bash
 # /etc/fstab
@@ -200,6 +220,8 @@ LABEL=data          /mnt/data      ext4    nofail,defaults   0       2
 
 ### Mount verification
 
+`mount`, `findmnt`, and `/proc/mounts` all show what is mounted and where. `df` reports space usage by filesystem, and `du` breaks it down by subdirectory.
+
 ```bash
 mount                                # show all mounts
 mount | grep /mnt/data               # check specific mount
@@ -213,6 +235,8 @@ cat /proc/mounts                     # raw kernel mount table
 ```
 
 ### Unmounting
+
+`umount` detaches a filesystem; `-l` and `-f` handle busy or unresponsive mounts. `fuser` and `lsof` reveal which processes are holding the mount open.
 
 ```bash
 umount /mnt/data                     # unmount by path
@@ -236,6 +260,8 @@ LVM abstracts physical disks into logical volumes, enabling flexible resizing, s
 | LV (Logical Volume) | A virtual partition carved from a VG. |
 
 ### LVM workflow
+
+LVM builds storage in three steps — physical volumes from disks, a volume group pooling them, and logical volumes carved from the pool — then you format and mount the volume like any other device.
 
 ```bash
 # 1. Create Physical Volumes
@@ -261,6 +287,8 @@ mount /dev/vg_data/lv_app /mnt/app
 ```
 
 ### LVM management commands
+
+Volumes stay flexible after creation: grow a volume group by adding a disk, extend a logical volume and its filesystem, shrink it (unmount first for ext), or remove, rename, and snapshot volumes.
 
 ```bash
 # Extend a VG (add a new PV)
@@ -290,6 +318,8 @@ lvremove /dev/vg_data/lv_snap
 
 ### Display summary
 
+These compact commands give a one-line summary per physical volume, volume group, and logical volume — the fastest way to see the state of your LVM setup.
+
 ```bash
 pvs                                  # PV summary (compact)
 vgs                                  # VG summary (compact)
@@ -297,6 +327,8 @@ lvs                                  # LV summary (compact)
 ```
 
 ## Disk usage analysis
+
+`df` shows filesystem-level usage and inodes, `du` breaks usage down by directory, and `ncdu` provides an interactive tree. `find` locates the largest files.
 
 ```bash
 df -h                                # filesystem usage
@@ -315,6 +347,8 @@ du -h /var --max-depth=1 | sort -hr | head -10
 
 ## Disk commands for debugging
 
+When a disk misbehaves, measure it: `iostat` and `vmstat` track throughput and I/O wait, `iotop`/`pidstat` attribute I/O to processes, `dd` benchmarks raw speed, and a process stuck in `D` state signals stalled I/O.
+
 ```bash
 # I/O statistics
 iostat -x 1                          # extended disk stats, every 1 second
@@ -327,8 +361,8 @@ iotop -o                             # I/O per process (only showing active)
 pidstat -d 1                         # I/O stats per process
 
 # Disk throughput test
-dd if=/dev/zero of=/tmp/testfile bs=1M count=1024 conv=fdatasync   # write test
-dd if=/tmp/testfile of=/dev/null bs=1M                             # read test
+dd if=/dev/zero of=/tmp/testfile bs=1M count=1024 conv=fdatasync   # write benchmark: 1 GiB of zeroes to disk
+dd if=/tmp/testfile of=/dev/null bs=1M                             # read benchmark: read that file back
 
 # Check for stalled I/O
 ps aux | awk '{if($8 ~ /D/) print}'  # find processes in D (uninterruptible sleep) state
@@ -336,6 +370,8 @@ dmesg | grep -i "I/O error\|hung\|timeout"
 ```
 
 ### S.M.A.R.T. monitoring
+
+S.M.A.R.T. exposes drive health indicators. `smartctl` shows the full report, a quick health summary, error and self-test logs, and can run on-demand self-tests.
 
 ```bash
 smartctl -a /dev/sda                 # full report
@@ -347,6 +383,8 @@ smartctl -t long /dev/sda            # start extended test
 ```
 
 ## Wiping and secure erasure
+
+Before repurposing or decommissioning a disk, remove old filesystem signatures with `wipefs`, overwrite the data with `dd` (destructive), or trigger an ATA secure erase for SSDs.
 
 ```bash
 # Wipe filesystem signatures

@@ -52,6 +52,8 @@ uv export --format requirements-txt > requirements.txt
 
 ### pip + venv (traditional)
 
+`pip` + `venv` is the standard Python toolchain that ships with every interpreter — no extra install needed. It's slower and simpler than `uv`, but it's what most CI images, system packages, and tutorials assume, so it's the right choice when you can't install extra tooling.
+
 ```bash
 # Create virtual environment
 python3 -m venv .venv
@@ -79,6 +81,8 @@ deactivate
 ## FastAPI patterns
 
 ### Minimal server
+
+A FastAPI application is just a Python module exposing an `app` instance. The `lifespan` context manager runs once on startup (connect to the database, load models) and again on shutdown (close connections, flush buffers), keeping setup out of individual route handlers.
 
 ```python
 # main.py
@@ -110,6 +114,8 @@ uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ### Structured routes
 
+Once you have more than a few endpoints, split routes into modules using `APIRouter`. A router groups related paths under a shared prefix and tags, keeping `main.py` minimal and your generated OpenAPI docs (at `/docs`) neatly organized.
+
 ```python
 # routes/users.py
 from fastapi import APIRouter, Depends, HTTPException
@@ -128,7 +134,7 @@ class UserResponse(BaseModel):
 
 @router.post("/", response_model=UserResponse, status_code=201)
 async def create_user(user: UserCreate):
-    # Validate and create user
+    # Persist the user — input is already validated by Pydantic
     return {"id": 1, "name": user.name, "email": user.email}
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -139,6 +145,8 @@ async def get_user(user_id: int):
 ```
 
 ### Dependency injection
+
+FastAPI's `Depends` declares reusable building blocks — API-key checks, database sessions, settings — that FastAPI resolves automatically when a route runs. Dependencies written as async generators also get deterministic cleanup: the `finally` block runs after the response, which is where you close a connection.
 
 ```python
 # deps.py
@@ -156,7 +164,7 @@ async def get_db():
     try:
         yield db
     finally:
-        pass  # Close connection
+        pass  # Close the DB connection here
 
 # Usage in route
 @app.get("/secure-data")
@@ -168,6 +176,8 @@ async def secure_endpoint(
 ```
 
 ### Pydantic validation
+
+Request bodies and response models in FastAPI are Pydantic models, so validation happens at the boundary before your code runs. `Field` constraints describe ranges, lengths, and formats, while `field_validator`s handle cross-field logic — invalid input is rejected automatically with a 422 response.
 
 ```python
 from pydantic import BaseModel, Field, field_validator
@@ -190,6 +200,8 @@ class OrderCreate(BaseModel):
 
 ### Background tasks
 
+`BackgroundTasks` runs work after the response has been sent, so slow side effects like confirmation emails or notifications don't hold up the request. It's the right tool for fire-and-forget work; for heavier or retryable jobs, hand off to a proper queue (Celery, RQ, or similar).
+
 ```python
 from fastapi import BackgroundTasks
 
@@ -202,12 +214,14 @@ async def create_order(
     order: OrderCreate,
     background_tasks: BackgroundTasks,
 ):
-    order_id = 42  # Create in database
+    order_id = 42  # Persist the order first
     background_tasks.add_task(send_confirmation_email, order.email, order_id)
     return {"order_id": order_id, "status": "pending"}
 ```
 
 ### Middleware
+
+HTTP middleware wraps every request and response that passes through the app. It's the place for cross-cutting concerns — timing headers, CORS, request logging, rate limiting — that should apply uniformly to all routes.
 
 ```python
 from fastapi import Request
@@ -225,6 +239,8 @@ async def add_timing_header(request: Request, call_next):
 ## Bare Python scripts
 
 ### Shebang and safeties
+
+The `#!/usr/bin/env python3` shebang makes a script directly executable (`./myscript.py`), and the `if __name__ == "__main__"` guard means the same file can also be imported as a module without running anything. Routing through a `main()` function with argument checking keeps the logic testable and gives users a clear usage message.
 
 ```python
 #!/usr/bin/env python3
@@ -246,6 +262,8 @@ if __name__ == "__main__":
 
 ### Common recipe: read JSON/CSV
 
+The standard library covers most file-format needs without any dependencies. `json` plus `pathlib` gives one-line read/write of config-style files, and `csv.DictReader` converts rows into dicts keyed by the header row.
+
 ```python
 import json
 import csv
@@ -265,6 +283,8 @@ with open("data.csv") as f:
 
 ### Common recipe: subprocess commands
 
+`subprocess.run` is the safe way to run an external command and capture its output — always pass a list of arguments, never a shell string. `check=True` raises on a non-zero exit, and the `Popen` pipe pattern chains two processes together like a shell pipeline.
+
 ```python
 import subprocess
 
@@ -276,7 +296,7 @@ result = subprocess.run(
 )
 print(result.stdout)
 
-# Pipe
+# Pipe: chain two processes like a shell pipeline
 ls = subprocess.Popen(["ls", "/etc"], stdout=subprocess.PIPE)
 grep = subprocess.run(
     ["grep", "host"],
@@ -287,6 +307,8 @@ grep = subprocess.run(
 ```
 
 ### Common recipe: HTTP client
+
+`httpx` is the modern HTTP client with a `requests`-style API plus full async support. Using an `AsyncClient` inside a context manager pools connections and guarantees they're released after the request.
 
 ```python
 import httpx
@@ -299,6 +321,8 @@ async def fetch_data(url: str) -> dict:
 ```
 
 ## Common project structure
+
+This layout follows the `src`-layout convention: the importable package lives under `src/`, separated from tests and tooling, so you never accidentally import from the repo root. Routes, models, and dependencies each get their own module, keeping every file small and focused.
 
 ```
 myproject/
@@ -327,6 +351,8 @@ myproject/
 
 ### Dockerfile
 
+This Dockerfile builds a slim production image: dependencies are installed into an image layer from the lockfile (`uv sync --frozen`), so the build is reproducible and dev packages are excluded. Only the source is copied afterward, and the container runs uvicorn directly.
+
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
@@ -347,6 +373,8 @@ CMD ["uv", "run", "uvicorn", "src.myproject.main:app", "--host", "0.0.0.0", "--p
 
 ### systemd service unit
 
+systemd runs the app as a managed service: it restarts on failure with a 5-second backoff and runs under a dedicated non-root user. Drop this unit into `/etc/systemd/system/`, then enable it with `systemctl enable --now myapp`.
+
 ```ini
 [Unit]
 Description=My FastAPI Application
@@ -366,6 +394,8 @@ WantedBy=multi-user.target
 ```
 
 ### Environment configuration
+
+`pydantic-settings` maps environment variables onto typed settings with defaults and reads `.env` files automatically. Required fields without defaults (here `secret_key`) fail fast at startup with a clear error, so a misconfigured app never runs half-initialized.
 
 ```python
 # config.py

@@ -16,6 +16,8 @@ Node.js paired with TypeScript is the dominant stack for full-stack JavaScript d
 
 ### Package manager choice
 
+npm ships with Node and needs zero setup; pnpm is faster and disk-efficient because it shares a single content-addressable store across projects; yarn is the legacy alternative. Choose one and stick with it — mixing lockfiles in one repo causes conflicts.
+
 ```bash
 # npm (default)
 npm init -y
@@ -29,6 +31,8 @@ yarn init -y
 ```
 
 ### TypeScript configuration
+
+This `tsconfig.json` targets a modern Node runtime with `NodeNext` module resolution, strict type checking, and declarations emitted alongside the compiled JavaScript. `rootDir` and `include` scope compilation to `src/` only, keeping `dist/` clean and buildable.
 
 ```json
 // tsconfig.json
@@ -54,6 +58,8 @@ yarn init -y
 
 ### package.json scripts
 
+Scripts give every project command a standard, documented interface. `tsx watch` restarts instantly during development, `tsc` produces the production build, and the `lint`/`format`/`typecheck` checks keep the codebase consistent in CI.
+
 ```json
 {
   "scripts": {
@@ -72,6 +78,8 @@ yarn init -y
 ## ESLint configuration
 
 ### Flat config (modern)
+
+ESLint 9's flat config replaces `.eslintrc` with a single exported array — no more cascading config files. `typescript-eslint` supplies the TS parser and recommended rulesets, and `eslint-config-prettier` must come last to disable any rules that would fight Prettier.
 
 ```js
 // eslint.config.js
@@ -96,6 +104,8 @@ export default tseslint.config(
 
 ### Legacy `.eslintrc` format
 
+Older projects and some scaffolding tools still use the JSON `.eslintrc` format. If you're maintaining a legacy codebase, this is the equivalent shape: `@typescript-eslint/parser` for TS syntax, the recommended rule set, and `prettier` listed last to avoid conflicts.
+
 ```json
 {
   "parser": "@typescript-eslint/parser",
@@ -115,6 +125,8 @@ export default tseslint.config(
 
 ### Common ESLint commands
 
+ESLint runs from the CLI or a `lint` script. `--fix` auto-corrects every safe issue, and `--quiet` suppresses warnings so CI fails only on real errors.
+
 ```bash
 # Run linter
 eslint src/
@@ -130,6 +142,8 @@ eslint src/ --quiet
 ```
 
 ## Prettier configuration
+
+Prettier formats code automatically, so formatting never becomes a code-review topic. The `.prettierrc` declares the conventions once (semicolons, quotes, width), and `.prettierignore` keeps generated files like build output and lockfiles untouched.
 
 ```json
 // .prettierrc
@@ -155,6 +169,8 @@ package-lock.json
 
 ### VS Code integration
 
+These `.vscode/settings.json` entries make Prettier run on every save and ESLint auto-fix what it safely can — so formatting and linting happen in the editor exactly as they do in CI, without manual commands.
+
 ```json
 // .vscode/settings.json
 {
@@ -170,6 +186,8 @@ package-lock.json
 ## Common patterns
 
 ### Express with TypeScript
+
+Express is the classic Node web framework, and typing its request/response objects buys autocomplete and compile-time checks. Note the final error-handling middleware at the bottom: it catches anything thrown by the routes above it and returns a consistent JSON error.
 
 ```typescript
 // src/server.ts
@@ -208,6 +226,8 @@ app.listen(3000, () => console.log("Server on http://localhost:3000"));
 
 ### Environment configuration
 
+Validate configuration at startup, not mid-request. A zod schema parses `process.env` once, applies coercion and defaults, and fails fast with a descriptive error if a required variable is missing — so a misconfigured server never boots silently.
+
 ```typescript
 // src/config.ts
 import { z } from "zod";
@@ -223,6 +243,8 @@ export const env = envSchema.parse(process.env);
 ```
 
 ### Async error wrapper
+
+Express 4 doesn't catch rejections from async handlers — an unhandled promise rejection can crash the process. `asyncHandler` wraps the promise and forwards any rejection to the error-handling middleware, so `await` failures return a 500 instead of killing the server.
 
 ```typescript
 // src/utils.ts
@@ -248,6 +270,8 @@ app.get(
 ```
 
 ### API client with fetch
+
+`fetch` is built into Node 18+, so no external client library is needed. A small typed wrapper centralizes headers and error handling — every call returns parsed data on success or throws a structured `ApiError` with the status code.
 
 ```typescript
 // src/client.ts

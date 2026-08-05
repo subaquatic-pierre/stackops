@@ -14,6 +14,8 @@ Next.js is the React framework for building web applications with server-side re
 
 ## Project setup
 
+`create-next-app` scaffolds a project with TypeScript, Tailwind, ESLint, and the App Router preconfigured. The generated `next.config.ts` centralizes options like allowed image domains, redirects, and security headers in one typed file.
+
 ```bash
 npx create-next-app@latest my-app --typescript --tailwind --eslint --app --src-dir
 
@@ -62,6 +64,8 @@ export default nextConfig;
 ## App Router fundamentals
 
 ### File conventions
+
+The App Router is file-based: the folder structure under `src/app/` maps directly to URLs, and each special filename has a fixed role. `layout.tsx` wraps everything below it, `page.tsx` defines a route's UI, and the `loading`/`error`/`not-found` files handle those states automatically.
 
 ```
 src/app/
@@ -153,6 +157,8 @@ export default function DashboardLayout({
 
 ### In Server Components
 
+Because Server Components execute only on the server, they can query the database directly with no API layer in between — just import a client and `await` the query in an `async` component.
+
 ```tsx
 // Direct database access (Server Component — no API layer needed)
 import { db } from "@/lib/db";
@@ -177,6 +183,8 @@ export default async function BlogPage() {
 ```
 
 ### Fetch from external API
+
+For third-party data, Next.js extends the global `fetch` with caching options. Passing `next: { revalidate }` opts into ISR: the route is regenerated at most once per hour instead of on every request, with the last generated result served in between.
 
 ```tsx
 async function getData() {
@@ -204,6 +212,8 @@ export default async function Page() {
 
 ### Revalidation
 
+`revalidateTag` and `revalidatePath` purge cached data on demand. Call them from a route handler or webhook the moment data changes, so the cache is invalidated immediately instead of waiting for a time-based `revalidate` window.
+
 ```tsx
 // Route handler to purge cache on external event
 // app/api/revalidate/route.ts
@@ -221,6 +231,8 @@ export async function POST(request: NextRequest) {
 ```
 
 ## Route handlers (API)
+
+Route handlers in `route.ts` files replace the old `pages/api` directory. Export one function per HTTP method (`GET`, `POST`, ...) using the standard `Request`/`Response` types, and you get a full API endpoint with no extra framework.
 
 ```tsx
 // app/api/users/route.ts
@@ -249,6 +261,8 @@ export async function POST(request: NextRequest) {
 
 ### Dynamic route params
 
+For per-item endpoints, create a dynamic segment like `[id]` in the path. The `params` object is a `Promise` in the App Router — `await` it, then look up the record and return a 404 when it doesn't exist.
+
 ```tsx
 // app/api/users/[id]/route.ts
 export async function GET(
@@ -268,6 +282,8 @@ export async function GET(
 
 ## Middleware
 
+Middleware runs on the edge before a request reaches a route — ideal for auth redirects, host rewrites, and A/B testing. Keep it small and dependency-free; anything heavy belongs in the routes themselves.
+
 ```tsx
 // middleware.ts (at the project root, next to app/)
 import { NextRequest, NextResponse } from "next/server";
@@ -275,7 +291,7 @@ import { NextRequest, NextResponse } from "next/server";
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("session");
 
-  // Protect dashboard routes
+  // Require a session cookie for /dashboard routes
   if (request.nextUrl.pathname.startsWith("/dashboard")) {
     if (!token) {
       return NextResponse.redirect(new URL("/login", request.url));
@@ -302,6 +318,8 @@ export const config = {
 ```
 
 ## Server Actions
+
+Server Actions let forms and client components invoke server functions directly — type-safe and without manual fetch calls. Mark a module `"use server"`, and each exported async function becomes callable from the client, receiving serialized `FormData` when bound to a form's `action`.
 
 ```tsx
 // app/actions.ts
@@ -345,6 +363,8 @@ export function CreateUserForm() {
 
 ## Image optimization
 
+`next/image` serves optimized, responsive images automatically — resizing, format conversion (WebP/AVIF), and lazy loading out of the box. Local images get their dimensions from the import; remote images require explicit `width`/`height` and an allowlist entry in `next.config.ts`.
+
 ```tsx
 import Image from "next/image";
 
@@ -373,6 +393,8 @@ export function Hero() {
 ```
 
 ## Metadata
+
+Export `metadata` to set the page's title, description, and social-sharing tags for SEO. Export a static object for constant metadata, or `generateMetadata` to compute it from route params — for example, a blog post's title and cover image.
 
 ```tsx
 // app/layout.tsx — static metadata
@@ -407,6 +429,8 @@ export async function generateMetadata({
 
 ## Environment variables
 
+Next.js loads `.env*` files at build time and exposes every variable as a string. Prefix a variable with `NEXT_PUBLIC_` to inline it into the client bundle; anything else is server-only and never shipped to the browser.
+
 ```bash
 # .env.local (git-ignored, loaded in all environments)
 DATABASE_URL="postgresql://localhost:5432/mydb"
@@ -428,6 +452,8 @@ const gaId = process.env.NEXT_PUBLIC_GA_ID;      // browser + server
 ```
 
 ## Dockerfile
+
+This two-stage Dockerfile builds with a full Node image, then copies only the compiled `.next` output into a slim production image running as a non-root user. Only `NEXT_PUBLIC_` variables can be inlined at build time — pass them via `ARG`/`ENV`, and keep secrets in the runtime environment.
 
 ```dockerfile
 # ---- Build Stage ----

@@ -14,6 +14,8 @@ Kubernetes exposes resource and state metrics through several APIs and component
 
 ## Metrics pipeline architecture
 
+This diagram shows how metrics flow through the cluster. The kubelet's cAdvisor and kube-state-metrics are the sources; metrics-server serves short-lived CPU/memory data for `kubectl top` and the HPA, while Prometheus provides long-term storage, alerting, and custom metrics.
+
 ```
 kubelet (cAdvisor)             kube-state-metrics
        │                              │
@@ -33,6 +35,8 @@ The metrics-server aggregates resource usage data from the kubelet on each node.
 
 ### Installation
 
+metrics-server is a lightweight cluster add-on that collects CPU and memory from each kubelet and exposes it through the resource metrics API. It is **not** installed by default, so add it with the manifest or the Helm chart before `kubectl top` or HPA can work:
+
 ```bash
 # Install the latest release
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
@@ -46,6 +50,8 @@ helm upgrade --install metrics-server metrics-server/metrics-server \
 
 ### Verify
 
+After installation, confirm the Deployment is healthy and that `kubectl top` returns real numbers. This is also the first check to run whenever `kubectl top` shows `<unknown>` or no data.
+
 ```bash
 kubectl get deployment metrics-server -n kube-system
 kubectl top nodes
@@ -53,6 +59,8 @@ kubectl top pods -A
 ```
 
 ### Common configuration
+
+The metrics-server Deployment accepts flags that tune how it talks to kubelets. The most common adjustments are skipping TLS verification in development environments and lowering the metric-resolution interval for faster, more granular data.
 
 ```yaml
 apiVersion: apps/v1
@@ -66,7 +74,7 @@ spec:
       containers:
         - name: metrics-server
           args:
-            - --kubelet-insecure-tls          # Skip TLS verification (common in dev)
+            - --kubelet-insecure-tls          # Skip TLS verification (common in dev, not recommended for prod)
             - --kubelet-preferred-address-types=InternalIP
             - --metric-resolution=15s         # Default: 60s. Lower = more granular.
             - --kubelet-use-node-status-port  # Use node status port for kubelet
@@ -176,6 +184,8 @@ spec:
 
 ### Prometheus scrape config (manual)
 
+If you run Prometheus without the operator, configure scrape jobs directly in `prometheus.yml`. This example uses Kubernetes service discovery and relabeling to pick up any pod carrying the standard `prometheus.io/scrape` annotation.
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -199,6 +209,8 @@ data:
 ```
 
 ### Pod annotations for auto-discovery
+
+To be discovered by the scrape config above — or by the Prometheus Operator — pods just need the standard `prometheus.io/*` annotations. Prometheus reads them during relabeling to decide which pods to scrape and on which port and path.
 
 ```yaml
 apiVersion: v1
@@ -255,6 +267,8 @@ spec:
 
 ### Useful PromQL queries
 
+These queries answer the most common questions in a Prometheus-backed setup: utilization against container requests, pods that aren't ready, restart loops, and node saturation. Adapt the label filters to match your metric naming.
+
 ```promql
 # CPU usage % per pod
 sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (pod, namespace)
@@ -282,6 +296,8 @@ kube-state-metrics (KSM) is a separate service that exposes cluster state metric
 
 ### Installation
 
+Install kube-state-metrics as a normal workload via Helm. Once running, it exposes the `kube_*` metrics that power the object-level PromQL queries above:
+
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm install kube-state-metrics prometheus-community/kube-state-metrics \
@@ -291,6 +307,8 @@ helm install kube-state-metrics prometheus-community/kube-state-metrics \
 ## Common troubleshooting
 
 ### metrics-server not reporting
+
+When `kubectl top` returns no data or errors, the problem is almost always in the metrics-server-to-kubelet connection. Work through these checks to isolate TLS, network policy, or aggregation-layer registration issues.
 
 ```bash
 # Check metrics-server logs
@@ -305,6 +323,8 @@ kubectl get --raw /api/v1/nodes/<node>/proxy/metrics | head
 ```
 
 ### kubectl top shows `<unknown>`
+
+`<unknown>` means metrics-server has no data for that object yet — commonly because it isn't running, isn't discovering nodes, or the aggregation layer hasn't registered the API service. These commands check and reset it.
 
 ```bash
 # metrics-server might not be running or discovering nodes

@@ -1,0 +1,656 @@
+---
+sidebar_position: 3
+title: 'Git Commands Reference'
+description: 'Comprehensive Git command reference: tags, branching, merge, rebase, stash, history searching, undo, cherry-pick, and more.'
+tags: [git, commands, reference, branching, undo]
+last_updated: '2026-08-05'
+---
+
+# Git Commands Reference
+
+## Overview
+
+Git is a distributed version control system that tracks changes in source code. This reference covers the commands used most often in daily development, organized by workflow: inspecting history, branching and merging, rewriting commits, recovering lost work, and working with remotes.
+
+All commands assume a terminal open at the repository root.
+
+## Tags
+
+Tags mark specific points in history — typically releases or milestones.
+
+### Listing tags
+
+List all tags, optionally filtered or sorted, to see the versions available in the repository:
+
+```bash
+git tag                          # list all tags (alphabetical)
+git tag -l "v2.*"               # filter by glob pattern
+git tag --sort=-version:refname  # sorted by version (newest first)
+git tag --sort=-creatordate      # sorted by creation date
+```
+
+### Tag details
+
+Inspect a tag's annotation and the commit it points to, or generate a formatted listing for scripts and reporting:
+
+```bash
+git tag -n                       # list with annotation message (first line)
+git tag -n20                     # list with more lines of the message
+git show v2.1.0                  # show tag data and the commit it points to
+git tag -l --format='%(refname:short) %(creatordate:short) %(authorname)'
+```
+
+### Which tags point at a commit
+
+Find which tags include a particular commit — useful for checking whether a fix made it into a release:
+
+```bash
+git tag --points-at HEAD         # tags that include the current commit
+git tag --points-at <ref>        # tags that include a specific commit or ref
+git tag --contains <commit>      # tags that contain the given commit (ancestor)
+git describe --tags              # nearest annotated tag reachable from HEAD
+git describe --tags --always     # fall back to abbreviated SHA if no tag found
+```
+
+### Describe for versioning
+
+Generate a human-readable version string from the nearest tag — `git describe` is commonly used in CI to version build artifacts:
+
+```bash
+git describe --tags              # v2.1.0-3-gabc1234
+git describe --tags --abbrev=0   # v2.1.0  (closest tag only, no SHA)
+```
+
+### Creating and deleting tags
+
+Create, push, and delete tags. Prefer annotated tags with a message for releases, since they also record the tagger and date:
+
+```bash
+git tag v2.1.0                              # lightweight tag — plain pointer to HEAD, no message
+git tag -a v2.1.0 -m "Release v2.1.0"      # annotated tag (recommended): stores message, tagger, and date
+git tag -a v2.1.0 <commit> -m "..."         # tag a specific commit
+git push origin v2.1.0                      # push a single tag
+git push origin --tags                      # push all tags
+git push origin --delete v2.1.0             # delete a remote tag
+git tag -d v2.1.0                           # delete a local tag
+```
+
+## Branching
+
+Branches are lightweight pointers to commits that let multiple lines of work develop in parallel. These commands cover listing, creating, switching, renaming, and tracking branches.
+
+### List and inspect branches
+
+List local, remote, or all branches with useful metadata such as last commit, upstream tracking, or merge status:
+
+```bash
+git branch                      # list local branches (* marks current)
+git branch -r                   # list remote tracking branches
+git branch -a                   # list all (local + remote)
+git branch -v                   # list with last commit message
+git branch -vv                  # list with upstream tracking info
+git branch --merged             # branches already merged into HEAD
+git branch --no-merged          # branches not yet merged
+git branch --sort=-committerdate # sort by most recent commit
+```
+
+### Create, switch, and delete
+
+Create and switch between branches with the classic `checkout` commands or the more explicit `switch`, then clean up branches that are no longer needed:
+
+```bash
+git branch feature/cache         # create branch (stay on current)
+git checkout feature/cache       # switch to branch
+git checkout -b feature/cache    # create and switch (one step)
+git switch feature/cache         # switch (Git ≥ 2.23, clearer intent)
+git switch -c feature/cache      # create and switch
+git branch -d feature/cache      # delete (safe — refuses if unmerged)
+git branch -D feature/cache      # force delete
+git push origin --delete feature/cache  # delete remote branch
+```
+
+### Rename a branch
+
+Rename a branch locally, then push the new name and delete the old remote branch to keep the remote in sync:
+
+```bash
+git branch -m old-name new-name        # rename locally
+git push origin -u new-name            # push renamed branch
+git push origin --delete old-name      # remove old remote branch
+```
+
+### Set upstream tracking
+
+Link a local branch to a remote one so plain `git push` and `git pull` work without extra arguments:
+
+```bash
+git push -u origin feature/cache       # push and set upstream in one step
+git branch --set-upstream-to=origin/main
+```
+
+## Merging
+
+Merging integrates commits from one branch into another. These commands control how the merge is performed and how to recover when conflicts arise.
+
+### Fast-forward vs. three-way merge
+
+Git fast-forwards when the target branch has no new commits since the branch point; otherwise it creates a merge commit. Force the behavior you want with these flags:
+
+```bash
+git checkout main
+git merge feature/cache            # fast-forward if possible, else three-way merge commit
+git merge --ff-only feature/cache  # only allow fast-forward (fail otherwise)
+git merge --no-ff feature/cache    # always create a merge commit
+git merge --squash feature/cache   # squash all commits into one (don't commit yet)
+```
+
+### Conflict resolution flow
+
+When both branches changed the same lines, Git stops and asks you to resolve the conflicts by hand. The full flow — from starting the merge to finishing or bailing out:
+
+```bash
+git merge feature/cache                             # start the merge
+# ... conflicts reported ...
+git diff                                            # see conflict markers
+git diff --name-only --diff-filter=U                # list conflicted files only
+# resolve conflicts in editor, then:
+git add <resolved-file>                             # mark each file resolved
+git merge --continue                                # or: git commit (no message)
+git merge --abort                                   # bail out, return to pre-merge state
+git merge --quit                                    # bail out but leave working tree as-is
+```
+
+### Inspect merge status
+
+Review merge activity in the log to understand how a mainline evolved — useful for release notes, audits, and code review:
+
+```bash
+git log --merges                                    # only merge commits
+git log --no-merges                                 # exclude merge commits
+git log --first-parent                              # follow only first parent (linear mainline)
+git show --name-only <merge-commit>                 # files changed in a merge
+```
+
+## Rebasing
+
+Rebasing rewrites commit history by replaying commits onto a new base. The sections below cover when to rebase, interactive editing, conflict recovery, and rebase-friendly pulls.
+
+### Why rebase
+
+Rebasing rewrites commit history by replaying commits onto a new base. It produces a linear, clean history — ideal before sharing a branch for review.
+
+:::caution
+Never rebase commits that have already been pushed to a shared branch. Rewriting public history causes conflicts for everyone else working on that branch.
+:::
+
+### Interactive rebase (most common)
+
+Interactive rebase opens an editor where you can reorder, reword, squash, or drop commits — the standard way to tidy up a feature branch before opening a pull request:
+
+```bash
+git rebase -i HEAD~4           # rebase last 4 commits interactively
+git rebase -i <base-branch>    # rebase current branch onto another branch interactively
+```
+
+In the editor that opens:
+
+| Command | Description |
+|---|---|
+| `pick` | Use the commit as-is. |
+| `reword` | Change the commit message. |
+| `edit` | Pause to amend the commit (files or message). |
+| `squash` | Combine with the previous commit, meld messages. |
+| `fixup` | Like squash, but discard this commit's message. |
+| `drop` | Remove the commit entirely. |
+| `break` | Pause the rebase at this point (insert additional commits). |
+
+### Standard (non-interactive) rebase
+
+Run a rebase non-interactively to simply move your commits onto another branch, handling any conflicts as they come:
+
+```bash
+git rebase main                          # rebase current branch onto main
+git rebase --onto main feature/old-base  # rebase commits from old-base..HEAD onto main
+git rebase --continue                    # continue after resolving conflicts
+git rebase --skip                        # skip a patch that causes unresolvable conflicts
+git rebase --abort                       # abort the whole rebase
+```
+
+### Rebase reconciliation
+
+If a rebase stops on a conflict, resolve the files, stage them, and continue. This flow also shows how to inspect the commits being replayed:
+
+```bash
+# If a conflict arises during rebase:
+# 1. Resolve conflicts in the file(s)
+# 2. git add <file>
+# 3. git rebase --continue
+
+# Need to see what the incoming change was?
+git log --oneline HEAD..REBASE_HEAD
+```
+
+### Pull with rebase
+
+Fetch and rebase in one step so your local commits sit on top of the latest remote history instead of creating merge commits:
+
+```bash
+git pull --rebase                  # fetch + rebase local commits on top of remote (linear history)
+git config --global pull.rebase true  # make --rebase the default for all pulls
+```
+
+## Stashing
+
+Stash shelves uncommitted changes so you can switch contexts without committing half-done work.
+
+```bash
+git stash                          # stash tracked changes (working + index)
+git stash -u                       # include untracked files
+git stash -a                       # include all (untracked + ignored)
+git stash save "WIP: cache layer"  # stash with a descriptive message
+```
+
+### Listing and inspecting stashes
+
+Stashes are stored on a stack; inspect them before deciding which one to restore:
+
+```bash
+git stash list                     # list all stashes (most recent first)
+git stash show                     # show diff of latest stash
+git stash show -p                  # full patch of latest stash
+git stash show stash@{2}           # show a specific stash
+```
+
+### Applying and dropping
+
+Restore a stash into your working tree, and remove stashes once they are no longer needed:
+
+```bash
+git stash pop                      # apply latest stash + drop it from the list
+git stash apply                    # apply latest stash but keep it in the list
+git stash apply stash@{1}          # apply a specific stash
+git stash drop                     # drop latest stash
+git stash drop stash@{1}           # drop a specific stash
+git stash clear                    # drop all stashes
+```
+
+### Stash a single file
+
+Stash just one file (or path) instead of everything, leaving the rest of your working tree intact:
+
+```bash
+git stash push -m "just config" -- path/to/config.yaml
+```
+
+### Create a branch from a stash
+
+Turn a stash into a proper branch when it turns out to be more work than a quick switch — the branch is created at the commit the stash was based on:
+
+```bash
+git stash branch feature/stashed-work stash@{0}
+```
+
+## History & searching
+
+These commands explore what happened in the repository — browsing the log, diffing changes, blaming lines, bisecting bugs, and searching the working tree or history.
+
+### Log — browsing commit history
+
+Walk through commit history with filters for time, author, message, path, or the code changes themselves:
+
+```bash
+git log                                       # full log (space to page, q to quit)
+git log --oneline                             # compact: SHA + subject
+git log --oneline --graph --decorate --all    # ASCII graph of all branches
+git log --oneline -20                         # last 20 commits
+git log --since="2026-07-01" --until="2026-07-31"
+git log --author="Jane"                       # commits by author (name or email)
+git log --grep="refactor"                     # commits whose message matches regex
+git log -S"TODO"                              # commits that added or removed the string "TODO"
+git log -G"removeCache"                       # commits whose diff contains the regex
+git log -- <path>                             # commits that touched a specific file
+git log -L :functionName:src/file.ts          # history of a specific function (line log)
+```
+
+### Log formatting
+
+Customize the log output with format placeholders for scripting, pretty-printing, or a personalized view:
+
+```bash
+git log --format="%h %s"                                    # abbreviated SHA + subject
+git log --format="%h %ad | %s%d [%an]" --date=short         # date, subject, refs, author
+git log --format="%C(yellow)%h%C(reset) %s %C(cyan)(%cr)%C(reset)"  # colored output
+```
+
+| Placeholder | Meaning |
+|---|---|
+| `%h` | Abbreviated commit SHA |
+| `%H` | Full commit SHA |
+| `%s` | Subject (first line of commit message) |
+| `%b` | Body |
+| `%an` | Author name |
+| `%ae` | Author email |
+| `%ad` | Author date |
+| `%cr` | Committer date, relative |
+| `%d` | Ref names (branches, tags) |
+| `%p` | Parent SHA(s) |
+
+### Diff
+
+Compare the working tree, index, and commits to review exactly what changed — before staging, before committing, or across branches:
+
+```bash
+git diff                        # unstaged changes (working tree vs. index)
+git diff --staged               # staged changes (index vs. HEAD)
+git diff HEAD                   # all changes (working + staged vs. HEAD)
+git diff main..feature/cache    # changes on feature branch not on main
+git diff --name-only            # list changed files only
+git diff --stat                 # summary of changes (files changed, insertions, deletions)
+git diff --word-diff            # word-level diff (easier to read for prose)
+git diff -w                     # ignore whitespace changes
+```
+
+### Blame — who changed what and when
+
+Annotate each line of a file with the commit and author that last touched it, with range and ignore options to cut through noise:
+
+```bash
+git blame src/app.ts                         # annotate every line with author + commit
+git blame -L 40,60 src/app.ts                # blame a specific line range
+git blame -L '/function handleClick/,+20' src/app.ts  # blame a function + 20 lines after
+git blame --since="2 weeks ago" src/app.ts    # only blame recent changes
+git blame --ignore-rev <commit> src/app.ts    # ignore a formatting commit
+git blame -w -C -C -C src/app.ts              # ignore whitespace, detect copies/moves
+```
+
+Use `git blame --ignore-revs-file .git-blame-ignore-revs` with a file listing formatting commits to skip them permanently.
+
+### Bisect — binary-search for the commit that introduced a bug
+
+Bisect runs a binary search over history to pinpoint the first commit that broke something. Mark a known-good and a known-bad commit, then let Git walk you through testing midpoints:
+
+```bash
+git bisect start                          # start bisection session
+git bisect bad                            # mark HEAD (or known-bad commit) as bad
+git bisect good v2.0.0                    # mark a known-good commit
+# Git checks out a midpoint commit; test it, then:
+git bisect good                           # if this commit is still good
+git bisect bad                            # if this commit is bad
+# repeat until Git identifies the first bad commit:
+git bisect reset                          # end the bisect session and return to HEAD
+```
+
+Automate bisecting with a script:
+
+```bash
+git bisect start HEAD v2.0.0
+git bisect run npm test                   # script returns 0 for good, 1-127 for bad
+```
+
+### Grep — search working tree or history
+
+Search the working tree (or the entire history) for code patterns, with regex, case-insensitive, and filename-only options:
+
+```bash
+git grep "TODO"                           # search working tree for a pattern
+git grep -n "TODO"                        # show line numbers
+git grep -i "fixme"                       # case-insensitive
+git grep -l "deprecated"                  # list filenames only
+git grep --and -e "import" -e "React"     # lines containing both patterns
+git grep "oldName" $(git rev-list --all)  # search across entire history
+```
+
+## Undoing changes
+
+Git offers several ways to undo work, each with different scope and safety. Reset rewrites history, revert adds an inverse commit, and checkout/clean operate on files — choose based on whether the changes were already shared.
+
+### Reset — move HEAD and optionally modify index/working tree
+
+Reset moves the current branch pointer (HEAD) and can also reset the index and working tree. Because it rewrites history, reserve it for commits that have not been pushed:
+
+```bash
+# Soft: move HEAD only, leave index and working tree untouched
+git reset --soft HEAD~1              # undo last commit, keep changes staged
+
+# Mixed (default): move HEAD and reset index, leave working tree as-is
+git reset HEAD~1                     # undo last commit; changes are now unstaged
+git reset HEAD <file>                # unstage a specific file only
+
+# Hard: move HEAD, reset index AND working tree — DESTRUCTIVE
+git reset --hard HEAD~1              # discard last commit and all its changes
+git reset --hard origin/main         # reset local to match remote exactly
+```
+
+:::danger
+`git reset --hard` permanently discards uncommitted changes. Use `git stash` if you might need them back.
+:::
+
+### Revert — undo a commit by creating a new inverse commit
+
+Revert creates a new commit that applies the inverse of the target commit's changes, leaving existing history intact:
+
+```bash
+git revert HEAD                      # create a commit that undoes the last commit
+git revert <commit-sha>              # revert a specific commit (not necessarily the latest)
+git revert -m 1 <merge-commit>       # revert a merge commit (specify parent: 1 = mainline)
+git revert --no-commit HEAD~3..HEAD  # revert a range but don't commit yet
+```
+
+`revert` is safe for shared branches — it adds history rather than rewriting it.
+
+### Checkout — restore files from a previous state
+
+Restore individual files from the index or from any commit when you want to discard or roll back specific changes without touching branch pointers:
+
+```bash
+git checkout -- <file>               # discard unstaged changes in a file (DESTRUCTIVE)
+git checkout <commit> -- <file>       # restore a file to how it looked at a specific commit
+git checkout HEAD~2 -- src/app.ts     # restore a file from 2 commits ago
+```
+
+### Reflog — the safety net
+
+The reflog records every time HEAD moves (commits, checkouts, resets, rebases). It is local and persists for 90 days by default.
+
+```bash
+git reflog                           # show all HEAD movements
+git reflog show feature/cache        # show movements of a specific branch
+git reflog --date=iso                # with timestamps
+```
+
+**Recover a "lost" commit after `git reset --hard`:**
+
+```bash
+git reflog                           # find the SHA of the orphaned commit
+git checkout <sha>                    # detach HEAD to inspect it
+git switch -c recovered-branch        # create a branch from it
+```
+
+**Recover a deleted branch:**
+
+```bash
+git reflog                           # find the last commit of the deleted branch
+git checkout -b <branch-name> <sha>
+```
+
+### Clean — remove untracked files
+
+Remove untracked files and directories that clutter the working tree. Always dry-run with `-n` first to see exactly what would be deleted:
+
+```bash
+git clean -n                         # dry-run: show what would be removed
+git clean -f                         # remove untracked files
+git clean -fd                        # remove untracked files AND directories
+git clean -fdx                       # remove untracked + ignored files and directories
+```
+
+## Cherry-pick
+
+Apply a specific commit (or range) from one branch onto another — useful for hotfixes or pulling a single feature commit.
+
+```bash
+git cherry-pick <commit-sha>                # apply a single commit
+git cherry-pick <sha1> <sha2> <sha3>        # apply multiple commits
+git cherry-pick <start-sha>..<end-sha>       # apply a range (exclusive of start)
+git cherry-pick <start-sha>^..<end-sha>      # apply a range (inclusive of start)
+git cherry-pick -n <sha>                     # apply changes but don't commit yet
+git cherry-pick --continue                   # continue after resolving conflicts
+git cherry-pick --abort                      # abort the cherry-pick
+git cherry-pick --skip                       # skip the current commit
+```
+
+### Conflict during cherry-pick
+
+If a cherry-pick stops on a conflict, resolve the files, stage them, and continue — or abort to cancel entirely:
+
+```bash
+# Resolve conflicts, then:
+git add <resolved-file>
+git cherry-pick --continue
+```
+
+## Remote operations
+
+Remotes are other copies of the repository you sync with. These commands manage fetching, pulling, pushing, and the remote configurations themselves.
+
+### Fetch and pull
+
+Fetch downloads remote changes without touching your working tree; pull integrates them. The flags below control whether integration merges, rebases, or fast-forwards:
+
+```bash
+git fetch origin                              # download all remote changes (doesn't merge)
+git fetch --prune                             # remove local refs for deleted remote branches
+git pull                                      # fetch + merge (or rebase if pull.rebase = true)
+git pull --rebase                             # fetch + rebase local commits on top
+git pull --ff-only                            # fetch + fast-forward only (fail if not possible)
+```
+
+### Push
+
+Push local commits to a remote. Prefer `--force-with-lease` over plain `--force` to avoid clobbering commits others may have added:
+
+```bash
+git push                                      # push current branch to its upstream
+git push origin main                          # push a specific branch
+git push --force-with-lease                   # force-push safely (fails if remote has new commits)
+git push --force-with-lease --force-if-includes  # even safer variant
+```
+
+:::warning
+Avoid `git push --force` on shared branches. Prefer `--force-with-lease` which refuses to overwrite remote commits you haven't fetched.
+:::
+
+### Remote management
+
+Add, rename, remove, and inspect remotes — essential when working with forks or multiple upstream sources:
+
+```bash
+git remote -v                                 # list remotes with URLs
+git remote add upstream <url>                 # add a new remote
+git remote set-url origin <new-url>           # change a remote's URL
+git remote rename origin upstream             # rename a remote
+git remote remove upstream                    # remove a remote
+git remote show origin                        # inspect a remote in detail
+git remote prune origin                       # clean up stale remote-tracking branches
+```
+
+## Worktree — work on multiple branches simultaneously
+
+Instead of stashing and switching, create a linked working tree for another branch.
+
+```bash
+git worktree list                             # show all worktrees
+git worktree add ../project-hotfix hotfix/v1  # create worktree for a branch in another directory
+git worktree add -b feature/new ../project-new  # create a new branch + worktree
+git worktree remove ../project-hotfix          # remove a worktree
+git worktree prune                            # clean up stale worktree records
+```
+
+## Submodules
+
+Submodules embed one repository inside another.
+
+```bash
+git submodule add <url> <path>               # add a submodule
+git submodule update --init --recursive       # clone submodules after cloning a repo
+git submodule update --remote                 # pull latest changes for each submodule
+git submodule status                          # see current submodule SHAs
+git submodule foreach git pull origin main    # run a command in every submodule
+```
+
+To remove a submodule:
+
+```bash
+git submodule deinit -f <path>
+git rm -f <path>
+rm -rf .git/modules/<path>
+```
+
+## Useful aliases
+
+Add these to your `~/.gitconfig` or set via:
+
+```bash
+git config --global alias.<name> "<command>"
+```
+
+```ini
+[alias]
+  # Compact history graph
+  lg = log --oneline --graph --decorate --all -30
+  # List branches sorted by most recent commit
+  recent = branch --sort=-committerdate
+  # Amend the last commit (keep message)
+  amend = commit --amend --no-edit
+  # Undo last commit but keep changes staged
+  undo = reset --soft HEAD~1
+  # Show what I did today
+  today = log --since=midnight --oneline --author=\"$(git config user.name)\"
+  # Show number of commits per author
+  count = shortlog -sn
+  # Find the commit that deleted a file
+  deleted = log --diff-filter=D --summary -- <path>
+  # Show a diff of what's been stashed
+  stashed = stash list --pretty=format:'%gd: %C(yellow)%h%C(reset) %s %C(green)(%cr)%C(reset)'
+```
+
+## Quick reference table
+
+| Task | Command |
+|---|---|
+| List tags | `git tag` or `git tag --sort=-version:refname` |
+| Show tag details | `git show v1.0.0` |
+| Create annotated tag | `git tag -a v1.0.0 -m "Release v1.0.0"` |
+| List branches | `git branch -a` or `git branch -vv` |
+| Switch branch | `git switch feature/foo` (create: `-c`) |
+| Merge branch | `git merge feature/foo` |
+| Abort merge | `git merge --abort` |
+| Rebase interactively | `git rebase -i HEAD~4` |
+| Abort rebase | `git rebase --abort` |
+| Stash changes | `git stash` (untracked: `-u`) |
+| List stashes | `git stash list` |
+| Apply latest stash | `git stash pop` |
+| Browse history | `git log --oneline --graph --all` |
+| Search commits | `git log --grep="fix"` |
+| Search code in history | `git log -S"TODO"` |
+| Show changes | `git diff` (staged: `--staged`) |
+| Blame a file | `git blame src/app.ts` |
+| Bisect a bug | `git bisect start` → `bad`/`good` → `git bisect reset` |
+| Search working tree | `git grep "pattern"` |
+| Undo last commit (keep changes) | `git reset --soft HEAD~1` |
+| Undo last commit (discard) | `git reset --hard HEAD~1` |
+| Safely undo a shared commit | `git revert HEAD` |
+| Recover lost commits | `git reflog` → `git checkout <sha>` |
+| Clean untracked files | `git clean -fd` (dry-run: `-n`) |
+| Cherry-pick a commit | `git cherry-pick <sha>` |
+| Fetch all remotes | `git fetch --all --prune` |
+| Safe force-push | `git push --force-with-lease` |
+| Worktree | `git worktree add ../dir feature/foo` |
+
+## See also
+
+- [GitHub Actions & Workflows](../gitops/github-actions.mdx) — CI/CD with Git triggers
+- [ArgoCD & GitOps](../gitops/argocd.mdx) — continuous deployment from Git
+- [Bash & Shell Scripting](../linux/bash.mdx) — scripting patterns for automation around Git
+- [Official Git docs](https://git-scm.com/docs)
+- [Pro Git book](https://git-scm.com/book/en/v2)

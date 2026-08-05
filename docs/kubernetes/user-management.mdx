@@ -18,6 +18,8 @@ ServiceAccounts are Kubernetes-managed identities for pods and CI/CD tooling.
 
 ### Creating and using ServiceAccounts
 
+ServiceAccounts identify pods and automation when they talk to the API server. Create one and reference it in a pod's `serviceAccountName` so the pod authenticates with that identity instead of the default one.
+
 ```bash
 # Create a ServiceAccount
 kubectl create sa my-app
@@ -25,7 +27,7 @@ kubectl create sa my-app
 # View details
 kubectl get sa my-app -o yaml
 
-# Use in a pod
+# Reference it from a pod via serviceAccountName:
 ```
 
 ```yaml
@@ -48,6 +50,8 @@ spec:
 
 ### Token access
 
+ServiceAccounts authenticate with tokens. In Kubernetes 1.24+ you mint short-lived, expiring tokens on demand with `kubectl create token`, or you create a long-lived token Secret manually for tools that need stable credentials.
+
 ```bash
 # Create a long-lived token (Kubernetes 1.24+)
 kubectl create token my-app --duration=720h
@@ -69,6 +73,8 @@ type: kubernetes.io/service-account-token
 
 ### Role (namespace-scoped)
 
+A Role grants permissions within a single namespace. This example gives read access to pods and logs, plus configmaps and secrets, but only in the `default` namespace — nothing outside it.
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -86,6 +92,8 @@ rules:
 
 ### ClusterRole (cluster-scoped or cross-namespace)
 
+A ClusterRole grants permissions cluster-wide or across all namespaces. Use it for cluster-scoped resources like nodes, or as a reusable set of rules that namespace-scoped RoleBindings can reference.
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -101,6 +109,8 @@ rules:
 ```
 
 ### Aggregated ClusterRoles
+
+Aggregation lets you compose one ClusterRole from rules contributed by other ClusterRoles that carry a matching `aggregate-to-*` label. The built-in `view`, `edit`, and `admin` roles are built this way, and your custom rules merge into them automatically.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -118,6 +128,8 @@ rules:
 ## Bindings
 
 ### RoleBinding (namespace-scoped)
+
+A RoleBinding attaches a Role to subjects — users, groups, or ServiceAccounts — within one namespace. It's the final step that actually gives an identity permissions; without a binding, a Role is just a definition.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -140,6 +152,8 @@ roleRef:
 
 ### ClusterRoleBinding (cluster-wide)
 
+A ClusterRoleBinding attaches a ClusterRole to subjects across the whole cluster. Use it sparingly — it grants the bound permissions in every namespace, not just one.
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -160,6 +174,8 @@ roleRef:
 Since Kubernetes doesn't manage user objects, users authenticate with x509 certificates signed by the cluster CA.
 
 ### Creating a user certificate
+
+Because Kubernetes has no user objects, human users authenticate with x509 certificates signed by the cluster CA. Generate a key and CSR, sign it, then add a kubeconfig context so the user can access the cluster.
 
 ```bash
 # Generate a private key
@@ -183,6 +199,8 @@ kubectl config use-context jane-context
 
 ### Check access
 
+`kubectl auth can-i` answers "can this identity do this?" without actually performing the request. It's the quickest way to verify RBAC changes and to debug `forbidden` errors, and it supports `--as` to impersonate any user or group.
+
 ```bash
 kubectl auth can-i create pods
 kubectl auth can-i delete nodes --as jane
@@ -192,6 +210,8 @@ kubectl auth can-i list deployments --as-group developers
 ## Common RBAC patterns
 
 ### Read-only across all namespaces
+
+This is the standard read-only pattern for auditors, dashboards, and support staff: a ClusterRole allowing `get/list/watch` on everything, bound to a group cluster-wide. It provides exactly what the built-in `view` ClusterRole gives you.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -218,6 +238,8 @@ roleRef:
 ```
 
 ### CI/CD deployer (namespace-scoped)
+
+CI/CD systems deploy on your behalf and should be limited to one namespace. This pattern gives a ServiceAccount from the `ci` namespace full manage access to workloads in `production`, without any cluster-wide privileges.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -250,6 +272,8 @@ roleRef:
 
 ### Namespace admin
 
+Give a team full control of its own namespace — everything except cluster-scoped objects and resource quotas. This lets each team self-service within `team-a` without a cluster-admin role.
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -266,6 +290,8 @@ rules:
 ```
 
 ## Troubleshooting
+
+When permissions don't behave as expected, inspect the bindings that exist and check the effective permissions with `kubectl auth can-i --list`. For requests that are denied, the API server's audit log shows exactly which rule (or missing rule) was responsible.
 
 ```bash
 # List all bindings in a namespace

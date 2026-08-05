@@ -16,6 +16,8 @@ Linux is a multi-user operating system built around a permissions model that con
 
 ### Listing and inspecting users
 
+These commands reveal who you are, who is logged in, and what an account is allowed to do. `id` shows the UID, GID, and all group memberships at a glance.
+
 ```bash
 whoami                               # current user
 id                                   # UID, GID, and group memberships
@@ -28,6 +30,8 @@ lastb                                # failed login attempts (requires /var/log/
 ```
 
 ### User account files
+
+User and group definitions live in plain-text files under `/etc`. Each file serves one purpose: account definitions, password hashes, groups, valid shells, and the skeleton copied into new home directories.
 
 ```bash
 /etc/passwd                          # user account definitions
@@ -47,6 +51,8 @@ username:password:UID:GID:GECOS:home_directory:shell
 The password field is `x` (shadow passwords stored in `/etc/shadow`).
 
 ### Creating and modifying users
+
+`useradd` creates accounts and `usermod` adjusts them — adding groups, changing shells, locking accounts, and setting expiration dates. `passwd` manages passwords, and `userdel` removes accounts.
 
 ```bash
 # Create a user
@@ -79,6 +85,8 @@ chfn                                        # change GECOS info (full name, phon
 
 ## Group management
 
+Groups bundle users together so permissions can be granted to a whole team at once. `groupadd`, `groupmod`, and `groupdel` create, rename, and remove them, while `groups` and `getent` list memberships.
+
 ```bash
 # Create and modify groups
 groupadd developers                          # create a new group
@@ -100,6 +108,8 @@ gpasswd developers
 ```
 
 ### Adding users to groups
+
+Membership in supplementary groups is what grants access to shared resources. Use `-aG` (append) with `usermod` so you add groups without clobbering existing memberships.
 
 ```bash
 usermod -aG docker,www-data jdoe             # append to supplementary groups
@@ -139,6 +149,8 @@ Permissions are represented as three triads: **owner**, **group**, and **others*
 
 ### Changing permissions
 
+`chmod` changes mode bits using either symbolic triads (`u+x`) or octal numbers (`755`). The two forms cover everything from quick tweaks to exact recursive permission sets.
+
 ```bash
 # Symbolic mode
 chmod u+x script.sh                  # owner: add execute
@@ -158,6 +170,8 @@ chmod -R 755 /var/www                # change all files and dirs
 ```
 
 ### Changing ownership
+
+`chown` changes the owner and group of a file or directory; `chgrp` changes only the group. Use `-R` to apply the change recursively.
 
 ```bash
 chown jdoe file.txt                  # change owner
@@ -187,6 +201,8 @@ chmod +t /tmp                        # Sticky: users can only delete own files
 - Sticky: `rwt` in others execute position (or `rwT` if no execute)
 
 ### Default permissions: umask
+
+The umask subtracts permission bits from the defaults (666 for files, 777 for directories) so new files are created with sane, restricted permissions.
 
 ```bash
 umask                                # display current mask (e.g., 0022)
@@ -257,12 +273,16 @@ setfacl -m d:u:alice:rwx /shared/
 
 ### Configuration files
 
+`sudo` is configured in `/etc/sudoers`, which should only be edited with `visudo`. Drop-in files under `/etc/sudoers.d/` keep custom rules separate from the main file.
+
 ```bash
 /etc/sudoers                         # main configuration (edit with visudo)
 /etc/sudoers.d/                      # drop-in configuration files
 ```
 
 ### sudoers syntax
+
+Each sudoers line grants a user or group a set of commands on specific hosts, optionally run as another user and optionally without a password. The last matching rule wins, so put specific grants after broad ones.
 
 ```bash
 # User privilege specification
@@ -280,6 +300,8 @@ jdoe    ALL=(postgres) /usr/bin/psql
 ```
 
 ### sudo commands
+
+`sudo` runs a single command as root or another user. These common invocations cover running as a specific user, starting a root shell, listing your own permissions, and invalidating cached credentials.
 
 ```bash
 sudo command                         # run as root
@@ -306,6 +328,8 @@ AppArmor is a Mandatory Access Control (MAC) framework, default on Debian/Ubuntu
 
 ### Checking status
 
+`aa-status` lists all loaded AppArmor profiles and whether each is in enforce or complain mode.
+
 ```bash
 aa-status                            # show loaded profiles and enforcement status
 apparmor_status                      # same information
@@ -316,6 +340,8 @@ Each profile is in one of these modes:
 - **Complain**: Policy is NOT enforced; violations are only logged.
 
 ### Managing profiles
+
+Profiles live in `/etc/apparmor.d/` and can be switched between enforce and complain modes, unloaded, or regenerated interactively while the system runs.
 
 ```bash
 # Profile files location
@@ -338,6 +364,8 @@ aa-genprof /path/to/binary           # interactive profile generation
 
 ### Viewing denials
 
+AppArmor denials are logged by the kernel. `dmesg` and the syslog files are the places to look when a program is being blocked.
+
 ```bash
 dmesg | grep -i apparmor
 grep apparmor /var/log/syslog
@@ -345,6 +373,8 @@ grep apparmor /var/log/kern.log
 ```
 
 ## Common permission recipes
+
+These ready-made combinations cover the most common secure setups: SSH keys, web directories served by `www-data`, shared group areas, and dedicated application users.
 
 ```bash
 # Secure SSH private key

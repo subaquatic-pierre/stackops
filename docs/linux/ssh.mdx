@@ -16,6 +16,8 @@ SSH (Secure Shell) is the standard protocol for securely connecting to and manag
 
 ### Key types and generation
 
+An SSH key pair consists of a private key kept on your machine and a public key installed on servers. `ssh-keygen` creates and manages both; Ed25519 is the recommended algorithm for new keys.
+
 ```bash
 # Generate an Ed25519 key (modern, recommended)
 ssh-keygen -t ed25519 -C "john@example.com"
@@ -44,6 +46,8 @@ ssh-keygen -l -f ~/.ssh/id_ed25519.pub
 
 ### Copying keys to a server
 
+`ssh-copy-id` installs your public key into the remote account's `authorized_keys`, enabling password-less logins.
+
 ```bash
 ssh-copy-id user@remote-host                    # copy default key
 ssh-copy-id -i ~/.ssh/prod_key user@host        # copy specific key
@@ -60,6 +64,8 @@ cat ~/.ssh/id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && cat >> ~/.ssh/auth
 
 ### Basic connections
 
+The basic `ssh` invocation opens an interactive shell on a remote host. Common options select a non-standard port, a specific identity file, and the verbosity level for diagnosing connection problems.
+
 ```bash
 ssh user@host                        # standard connection
 ssh -p 2222 user@host                # non-standard port
@@ -69,6 +75,8 @@ ssh -vvv user@host                   # very verbose
 ```
 
 ### Connection patterns
+
+Beyond interactive shells, SSH can run a single remote command, pipe a local script to a remote shell, or hop through a jump host to reach hosts in a private network.
 
 ```bash
 # Run a single command
@@ -92,6 +100,8 @@ ssh -J jump-user@bastion.internal target-user@10.0.1.50
 The `~/.ssh/config` file allows persistent per-host connection settings.
 
 ### Basic host configuration
+
+Persistent settings for a host live in a config block: an alias, the real hostname, user, port, and identity file. Wildcard patterns apply shared defaults to groups of hosts.
 
 ```
 # ~/.ssh/config
@@ -138,6 +148,8 @@ Host *.internal
 | `RemoteForward` | Remote port forward | `RemoteForward 8080 localhost:80` |
 
 ### Server keep-alive settings
+
+Keep-alive settings prevent idle connections from being dropped by NATs or firewalls. Configure them per-connection on the client side, or globally for all sessions on the server.
 
 ```bash
 # Client-side keep-alive
@@ -187,6 +199,8 @@ ssh -D 1080 user@bastion
 
 ### Background tunnels
 
+Adding `-fN` sends the connection to the background after authentication and suppresses the remote shell — useful for keeping a tunnel open without occupying a terminal.
+
 ```bash
 ssh -fN -L 5432:db.internal:5432 user@bastion
 # -f: background, -N: no remote command
@@ -197,6 +211,8 @@ ssh -fN -L 5432:db.internal:5432 user@bastion
 The `ssh-agent` holds decrypted private keys in memory, so you only type your passphrase once per session.
 
 ### Starting the agent
+
+The agent keeps decrypted keys in memory so you only enter your passphrase once per session. Start it, add your keys, then list what is loaded to confirm.
 
 ```bash
 eval "$(ssh-agent)"                  # start a new agent
@@ -224,6 +240,8 @@ ssh -A -J user@bastion 10.0.1.50     # jump host with agent forwarding
 
 ### Key server settings (`/etc/ssh/sshd_config`)
 
+These hardened `sshd_config` settings enforce key-only authentication: disable root login and password auth, restrict which users may log in, and set timeouts to kill idle sessions.
+
 ```
 Port 22
 PermitRootLogin no
@@ -247,6 +265,8 @@ systemctl restart sshd                # restart sshd (may drop existing sessions
 
 ### Managing authorized keys
 
+The `authorized_keys` file grants login access to the matching private key. Each line holds one public key, and options at the start of a line can restrict what that key may do.
+
 ```bash
 # ~/.ssh/authorized_keys (one key per line)
 ssh-ed25519 AAAAC3... deploy@host
@@ -261,6 +281,8 @@ from="10.0.0.0/8" ssh-ed25519 AAAAC3... internal-user
 ## File transfer
 
 ### scp
+
+`scp` copies files securely over SSH — to and from remote hosts, recursively for directories, and with attribute preservation.
 
 ```bash
 # Copy to remote
@@ -311,6 +333,8 @@ rsync -avP ./dir/ user@host:/dir/    # archive mode, verbose, show progress
 
 ### sftp
 
+`sftp` provides an interactive, FTP-style session over SSH for browsing, uploading, and downloading files.
+
 ```bash
 sftp user@host                       # interactive FTP-like session
 sftp -P 2222 user@host               # non-standard port
@@ -319,6 +343,8 @@ sftp -P 2222 user@host               # non-standard port
 Interactive commands: `ls`, `cd`, `get`, `put`, `mget`, `mput`, `rm`, `mkdir`, `bye`.
 
 ## Troubleshooting connectivity
+
+Work through connection failures systematically: increase verbosity, check DNS and port reachability, verify `known_hosts` and key permissions, and inspect the server's authentication logs.
 
 ```bash
 # Verbose connection attempts

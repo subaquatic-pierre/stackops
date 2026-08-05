@@ -30,6 +30,8 @@ $ZSH_CUSTOM/
 
 ## Aliases (`alias.zsh`)
 
+`alias.zsh` centralizes every shell shortcut — Git operations, Python virtualenvs, infrastructure tools, and browser profiles — so daily commands are just a few keystrokes. Oh My Zsh sources it automatically on startup.
+
 ```zsh
 # ── Oh My Zsh quick-open ──
 alias zshconfig="code ~/.zshrc"
@@ -68,6 +70,8 @@ alias unsafe-chrome='google-chrome --disable-web-security --user-data-dir="/tmp/
 ---
 
 ## Environment Variables (`environment.zsh`)
+
+`environment.zsh` exports the variables every toolchain and editor relies on: the default Git editor, the Java home, the Android SDK root, and extra `PATH` entries that make nvim and Go binaries globally available.
 
 ```zsh
 # ── Default editor ──
@@ -268,6 +272,8 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]=none
 ```
 
 ### Agnoster prompt anatomy
+
+Here is how the segments of the agnoster prompt fit together — each labeled part maps to one of the `prompt_*` functions defined in `theme.zsh` above:
 
 ```
 👾  ~/projects/stack-garden  master ●  10:42:42

@@ -14,6 +14,8 @@ The Linux kernel is the core of the operating system — it manages hardware, pr
 
 ## Kernel information
 
+Quick commands report the running kernel, its version and boot parameters, and which kernels are available to boot.
+
 ```bash
 uname -r                             # kernel release version
 uname -a                             # all system info
@@ -37,6 +39,8 @@ Kernel modules extend the kernel's capabilities at runtime without rebooting. Th
 
 ### Listing and inspecting modules
 
+`lsmod` lists the currently loaded modules, and `modinfo` shows a module's metadata — path, license, parameters, and dependencies — before you decide to load it.
+
 ```bash
 lsmod                                # list all loaded modules
 lsmod | grep -E "Module|nvme"        # filter by name
@@ -47,6 +51,8 @@ modprobe -c | grep <module>          # show module aliases/configuration
 
 ### Module locations
 
+Module files live under `/lib/modules/`, keyed by kernel version. Boot-time loading and module parameters are configured in `/etc/modules`, `/etc/modules-load.d/`, and `/etc/modprobe.d/`.
+
 ```bash
 /lib/modules/$(uname -r)/            # modules for current kernel
 /lib/modules/$(uname -r)/kernel/     # organized by subsystem
@@ -56,6 +62,8 @@ modprobe -c | grep <module>          # show module aliases/configuration
 ```
 
 ### Loading and removing modules
+
+`modprobe` loads and unloads modules with automatic dependency resolution, optionally passing parameters. Check with `lsmod` that a module is not in use before removing it.
 
 ```bash
 # Load a module
@@ -76,6 +84,8 @@ lsmod | grep <module>
 
 ### Module blacklisting
 
+To stop a module from loading, blacklist it in `/etc/modprobe.d/`. Rebuild the initramfs afterward so the change survives boot.
+
 ```bash
 # Blacklist a single module
 # /etc/modprobe.d/blacklist.conf
@@ -90,6 +100,8 @@ dracut -f                            # apply changes (RHEL)
 ```
 
 ### Module parameters
+
+Module parameters tune behavior at load time via `/etc/modprobe.d/`, and many can be read or changed at runtime through `/sys/module/`.
 
 ```bash
 # Set module options at boot or modprobe
@@ -110,6 +122,8 @@ echo 1 > /sys/module/kvm_intel/parameters/nested
 
 ### Listing and reading
 
+`sysctl` reads all kernel parameters at once or one at a time. Filter by subsystem — such as `net.ipv4` — to find what you need.
+
 ```bash
 sysctl -a                            # show all parameters
 sysctl -a | grep net.ipv4            # filter by subsystem
@@ -118,6 +132,8 @@ cat /proc/sys/net/ipv4/ip_forward    # same via proc
 ```
 
 ### Changing parameters
+
+Parameters change temporarily with `sysctl -w` (lost on reboot) or permanently in `/etc/sysctl.conf` and `/etc/sysctl.d/`, then applied with `sysctl --system`.
 
 ```bash
 # Temporary (reset on reboot)
@@ -154,12 +170,16 @@ sysctl --system                       # load all sysctl configs
 
 ### Viewing boot parameters
 
+The kernel command line used at this boot is visible in `/proc/cmdline` and in the kernel log — it shows everything GRUB passed to the kernel at boot time.
+
 ```bash
 cat /proc/cmdline                    # kernel parameters at current boot
 dmesg | grep "Command line"          # same via kernel log
 ```
 
 ### GRUB configuration
+
+GRUB's behavior is configured in `/etc/default/grub` and the scripts in `/etc/grub.d/`, which generate the actual `grub.cfg`. Edit the defaults file — never the generated config directly.
 
 ```bash
 # Main config file
@@ -174,6 +194,8 @@ dmesg | grep "Command line"          # same via kernel log
 ```
 
 ### Common GRUB defaults (`/etc/default/grub`)
+
+The key settings in `/etc/default/grub`: the command line passed to the kernel, boot timeout, default menu entry, and whether recovery mode appears in the menu.
 
 ```bash
 # Quiet boot
@@ -197,6 +219,8 @@ GRUB_DISABLE_RECOVERY="true"
 
 ### Applying GRUB changes
 
+After editing `/etc/default/grub`, regenerate the boot configuration with `update-grub` (Debian/Ubuntu) or `grub2-mkconfig` (RHEL). `efibootmgr` inspects EFI boot entries.
+
 ```bash
 update-grub                          # Debian/Ubuntu
 grub2-mkconfig -o /boot/grub2/grub.cfg  # RHEL/Fedora
@@ -209,6 +233,8 @@ efibootmgr -v                        # EFI boot manager entries
 ```
 
 ### Useful kernel boot parameters
+
+Appending parameters to the kernel command line changes behavior for a single boot — rescue mode, memory limits, hardware workarounds, and systemd targets.
 
 ```bash
 # Single-user mode (rescue)
@@ -236,6 +262,8 @@ systemd.unit=rescue.target
 
 ### dmesg
 
+`dmesg` prints the kernel ring buffer with human-readable timestamps and level filtering — the first place to look for hardware or driver problems.
+
 ```bash
 dmesg                                # kernel ring buffer
 dmesg -H                             # human-readable timestamps
@@ -261,6 +289,8 @@ dmesg -c                             # print and clear buffer
 
 ### Tracing and profiling
 
+`strace` and `ltrace` trace a process's system and library calls, `perf` measures performance counters and profiles execution, and `bpftrace` enables dynamic eBPF tracing.
+
 ```bash
 # strace: trace system calls
 strace -p <pid>                      # attach to running process
@@ -282,6 +312,8 @@ bpftrace -e 'tracepoint:syscalls:sys_enter_openat { printf("%s %s\n", comm, str(
 
 ### Checking kernel panics and oops
 
+Kernel failures leave traces in `dmesg` and the journal — look for oops, panic, or call-trace lines. `kdump` captures crash dumps, and `/var/crash/` holds the previous ones.
+
 ```bash
 # Check for kernel oops/panics in logs
 dmesg | grep -i "oops\|panic\|BUG\|Call Trace"
@@ -295,6 +327,8 @@ ls /var/crash/
 ```
 
 ## Kernel versions and updates
+
+Kernels are managed through the package system — `apt` on Debian/Ubuntu, `dnf` on RHEL/Fedora. These commands list installed kernels, update them, and check which one boots next.
 
 ```bash
 # Debian/Ubuntu

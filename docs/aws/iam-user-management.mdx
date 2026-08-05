@@ -26,6 +26,8 @@ IAM (Identity and Access Management) is the central access control service for A
 
 ### Creating and managing users
 
+Users represent humans or services that need long-term credentials. These commands create, inspect, and delete them — `--query` is handy for extracting a clean, scriptable list of user names.
+
 ```bash
 # Create a user
 aws iam create-user --user-name alice
@@ -45,6 +47,8 @@ aws iam delete-login-profile --user-name alice
 ```
 
 ### Access keys (for CLI/SDK access)
+
+Access keys grant programmatic access to the AWS APIs from the CLI and SDKs. Treat them like passwords: issue them per user, rotate them on a schedule, and deactivate before deleting so nothing breaks mid-flight.
 
 ```bash
 # Create access key
@@ -69,6 +73,8 @@ aws iam delete-access-key \
 
 ## Groups
 
+Groups let you attach permissions once and apply them to many users at once. Policies attached to a group are inherited by every member, so access is managed in one place instead of per user.
+
 ```bash
 # Create a group
 aws iam create-group --group-name Developers
@@ -90,6 +96,8 @@ aws iam delete-group --group-name Developers
 
 ### Creating a role
 
+A role is an identity meant to be assumed by a service, application, or another account — it holds no long-lived credentials. The `--assume-role-policy-document` passed at creation is the trust policy that decides who can assume it.
+
 ```bash
 # Create a role for EC2
 aws iam create-role \
@@ -105,6 +113,8 @@ aws iam create-role \
 ```
 
 ### Trust policies (who can assume the role)
+
+This JSON document is the gatekeeper for a role: it lists the principals allowed to call `sts:AssumeRole` on it. The example below lets a specific account's root user and the Lambda service both assume the role.
 
 ```json
 {
@@ -126,6 +136,8 @@ aws iam create-role \
 
 ### Instance profiles
 
+An instance profile is a thin container that carries a role onto an EC2 instance. Once the profile is attached, the instance fetches temporary credentials from the role automatically — no access keys live on the box.
+
 ```bash
 # Create instance profile
 aws iam create-instance-profile --instance-profile-name ec2-s3-readonly-profile
@@ -142,6 +154,8 @@ aws ec2 associate-iam-instance-profile \
 ```
 
 ### Assuming a role
+
+Assuming a role returns temporary credentials scoped to the role's permissions. Export the returned `AccessKeyId`, `SecretAccessKey`, and `SessionToken` as environment variables to make every subsequent CLI call run as that role.
 
 ```bash
 # Use STS to assume a role (returns temporary credentials)
@@ -169,6 +183,8 @@ aws s3 ls   # Now running as the assumed role
 | **Inline** | Embedded in a single user/group/role | One-off exceptions |
 
 ### IAM policy structure
+
+Every IAM policy is a JSON document with a `Version` and one or more `Statement` blocks. Each statement declares an effect (allow or deny), the actions it covers, the resources they apply to, and optionally a `Condition` that constrains when the rule applies.
 
 ```json
 {
@@ -200,6 +216,8 @@ aws s3 ls   # Now running as the assumed role
 
 ### Common policy snippets
 
+These are copy-paste building blocks for the most frequent permission patterns. Note how the EC2 snippet narrows permissions by region, and the `iam:PassRole` snippet limits exactly which roles a service is allowed to receive.
+
 ```json
 // Read-only access to a single S3 bucket
 {
@@ -225,6 +243,8 @@ aws s3 ls   # Now running as the assumed role
 ```
 
 ### Managing policies
+
+Managed policies are standalone permission documents that you attach to users, groups, or roles. The attach, list, and detach commands follow the same pattern for all three entity types.
 
 ```bash
 # Attach a managed policy to a user
@@ -254,6 +274,8 @@ aws iam detach-user-policy \
 ```
 
 ### Inline policies
+
+Inline policies are embedded directly into a single user, group, or role and cannot be shared or reused elsewhere. They are best reserved for one-off exceptions rather than broadly-scoped access.
 
 ```bash
 # Create an inline policy from a JSON file
@@ -306,6 +328,8 @@ Even if a user is granted `AdministratorAccess`, the boundary restricts their ef
 7. **Use IAM Access Analyzer** — identifies resources shared with external entities.
 
 ## Auditing and troubleshooting
+
+These commands answer the question "who can do what" and surface the evidence when access breaks. `simulate-principal-policy` is especially powerful: it evaluates a hypothetical action against a user's effective permissions without actually calling the API.
 
 ```bash
 # View account summary (users, roles, policies, MFA status)

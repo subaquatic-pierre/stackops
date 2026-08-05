@@ -25,6 +25,8 @@ Docker packages applications into portable containers that run consistently acro
 
 ### Running containers
 
+`docker run` creates a container from an image and starts it in one step. The example below runs `nginx:alpine` detached with a name and a published port; the table that follows lists the most useful `docker run` flags.
+
 ```bash
 # Create and start a container
 docker run -d --name webapp -p 8080:80 nginx:alpine
@@ -52,155 +54,171 @@ docker run -d --name webapp -p 8080:80 nginx:alpine
 
 ### Container management
 
+These commands drive the container lifecycle after creation: start, stop, pause, and remove containers. Check what is currently running with `docker ps` before deleting anything — `docker rm -f` and `docker container prune` are destructive and cannot be undone.
+
 ```bash
 docker ps                                   # list running containers
-docker ps -a                                # list all containers (including stopped)
-docker ps -q                                # list only container IDs
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+docker ps -a                                # list all containers, including stopped ones
+docker ps -q                                # print only container IDs (handy for chaining)
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"  # custom tabular output
 
-docker start webapp                         # start stopped container
-docker stop webapp                          # gracefully stop (SIGTERM → SIGKILL after timeout)
-docker stop -t 30 webapp                    # stop with 30s timeout
-docker restart webapp                       # restart container
-docker pause webapp                         # freeze container
-docker unpause webapp                       # unfreeze container
-docker kill webapp                          # force kill (SIGKILL)
-docker kill -s SIGHUP webapp                # send custom signal
+docker start webapp                         # start an existing stopped container
+docker stop webapp                          # graceful stop: SIGTERM, then SIGKILL after the timeout
+docker stop -t 30 webapp                    # extend the grace period before SIGKILL
+docker restart webapp                       # stop, then start again
+docker pause webapp                         # freeze all processes in place (SIGSTOP)
+docker unpause webapp                       # resume a paused container (SIGCONT)
+docker kill webapp                          # immediate force kill (SIGKILL)
+docker kill -s SIGHUP webapp                # send an arbitrary signal to the main process
 
-docker rm webapp                            # remove stopped container
-docker rm -f webapp                         # force remove (running container)
-docker rm $(docker ps -aq)                  # remove all stopped containers
+docker rm webapp                            # delete a stopped container
+docker rm -f webapp                         # force-remove a container, even while running
+docker rm $(docker ps -aq)                  # remove every stopped container at once
 docker container prune                      # remove all stopped containers
-docker container prune -f                   # force (no prompt)
+docker container prune -f                   # prune without the confirmation prompt
 
-docker rename oldname newname               # rename a container
+docker rename oldname newname               # give a container a new name
 ```
 
 ### Inspecting containers
 
+When a container misbehaves, these commands give you visibility into its output, metadata, resource usage, and live processes. Start with `docker logs` for application output and `docker stats` for resource consumption; `docker exec` drops you into a shell inside the running container for hands-on debugging.
+
 ```bash
-docker logs webapp                           # view logs
-docker logs -f webapp                        # follow logs (tail -f)
-docker logs --tail 100 webapp                # last 100 lines
-docker logs --since 10m webapp               # logs from last 10 minutes
-docker logs --timestamps webapp              # include timestamps
+docker logs webapp                           # view the container's stdout/stderr
+docker logs -f webapp                        # follow new log lines in real time (like tail -f)
+docker logs --tail 100 webapp                # show only the last 100 lines
+docker logs --since 10m webapp               # show logs from the last 10 minutes
+docker logs --timestamps webapp              # prefix every line with a timestamp
 
-docker inspect webapp                        # JSON metadata about container
-docker inspect -f '{{.NetworkSettings.IPAddress}}' webapp  # specific field
+docker inspect webapp                        # full JSON metadata about the container
+docker inspect -f '{{.NetworkSettings.IPAddress}}' webapp  # extract one field via a Go template
 
-docker top webapp                            # running processes inside container
-docker stats                                 # live resource usage for all containers
-docker stats --no-stream                     # one-shot stats
-docker stats webapp db                       # specific containers
+docker top webapp                            # list processes running inside the container
+docker stats                                 # live CPU/memory usage for all containers
+docker stats --no-stream                     # one-shot stats without the live refresh
+docker stats webapp db                       # stats for specific containers only
 
-docker port webapp                           # port mappings
+docker port webapp                           # show published port mappings
 
-docker diff webapp                           # files changed in container filesystem
+docker diff webapp                           # show files added/changed/deleted in the container
 
-docker exec -it webapp sh                    # shell inside running container
-docker exec -it webapp bash                  # bash (if available)
-docker exec webapp ls -la /app               # run a single command
+docker exec -it webapp sh                    # open a shell inside a running container
+docker exec -it webapp bash                  # bash shell (if present in the image)
+docker exec webapp ls -la /app               # run a single command, no shell needed
 ```
 
 ### Copying files
 
+Copy files between the host and a running container with `docker cp`. Reach for it to pull out log files, drop in a configuration file without rebuilding the image, or retrieve build artifacts from a container that has no volume mounts.
+
 ```bash
-docker cp ./local.conf webapp:/etc/app/config.conf     # host → container
-docker cp webapp:/var/log/app.log ./logs/              # container → host
+docker cp ./local.conf webapp:/etc/app/config.conf     # copy a host file into the container
+docker cp webapp:/var/log/app.log ./logs/              # copy a container file back to the host
 ```
 
 ### Committing changes
 
+Snapshot a container's current filesystem as a new image with `docker commit`. This is useful for preserving a troubleshooting session or capturing runtime changes, but it bypasses the Dockerfile and loses build history — rebuild from a Dockerfile for anything you intend to keep long-term.
+
 ```bash
-docker commit webapp myapp:snapshot         # create image from container changes
+docker commit webapp myapp:snapshot         # create an image from the container's current state
 ```
 
 ## Image management
 
 ### Working with images
 
+These commands cover the image lifecycle: listing what is stored locally, pulling and pushing images to registries, tagging, removing, and transferring images between hosts. Tag an image with its registry path before pushing, and note that `docker image prune` removes only dangling images — add `-a` to also remove unused tagged images.
+
 ```bash
-docker images                               # list local images
-docker images -a                            # include intermediate layers
-docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+docker images                               # list images stored locally
+docker images -a                            # include intermediate build layers
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"  # custom tabular output
 
-docker pull nginx:alpine                    # download image from registry
-docker pull nginx@sha256:abc123...          # pull by digest
-docker push myrepo/myapp:v1.0               # upload image to registry
+docker pull nginx:alpine                    # download an image from a registry
+docker pull nginx@sha256:abc123...          # pull a specific digest (immutable reference)
+docker push myrepo/myapp:v1.0               # upload a local image to a registry
 
-docker tag myapp:v1.0 myrepo/myapp:v1.0     # tag image for a registry
-docker tag myapp:v1.0 myrepo/myapp:latest   # add additional tag
+docker tag myapp:v1.0 myrepo/myapp:v1.0     # retag an image for a registry
+docker tag myapp:v1.0 myrepo/myapp:latest   # add a second tag to the same image
 
-docker rmi nginx:alpine                     # remove image
-docker rmi $(docker images -q)              # remove all images
-docker image prune                          # remove dangling images
-docker image prune -a                       # remove all unused images
+docker rmi nginx:alpine                     # remove an image by name:tag
+docker rmi $(docker images -q)              # remove every image on the host
+docker image prune                          # remove dangling (untagged) images
+docker image prune -a                       # remove all images not used by a container
 
-docker history nginx:alpine                 # show image layers
-docker save -o myapp.tar myapp:v1.0          # export image to tar file
-docker load -i myapp.tar                    # import image from tar file
+docker history nginx:alpine                 # show the layers and commands an image was built from
+docker save -o myapp.tar myapp:v1.0          # export an image to a tar file (offline transfer)
+docker load -i myapp.tar                    # import an image from a tar file
 ```
 
 ### Building images
 
+`docker build` compiles a Dockerfile into an image. The path you pass is the build context, which gets sent to the Docker daemon — keep it lean and exclude junk with `.dockerignore`. Use `--no-cache` to force a clean rebuild when stale layers cause problems, and `--platform` to target a different CPU architecture.
+
 ```bash
-docker build -t myapp:v1.0 .                # build from Dockerfile in current dir
-docker build -t myapp:v1.0 -f Dockerfile.prod .  # specify Dockerfile
-docker build --no-cache -t myapp:v1.0 .     # force full rebuild
-docker build --build-arg NODE_ENV=production -t myapp:v1.0 .  # pass build arguments
-docker build --platform linux/amd64 -t myapp:v1.0 .    # cross-platform build
+docker build -t myapp:v1.0 .                # build from the Dockerfile in the current directory
+docker build -t myapp:v1.0 -f Dockerfile.prod .  # build using a specific Dockerfile name
+docker build --no-cache -t myapp:v1.0 .     # rebuild every layer, ignoring the build cache
+docker build --build-arg NODE_ENV=production -t myapp:v1.0 .  # pass values for ARG instructions
+docker build --platform linux/amd64 -t myapp:v1.0 .    # cross-platform build (e.g. on Apple Silicon)
 ```
 
 ## Dockerfile reference
 
 ### Key instructions
 
+These are the Dockerfile instructions you will use in almost every image. `FROM` selects the base image and starts a build stage, `RUN` executes commands during the build, `COPY` adds files, and `ARG`/`ENV` handle configuration — note that `ARG` exists only at build time, while `ENV` values persist into the running container.
+
 ```dockerfile
-# Base image
+# Base image — must be the first instruction; 'AS builder' names this stage
 FROM node:22-alpine AS builder
 
-# Set working directory
+# Set the working directory for all subsequent instructions
 WORKDIR /app
 
-# Copy files
+# Copy files: dependency manifests first to leverage layer caching
 COPY package*.json ./
 COPY . .
 
-# Run commands during build
+# Run commands during the build (installs dependencies here)
 RUN npm ci --production
 
-# Build-time variables
+# Build-time variables — supplied via --build-arg, not baked into the image
 ARG NODE_ENV=production
 
-# Environment variables (also available at runtime)
+# Environment variables — also available when the container runs
 ENV NODE_ENV=$NODE_ENV
 
-# Expose ports (informational)
+# Expose ports (informational; does not publish anything by itself)
 EXPOSE 3000
 
-# Container user
+# Run the container as a non-root user for security
 USER node
 
-# Health check
+# Health check that Docker probes at the configured interval
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-# Entrypoint
+# ENTRYPOINT is the fixed command; CMD supplies its default arguments
 ENTRYPOINT ["node"]
 CMD ["server.js"]
 
-# Multi-stage: copy from builder stage
+# Multi-stage: start a fresh stage and copy only the build output
 FROM node:22-alpine
 COPY --from=builder /app/dist ./dist
 ```
 
 ### Dockerfile best practices
 
+These patterns keep images small, reproducible, and quick to rebuild. Pin base image tags instead of floating majors, combine `RUN` commands to cut the layer count, copy dependency manifests before source code to maximize layer caching, and prefer multi-stage builds so the final image ships only the runtime.
+
 ```dockerfile
-# GOOD: pin versions, use specific tags
+# GOOD: pin versions, use specific tags for reproducibility
 FROM node:22.12.0-alpine3.20
 
-# GOOD: combine RUN commands to reduce layers
+# GOOD: combine RUN commands to reduce the number of layers
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
@@ -220,7 +238,7 @@ FROM alpine:3.20
 COPY --from=builder /app /app
 ENTRYPOINT ["/app"]
 
-# GOOD: use .dockerignore
+# GOOD: use .dockerignore to keep secrets and junk out of the build context
 # node_modules
 # .git
 # *.md
@@ -228,6 +246,8 @@ ENTRYPOINT ["/app"]
 ```
 
 ### Image minification techniques
+
+These techniques shrink image size, reducing registry storage, pull time, and attack surface. Switch to slim or alpine base images, use multi-stage builds to ship only the compiled output, clear package-manager caches, and inspect the layer breakdown with `docker history` or `dive` to find what is bloating the image.
 
 ```bash
 # Use slim/alpine base images (dramatically smaller)
@@ -249,7 +269,7 @@ ENTRYPOINT ["/app"]
 RUN apt-get update && apt-get install -y curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Use --no-install-recommends
+# Use --no-install-recommends to skip optional packages
 RUN apt-get install -y --no-install-recommends curl
 
 # npm: use ci instead of install, prune dev deps
@@ -263,7 +283,7 @@ RUN curl -sL https://example.com/binary -o /usr/local/bin/binary \
     && chmod +x /usr/local/bin/binary \
     && rm -rf /tmp/*
 
-# Analyze image layers
+# Analyze image layers to find where the size comes from
 docker history myapp:v1.0
 docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock \
     wagoodman/dive myapp:v1.0
@@ -273,15 +293,17 @@ docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock \
 
 ### Network commands
 
+These commands create and manage the virtual networks containers attach to. User-defined bridge networks provide automatic DNS resolution by container name — the same mechanism Compose uses to connect services — so use `docker network connect` to attach a running container without recreating it.
+
 ```bash
-docker network ls                          # list networks
-docker network inspect bridge              # inspect default bridge
-docker network create mynet                # create user-defined bridge
-docker network create --driver overlay mynet  # swarm overlay network
-docker network rm mynet                    # remove network
-docker network connect mynet webapp        # connect running container
-docker network disconnect mynet webapp     # disconnect container
-docker network prune                       # remove unused networks
+docker network ls                          # list all networks on the host
+docker network inspect bridge              # show details of the default bridge network
+docker network create mynet                # create a user-defined bridge network
+docker network create --driver overlay mynet  # swarm overlay network for multi-host setups
+docker network rm mynet                    # remove a network (detach containers first)
+docker network connect mynet webapp        # attach a running container to a network
+docker network disconnect mynet webapp     # detach a container from a network
+docker network prune                       # remove networks no container uses
 ```
 
 ### Network drivers
@@ -298,18 +320,20 @@ docker network prune                       # remove unused networks
 
 ### Volume commands
 
+Volumes persist data beyond a container's lifetime. Named volumes are managed by Docker and are the right choice for databases; bind mounts point directly at a host directory, which is handy in development; `tmpfs` mounts live purely in memory. The `--mount` syntax is more explicit than the `-v` shorthand for bind mounts.
+
 ```bash
-docker volume ls                          # list volumes
-docker volume create app_data             # create named volume
-docker volume inspect app_data            # volume metadata
-docker volume rm app_data                 # remove volume
-docker volume prune                       # remove unused volumes
+docker volume ls                          # list all named volumes
+docker volume create app_data             # create a named volume explicitly
+docker volume inspect app_data            # show volume metadata (mount point, driver)
+docker volume rm app_data                 # delete a volume (permanent data loss)
+docker volume prune                       # remove volumes no container uses
 
 # Mount in a container
 docker run -v app_data:/app/data nginx
-docker run -v "$(pwd)/config:/app/config" nginx    # bind mount
-docker run --mount type=bind,src="$(pwd)/config",dst=/app/config nginx
-docker run --tmpfs /app/tmp:exec nginx             # tmpfs mount (in memory)
+docker run -v "$(pwd)/config:/app/config" nginx    # bind mount a host directory
+docker run --mount type=bind,src="$(pwd)/config",dst=/app/config nginx  # explicit bind-mount syntax
+docker run --tmpfs /app/tmp:exec nginx             # tmpfs mount (in-memory, wiped on stop)
 ```
 
 ## Docker Compose
@@ -318,17 +342,21 @@ See the dedicated [Docker Compose Reference](./docker-compose.mdx) for a full gu
 
 ### Quick start commands
 
+A minimal Compose workflow: `docker compose up -d` builds and starts the whole stack, `logs -f` streams output from every service, and `down` stops everything and removes the containers and networks Compose created. Use `docker compose exec` to run a command inside an already-running service rather than spinning up a new container.
+
 ```bash
-docker compose up -d                     # start services in background
-docker compose down                      # stop and remove containers/networks
+docker compose up -d                     # build and start all services in the background
+docker compose down                      # stop and remove containers, networks
 docker compose logs -f                   # follow logs from all services
-docker compose ps                        # list services
-docker compose exec webapp sh            # exec into a service
-docker compose build                     # build/rebuild services
-docker compose restart webapp            # restart a specific service
+docker compose ps                        # list services and their status
+docker compose exec webapp sh            # exec a shell into a running service
+docker compose build                     # build or rebuild service images
+docker compose restart webapp            # restart a single service
 ```
 
 ## Cleaning up
+
+Over time Docker accumulates stopped containers, dangling images, and build cache. Start with `docker system df` to see what is consuming space, then prune — remember that `docker system prune -a` also deletes unused images and `--volumes` deletes volumes, so read the confirmation prompt carefully before agreeing.
 
 ```bash
 docker system df                          # disk usage by Docker
@@ -346,12 +374,17 @@ docker builder prune -a                   # clean all build cache
 
 ### One-shot task container
 
+Run a container just long enough to execute a single command, then discard it. Mounting the current directory with `-v "$(pwd):/workspace"` and setting `-w /workspace` gives the container access to your code, while `--rm` cleans up automatically on exit — ideal for running tests or linters without installing a toolchain locally.
+
 ```bash
+# Run npm test in a throwaway node container using the current directory
 docker run --rm -v "$(pwd):/workspace" -w /workspace \
     node:22-alpine npm test
 ```
 
 ### Debugging a failing container
+
+When a container crashes immediately or never becomes healthy, these commands help you find out why. Override the entrypoint to get a shell before the application starts, read the logs of the most recently created container with `docker ps -lq`, and inspect its state and exit code with `docker inspect` piped through `jq`.
 
 ```bash
 # Override entrypoint to get a shell

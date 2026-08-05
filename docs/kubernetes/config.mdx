@@ -16,6 +16,8 @@ Kubernetes configuration spans multiple layers: `kubectl` client config (`~/.kub
 
 ### kubeconfig file (`~/.kube/config`)
 
+The kubeconfig file is the client configuration that `kubectl` (and other clients like Helm) reads to connect to a cluster. It defines the API server endpoint, the credentials to present, and the default namespace — organized into named `clusters`, `users`, and `contexts` so you can switch between environments without rewriting the file.
+
 ```yaml
 apiVersion: v1
 kind: Config
@@ -39,6 +41,8 @@ contexts:
 ```
 
 ### kubectl config commands
+
+Use the `kubectl config` subcommands to inspect and modify the kubeconfig — for example, switching between clusters, changing the default namespace for the current context, or merging several kubeconfig files into one. These are the commands you'll reach for when a context is wrong or missing.
 
 ```bash
 # View current config
@@ -67,6 +71,8 @@ KUBECONFIG=~/.kube/config:~/other-config kubectl config view --flatten > ~/.kube
 
 ### Useful aliases and helpers
 
+Add these shell aliases and functions to your `.bashrc` to cut down on typing the most common kubectl commands. They are purely a local convenience — a short alias for `get`/`describe` and a function for switching namespaces on the fly.
+
 ```bash
 # kubectl alias (add to .bashrc)
 alias k="kubectl"
@@ -76,13 +82,15 @@ alias kd="kubectl describe"
 # Quick namespace switching (add to .bashrc)
 kns() { kubectl config set-context --current --namespace="$1"; }
 
-# Watch a resource
+# Stream updates for a resource (great for watching a rollout)
 kubectl get pods -w
 ```
 
 ## Kubelet configuration
 
 ### Configuration file
+
+The kubelet reads its primary settings from a YAML configuration file, conventionally at `/var/lib/kubelet/config.yaml`. Keeping settings in a file rather than on the command line makes the node's behavior declarative, versionable, and easy to audit.
 
 ```yaml
 # /var/lib/kubelet/config.yaml
@@ -122,6 +130,8 @@ imageGCLowThresholdPercent: 80
 
 ### Kubelet startup flags
 
+A few settings must still be passed as flags when the kubelet service starts — most importantly the path to the config file and the kubeconfig it uses to register the node. On systemd systems these live in `/etc/systemd/system/kubelet.service.d/` or `/etc/default/kubelet`.
+
 ```bash
 # /etc/systemd/system/kubelet.service or /etc/default/kubelet
 KUBELET_EXTRA_ARGS="--config=/var/lib/kubelet/config.yaml \
@@ -132,12 +142,14 @@ KUBELET_EXTRA_ARGS="--config=/var/lib/kubelet/config.yaml \
 
 ### Common kubelet operations
 
+The kubelet is the agent that runs pods on a node, so when a node misbehaves its service status and logs are the first place to look. Use these commands to check whether it's running and to tail recent errors.
+
 ```bash
 systemctl status kubelet
 journalctl -u kubelet -f
 journalctl -u kubelet --since "10 minutes ago"
 
-# Check kubelet version
+# Check kubelet/kube-proxy versions from the API server's view
 kubectl get nodes -o wide
 ```
 
@@ -147,6 +159,8 @@ Static pods are managed directly by the kubelet, not the API server. They're def
 
 ### Configuration
 
+Static pod manifests must live in a directory the kubelet is configured to watch. Any YAML file placed there becomes a pod managed directly by the kubelet on that node — independent of the API server.
+
 ```bash
 # Default static pod path (configurable in kubelet)
 /etc/kubernetes/manifests/
@@ -155,6 +169,8 @@ Static pods are managed directly by the kubelet, not the API server. They're def
 ```
 
 ### Static pod example
+
+A static pod manifest is an ordinary Pod YAML placed in the watch directory. This example runs nginx from a hostPath volume on the node — the kubelet sees the file and starts the pod without the API server being involved.
 
 ```yaml
 # /etc/kubernetes/manifests/nginx-static.yaml
@@ -184,6 +200,8 @@ spec:
 
 ### Managing static pods
 
+Because static pods aren't tracked by the API server, you manage them by moving manifest files in and out of the watch directory. The kubelet detects the change and recreates the pod, which is also the way to restart one.
+
 ```bash
 # Restart a static pod (delete the manifest and re-add it)
 mv /etc/kubernetes/manifests/nginx-static.yaml /tmp/
@@ -198,6 +216,8 @@ kubectl get pods -n kube-system | grep <node-name>
 
 ### Control plane component logs
 
+The API server, controller manager, scheduler, and etcd each emit their own logs. Where you read them depends on how the cluster was deployed — as systemd services or as static pods in `kube-system`.
+
 ```bash
 # Via journald (if running as systemd services)
 journalctl -u kube-apiserver -f
@@ -210,6 +230,8 @@ kubectl logs -n kube-system kube-apiserver-<node>
 ```
 
 ### Audit logging
+
+Audit logging records every request the API server receives, which is essential for security, compliance, and incident forensics. An audit policy defines how much detail is captured per request — from metadata only for most traffic up to full request/response bodies for sensitive resources like Secrets.
 
 ```yaml
 # Kube API server audit policy
@@ -236,6 +258,8 @@ rules:
 Pass to API server: `--audit-policy-file=/etc/kubernetes/audit-policy.yaml --audit-log-path=/var/log/kube-audit.log`
 
 ### Node logs
+
+Node logs fall into two categories: application logs captured by the kubelet (readable via `kubectl logs`) and container log files on the node's filesystem, which are useful when the kubelet or API server is unavailable.
 
 ```bash
 # Container logs (kubectl)

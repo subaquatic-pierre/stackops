@@ -14,54 +14,58 @@ Docker Compose defines and runs multi-container applications. A single YAML file
 
 ## Quick reference
 
+These are the everyday Compose commands you'll reach for most. `up` builds and starts services, `down` tears the stack down, and `ps`, `logs`, and `exec` help you interact with a running stack. Add `-d` to run detached and `--build` to force a rebuild before starting.
+
 ```bash
 docker compose up                   # start all services (foreground)
-docker compose up -d                # start in detached mode
+docker compose up -d                # start in detached mode (background)
 docker compose up -d --build        # rebuild images before starting
 docker compose down                 # stop and remove containers, networks
-docker compose down -v              # also remove named volumes
-docker compose down --rmi all       # also remove images
+docker compose down -v              # also remove named volumes (destructive)
+docker compose down --rmi all       # also remove the images
 
 docker compose start                # start existing stopped services
-docker compose stop                 # stop running services
+docker compose stop                 # stop running services gracefully
 docker compose restart              # restart all services
-docker compose restart webapp       # restart specific service
-docker compose pause                # pause services
-docker compose unpause              # unpause services
+docker compose restart webapp       # restart a specific service
+docker compose pause                # freeze services in place
+docker compose unpause              # resume paused services
 
-docker compose ps                   # list services
+docker compose ps                   # list services and their status
 docker compose ps -a                # include stopped services
-docker compose top webapp           # processes in a service
+docker compose top webapp           # show processes running in a service
 
 docker compose logs                 # logs from all services
-docker compose logs -f              # follow logs
-docker compose logs webapp db       # specific services
-docker compose logs --tail=50 webapp
+docker compose logs -f              # follow new log lines in real time
+docker compose logs webapp db       # logs from specific services only
+docker compose logs --tail=50 webapp  # last 50 lines for one service
 
-docker compose exec webapp sh       # run command in running service
-docker compose exec -T webapp ls    # non-interactive
-docker compose run webapp sh        # run new container for one-off command
-docker compose run --rm webapp npm test
+docker compose exec webapp sh       # run a command in a running service
+docker compose exec -T webapp ls    # non-interactive (for CI scripts)
+docker compose run webapp sh        # start a fresh container for a one-off command
+docker compose run --rm webapp npm test  # one-off command, cleaned up on exit
 
-docker compose build                # build or rebuild services
-docker compose build --no-cache     # force full rebuild
-docker compose build webapp         # build specific service
+docker compose build                # build or rebuild service images
+docker compose build --no-cache     # force a full rebuild
+docker compose build webapp         # build a specific service
 
-docker compose pull                 # pull latest images
-docker compose push                 # push service images
+docker compose pull                 # pull the latest images from the registry
+docker compose push                 # push built service images to the registry
 
-docker compose config               # validate and view resolved config
-docker compose config --services    # list service names
-docker compose config --volumes     # list volume names
+docker compose config               # validate and view the resolved configuration
+docker compose config --services    # list just the service names
+docker compose config --volumes     # list just the volume names
 ```
 
 ## Compose file reference
 
 ### Top-level keys
 
+A Compose file is organized around a handful of top-level keys. `services` is the only required one — it defines your containers — while `networks`, `volumes`, `configs`, and `secrets` declare shared resources those services reference. `version` is optional with modern Compose and is mainly kept for compatibility.
+
 ```yaml
 version: "3.9"           # Compose file version (optional in modern compose)
-name: myapp              # project name
+name: myapp              # project name (prefixes container, network, and volume names)
 services:                # container definitions (required)
 networks:                # custom network definitions
 volumes:                 # named volume definitions
@@ -70,6 +74,8 @@ secrets:                 # secret objects (swarm)
 ```
 
 ### Service definition
+
+A service is the Compose analog of a `docker run` invocation: it names an image or build context plus the runtime settings — ports, environment, volumes, healthchecks, and more. This example shows a typical `webapp` service with every commonly used key annotated.
 
 ```yaml
 services:
@@ -133,6 +139,8 @@ services:
 
 ### Common service patterns
 
+A typical stack couples a web frontend, an API backend, a database, and a cache. This example shows the standard wiring: the web service reaches the API over the internal network, the API waits for a healthy database before starting, and data lives in named volumes that outlive the containers.
+
 ```yaml
 # Web frontend
 services:
@@ -184,6 +192,8 @@ volumes:
 
 ### Networks
 
+Declare custom networks here so services can reach each other by container name. Every network uses the bridge driver by default; override `driver` or tune IPAM (subnets) only when you need explicit addressing or cross-host connectivity.
+
 ```yaml
 networks:
   frontend:                   # default: bridge driver
@@ -197,6 +207,8 @@ networks:
 ```
 
 ### Volumes
+
+Named volumes declared at the top level persist data independently of any container. Setting `external: true` tells Compose that the volume already exists — on the host or managed by another stack — so it will use it instead of creating a new one.
 
 ```yaml
 volumes:
@@ -212,6 +224,8 @@ volumes:
 
 ### Profiles (conditional services)
 
+Profiles mark services as optional: they are skipped by a normal `docker compose up` and are only started when their profile is enabled with `--profile`. This is ideal for debug tooling, one-off jobs, or dev-only services without maintaining a second compose file.
+
 ```yaml
 services:
   app:
@@ -223,12 +237,16 @@ services:
     command: sleep infinity
 ```
 
+Start the stack with the profile enabled to include `debug-tools`:
+
 ```bash
 docker compose up -d                    # only starts app
 docker compose --profile debug up -d    # also starts debug-tools
 ```
 
 ### Extends and fragments (YAML anchors)
+
+YAML anchors (`&name` / `*name`) and extension fields (`x-...`) let you define shared configuration once and merge it into multiple services with `<<:`. This is the modern replacement for the deprecated `extends` key — keep repetitive settings like restart policies and logging options in a single place.
 
 ```yaml
 x-common: &common
@@ -251,6 +269,8 @@ services:
 
 ### Using multiple compose files
 
+Compose merges several files together, with later files overriding earlier ones. Pass them explicitly with `-f`, and note that `docker-compose.override.yml` is picked up automatically when present — reserve it for local development and use a named file such as `docker-compose.prod.yml` for environments.
+
 ```bash
 # Base config + override
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
@@ -258,6 +278,8 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # docker-compose.override.yml is applied automatically
 # docker-compose.prod.yml only when explicitly specified
 ```
+
+The base file holds the shared config; the prod file overrides ports, restart policy, and environment for production:
 
 ```yaml
 # docker-compose.yml
@@ -301,6 +323,8 @@ HOST_PORT=9090
 ```
 
 ## Production considerations
+
+Hardening a stack for production is mostly about defaults: restart policies, resource limits, healthchecks, log rotation, and dropping capabilities the app does not need. This example bundles the most important production settings into one service definition — adjust the values to match your workload.
 
 ```yaml
 services:

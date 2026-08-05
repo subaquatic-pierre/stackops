@@ -14,6 +14,8 @@ MongoDB is a document-oriented NoSQL database that stores data in flexible, JSON
 
 ## Connection
 
+MongoDB is accessed interactively with `mongosh`. You can start a local session with no arguments, pass a URI that includes host, port, and authentication credentials, or switch databases from inside the shell with `use`.
+
 ```bash
 # Local connection
 mongosh
@@ -34,11 +36,13 @@ use mydb
 
 ### Creating users
 
+Users are created with `db.createUser()` and must be given one or more roles. Create the root/admin user in the `admin` database, and scope application and read-only users to just the databases they actually need.
+
 ```js
 // Switch to admin database to manage users
 use admin
 
-// Create root/admin user
+// Create a root/admin user with full access
 db.createUser({
   user: "admin",
   pwd: "super_secure_password",
@@ -66,6 +70,8 @@ db.createUser({
 
 ### Managing users
 
+Existing users can be listed, have their passwords changed, and be granted or stripped of roles without being deleted. The commands below show each of these maintenance operations.
+
 ```js
 // List all users
 db.getUsers()
@@ -73,7 +79,7 @@ db.getUsers()
 use admin
 db.system.users.find().pretty()
 
-// Update user password
+// Change a user's password
 db.changeUserPassword("appuser", "new_password")
 
 // Grant additional roles
@@ -100,6 +106,8 @@ db.dropUser("readonly")
 
 ## Database management
 
+Databases are created lazily — they only appear on disk after the first write. These commands show existing databases, switch context, drop a database, and report the current database's name and stats.
+
 ```js
 // Show databases
 show dbs
@@ -115,12 +123,14 @@ db.dropDatabase()
 // Current database
 db.getName()
 
-// Database stats
+// Database stats (optionally reported in KB)
 db.stats()
 db.stats(1024)     // sizes in KB
 ```
 
 ## Collection operations
+
+Collections are MongoDB's equivalent of tables. They are also created on first insert, but `createCollection` is useful when you need options such as a capped collection. The examples below create, list, drop, and rename collections.
 
 ```js
 // Create collection (optional — created on first insert)
@@ -142,6 +152,8 @@ db.users.renameCollection("accounts")
 
 ### Create (Insert)
 
+`insertOne()` inserts a single document, while `insertMany()` inserts several documents in one call and is more efficient for bulk loads. You can also supply your own `_id` instead of letting MongoDB generate an ObjectId.
+
 ```js
 // Insert one document
 db.users.insertOne({
@@ -153,7 +165,7 @@ db.users.insertOne({
   createdAt: new Date(),
 })
 
-// Insert many
+// Insert multiple documents in one call
 db.users.insertMany([
   { name: "Bob", email: "bob@example.com", role: "user", active: true },
   { name: "Carol", email: "carol@example.com", role: "user", active: false },
@@ -169,19 +181,21 @@ db.users.insertOne({
 
 ### Read (Query)
 
+`find()` returns a cursor of matching documents, refined by a filter, projection, sort, and skip/limit. The examples cover basic filters, comparison and regex operators, nested field and array queries, the aggregation pipeline, and counting documents.
+
 ```js
 // Find all
 db.users.find()
 db.users.find().pretty()
 
-// Find with filter
+// Find with a filter (equality match on fields)
 db.users.find({ role: "admin" })
 db.users.find({ active: true, role: "user" })
 
 // Find one
 db.users.findOne({ email: "alice@example.com" })
 
-// Projection (return specific fields)
+// Projection: return only listed fields (1 = include, 0 = exclude)
 db.users.find({}, { name: 1, email: 1, _id: 0 })
 
 // Comparison operators
@@ -210,11 +224,13 @@ db.orders.aggregate([
   { $limit: 5 },
 ])
 
-// Count
+// Count documents matching a filter
 db.users.countDocuments({ active: true })
 ```
 
 ### Update
+
+`updateOne()` and `updateMany()` modify the first or all matching documents using update operators such as `$set`. The examples also show `replaceOne()` for whole-document swaps, `upsert` to insert when nothing matches, and the array operators `$push` and `$pull`.
 
 ```js
 // Update one
@@ -229,7 +245,7 @@ db.users.updateMany(
   { $set: { deactivatedAt: new Date() } },
 )
 
-// Replace entire document (except _id)
+// Replace the whole document (the _id field is preserved)
 db.users.replaceOne(
   { email: "carol@example.com" },
   { name: "Carol", email: "carol@newdomain.com", role: "user", active: true },
@@ -245,14 +261,16 @@ db.users.updateOne(
 // Increment
 db.users.updateOne({ _id: "user_alice" }, { $inc: { loginCount: 1 } })
 
-// Push to array
+// Add an element to an array field
 db.users.updateOne({ _id: "user_alice" }, { $push: { tags: "verified" } })
 
-// Pull from array
+// Remove an element from an array field
 db.users.updateOne({ _id: "user_alice" }, { $pull: { tags: "temp" } })
 ```
 
 ### Delete
+
+`deleteOne()` and `deleteMany()` remove documents permanently. As with PostgreSQL, a soft delete — flipping a flag like `active: false` and stamping `deletedAt` — is usually preferred so the data can be recovered later.
 
 ```js
 // Delete one
@@ -270,10 +288,12 @@ db.users.updateOne(
 
 ## Indexes
 
+Indexes dramatically speed up queries and can enforce uniqueness. These examples create single-field, compound, and text indexes, list and drop them, and use `explain("executionStats")` to verify that a query is actually using an index.
+
 ```js
-// Create index
+// Create a unique index (enforces no duplicate emails)
 db.users.createIndex({ email: 1 }, { unique: true })
-db.users.createIndex({ role: 1, active: 1 })
+db.users.createIndex({ role: 1, active: 1 })   // compound index for common queries
 
 // Text index for full-text search
 db.articles.createIndex({ title: "text", body: "text" })
@@ -288,13 +308,15 @@ db.users.dropIndex("email_1")
 // Drop all non-_id indexes
 db.users.dropIndexes()
 
-// Check index usage
+// Verify index usage for a given query
 db.users.find({ email: "test" }).explain("executionStats")
 ```
 
 ## Configuration
 
 ### mongod.conf
+
+The `mongod.conf` file configures the MongoDB server: storage and caching, logging, network binding, authentication, and replication. On Debian/Ubuntu it lives at `/etc/mongod.conf` and takes effect after a restart.
 
 ```yaml
 # /etc/mongod.conf
@@ -332,8 +354,10 @@ systemctl restart mongod
 
 ## Backup and restore
 
+`mongodump` and `mongorestore` create binary backups of a database or individual collections, while `mongoexport` and `mongoimport` move data to and from human-readable JSON files — handy for smaller datasets or migrations.
+
 ```bash
-# Binary dump
+# Binary dump of a database into a timestamped directory
 mongodump --db mydb --out /backup/mydb_$(date +%Y%m%d)
 mongodump --host localhost --port 27017 --username admin --password secret \
     --authenticationDatabase admin --out /backup/
@@ -345,7 +369,7 @@ mongodump --db mydb --collection users --out /backup/
 mongorestore --db mydb /backup/mydb/
 mongorestore --db mydb --collection users /backup/mydb/users.bson
 
-# Export to JSON (for smaller datasets)
+# Export a collection to JSON (for smaller datasets)
 mongoexport --db mydb --collection users --out users.json
 mongoexport --db mydb --collection users --query '{"active": true}' --out active_users.json
 
@@ -354,6 +378,8 @@ mongoimport --db mydb --collection users --file users.json
 ```
 
 ## Monitoring
+
+MongoDB exposes live metrics through shell commands and the `db` object. These examples check server status and connection counts, inspect and kill long-running operations, and view collection-level statistics.
 
 ```js
 // Server status

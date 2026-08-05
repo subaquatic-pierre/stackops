@@ -27,6 +27,8 @@ kubectl get apiservice v1beta1.metrics.k8s.io
 
 ### HPA based on CPU utilization
 
+The most common autoscaling setup scales on CPU utilization. The HPA watches average CPU usage across pods and adjusts the replica count so utilization stays near the target — here, 70%. The `behavior` block tunes how aggressively it scales up and down.
+
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -97,6 +99,8 @@ spec:
 
 ### HPA based on memory utilization
 
+Memory-based HPA works the same way but targets average memory utilization. Memory usage is stickier than CPU — it rarely drops quickly — so expect less aggressive scaling than with CPU, and be careful about scaling down too fast.
+
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -120,6 +124,8 @@ spec:
 ```
 
 ### HPA with multiple metrics
+
+An HPA can evaluate several metrics at once. It computes the desired replica count for each metric independently and uses the highest, so a workload that is CPU-light but memory-hungry still scales correctly.
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -191,6 +197,8 @@ spec:
 
 ### HPA troubleshooting
 
+When an HPA isn't scaling, `kubectl describe hpa` shows the reason in its conditions and events — whether metrics are unavailable, containers lack resource requests, or the target Deployment is misconfigured.
+
 ```bash
 # Check HPA status
 kubectl get hpa -A
@@ -214,6 +222,8 @@ KEDA extends Kubernetes with event-driven autoscaling. It can scale Deployments,
 
 ### Architecture
 
+KEDA sits between your event source and the HPA. The operator watches `ScaledObjects`, queries the event source's metrics (queue depth, request rate, schedule), and feeds them into a KEDA-managed HPA that scales your Deployment accordingly.
+
 ```
 External Event Source
         │
@@ -227,6 +237,8 @@ External Event Source
 KEDA creates and manages an HPA internally. You define a `ScaledObject` (or `ScaledJob`) and KEDA handles the rest.
 
 ### Installation
+
+KEDA installs as a set of controllers — an operator and a metrics adapter — in their own namespace. The Helm chart is the supported path, and it automatically registers the `keda.sh` CRDs (`ScaledObject`, `ScaledJob`, `TriggerAuthentication`) with the cluster:
 
 ```bash
 # Via Helm (recommended)
@@ -242,6 +254,8 @@ kubectl api-resources | grep keda.sh
 
 ### ScaledObject — Kafka scaler
 
+With a Kafka scaler, KEDA polls the broker and scales consumers based on the consumer group's lag — the number of messages waiting to be processed. The `lagThreshold` is the backlog at which KEDA adds replicas, and `idleReplicaCount: 0` lets it scale down to zero when the topic is quiet.
+
 ```yaml
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -253,8 +267,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: kafka-consumer
-  pollingInterval: 15                # How often to check the event source (seconds)
-  cooldownPeriod: 300                # Wait before scaling down (seconds)
+  pollingInterval: 15                # How often KEDA polls the event source for metrics (seconds)
+  cooldownPeriod: 300                # How long to wait before scaling down after the trigger stops (seconds)
   idleReplicaCount: 0                # Can scale to zero
   minReplicaCount: 1
   maxReplicaCount: 20
@@ -280,6 +294,8 @@ spec:
 
 ### ScaledObject — Prometheus scaler
 
+The Prometheus scaler turns any PromQL query into a scaling signal. KEDA evaluates the query at each poll, and the `threshold` is the value at which it adds replicas — here, a workload scaling on HTTP request rate.
+
 ```yaml
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -304,6 +320,8 @@ spec:
 ```
 
 ### ScaledObject — CPU and memory scaler
+
+KEDA also exposes CPU and memory triggers so you can combine resource-based and event-driven scaling in a single ScaledObject. This works even where the standard resource metrics pipeline is unavailable, since KEDA brings its own metrics server.
 
 ```yaml
 apiVersion: keda.sh/v1alpha1
@@ -331,6 +349,8 @@ spec:
 
 ### ScaledObject — Cron scaler
 
+The cron scaler schedules a predictable replica count at set times — for example, 3 replicas during business hours and zero overnight. It's ideal for batch workloads with a known, recurring schedule rather than event-driven demand.
+
 ```yaml
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -354,6 +374,8 @@ spec:
 ```
 
 ### ScaledObject — RabbitMQ scaler
+
+With a RabbitMQ trigger, KEDA scales consumers based on queue depth or message rate. Set `mode` to `QueueLength` (backlog) or `MessageRate`, and `value` to the backlog or rate that should trigger a scale-up.
 
 ```yaml
 apiVersion: keda.sh/v1alpha1
@@ -379,6 +401,8 @@ spec:
 ```
 
 ### ScaledJob — Job-based autoscaling
+
+`ScaledJob` autoscales Kubernetes Jobs rather than Deployments — each unit of work becomes a new Job, so it fits queue-based workers that process items as discrete tasks, like messages from an SQS queue.
 
 ```yaml
 apiVersion: keda.sh/v1alpha1
@@ -413,6 +437,8 @@ spec:
 ```
 
 ### TriggerAuthentication (secrets for scalers)
+
+Many scalers — Kafka, RabbitMQ, SQS — need credentials. A `TriggerAuthentication` stores those secrets separately and is referenced from the ScaledObject's trigger, keeping credentials out of the ScaledObject itself and easy to rotate.
 
 ```yaml
 apiVersion: keda.sh/v1alpha1
@@ -463,6 +489,8 @@ spec:
 | Metrics API dependency | Yes (metrics-server) | No (own metrics server) |
 
 ## KEDA troubleshooting
+
+When a ScaledObject isn't scaling, start with the operator logs and the ScaledObject's status. The status conditions and the KEDA-managed HPA usually show whether the failure is a connectivity issue, a wrong metric name, or an authentication problem.
 
 ```bash
 # Check KEDA operator status
