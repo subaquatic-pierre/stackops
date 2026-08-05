@@ -3,7 +3,7 @@ sidebar_position: 2
 title: "Spec Kit — Spec-Driven Development"
 description: "Concise reference for the Spec Kit workflow: constitution, specify, clarify, plan, checklist, tasks, analyze, implement, and converge commands for agentic SDD."
 tags: [agentic-engineering, spec-kit, sdd, ai, workflow, reference]
-last_updated: "2026-08-03"
+last_updated: "2026-08-05"
 ---
 
 # Spec Kit — Spec-Driven Development
@@ -19,15 +19,97 @@ Spec Kit provides a structured, spec-driven development (SDD) workflow for AI co
 3. **Task before you implement** — break work into small, dependency-ordered, independently verifiable steps.
 4. **Verify before you ship** — analyze artifacts for consistency, then converge to confirm nothing was missed.
 
+## Prerequisites
+
+- **Linux/macOS** (or Windows with PowerShell support)
+- [OpenCode](https://opencode.ai/) AI coding agent
+- [uv](https://docs.astral.sh/uv/) for package management (recommended) or [pipx](https://pipx.pypa.io/) for persistent installation
+- [Python 3.11+](https://www.python.org/downloads/)
+- [Git](https://git-scm.com/downloads) _(optional — required only when the git extension is enabled)_
+
 ## Installation
 
-Spec Kit is bundled with OpenCode. Ensure you have the latest version:
+Spec Kit is distributed through two official channels: the [github/spec-kit](https://github.com/github/spec-kit) GitHub repository (source install) and the [`specify-cli`](https://pypi.org/project/specify-cli/) package on [PyPI](https://pypi.org/project/specify-cli/). After installing, run `specify version` as a local version/runtime sanity check.
+
+### Install from source — persistent installation (recommended)
+
+Install once and use everywhere. Replace `vX.Y.Z` with a release tag from [Releases](https://github.com/github/spec-kit/releases):
 
 ```bash
-npm install -g opencode-ai
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@vX.Y.Z
 ```
 
-No additional installation is needed — the `/speckit.*` commands are available in any OpenCode session.
+### Install from PyPI
+
+```bash
+# Using uv (recommended)
+uv tool install specify-cli
+
+# Or using pipx
+pipx install specify-cli
+```
+
+To install a specific release, pin the version — for example `uv tool install specify-cli==0.12.11`.
+
+### One-time usage
+
+Run directly without installing:
+
+```bash
+uvx specify-cli init . --integration opencode --script sh --ignore-agent-tools
+```
+
+## Initialize a Spec Kit project
+
+Once the `specify` CLI is installed, initialize a project with `specify init`:
+
+```bash
+specify init . --integration opencode --script sh --ignore-agent-tools
+```
+
+This scaffolds the current directory (`.`) with the scripts and templates your coding agent needs to run the spec-driven development workflow. The flags do the following:
+
+- `--integration opencode` — targets OpenCode slash commands and conventions
+- `--script sh` — generates Bash scripts (`.sh`) instead of prompting interactively
+- `--ignore-agent-tools` — skips the agent tools check when scaffolding templates
+
+### What you get after initialization
+
+After running `specify init`, your project will have:
+
+```
+my-project/
+├── .speckit/
+│   └── constitution.md
+├── .specify/
+│   └── scripts/
+│       ├── bash/        # .sh scripts (default on Linux/macOS)
+│       ├── powershell/  # .ps1 scripts (default on Windows)
+│       └── python/      # .py scripts (chosen with --script py)
+```
+
+The following slash commands become available in your coding agent:
+
+- `/speckit.specify` — Create specifications
+- `/speckit.plan` — Generate implementation plans
+- `/speckit.tasks` — Break down into actionable tasks
+- `/speckit.implement` — Execute implementation tasks
+- `/speckit.analyze` — Validate cross-artifact consistency
+- `/speckit.clarify` — Identify and resolve ambiguities
+- `/speckit.checklist` — Generate quality checklists
+- `/speckit.constitution` — Create or update project principles
+- `/speckit.converge` — Assess codebase against artifacts and append remaining tasks
+- `/speckit.taskstoissues` — Convert tasks to issues
+
+## Verification
+
+After installation, confirm the CLI is working:
+
+```bash
+specify version
+```
+
+This confirms the `specify` command is available and reporting the expected version. Run `specify self check` periodically to learn whether a newer release is available — it is read-only and never modifies your installation.
 
 ## Commands reference
 
@@ -49,7 +131,7 @@ Creates or updates the project **constitution** — the guiding principles evalu
 /speckit.constitution This project follows a "Library-First" approach. All features must be implemented as standalone libraries first. We use TDD strictly. We prefer functional programming patterns.
 ```
 
-**When to run:** Once when setting up a project. Re-run when principles change. Provides the foundation against which all specifications are validated.
+**Output:** `.speckit/constitution.md`
 
 ### `/speckit.specify`
 
@@ -61,12 +143,7 @@ Creates or updates a feature **specification** from a natural-language descripti
 
 **Output:** `specs/<prefix>-<short-name>/spec.md`
 
-The spec captures:
-
-- User scenarios and acceptance criteria
-- Functional requirements
-- Success criteria (measurable, technology-agnostic)
-- Key entities and data relationships
+The spec captures user scenarios, acceptance criteria, functional requirements, success criteria, and key entities.
 
 ### `/speckit.clarify`
 
@@ -76,21 +153,19 @@ Asks up to five targeted questions about underspecified areas of the current spe
 /speckit.clarify Focus on the task card behavior: status changes, comment limits, and who can be assigned.
 ```
 
-**When to run:** When the spec has ambiguity that could lead to wrong design decisions. Clarifying before planning prevents building on uncertain ground.
-
 ### `/speckit.plan`
 
-Runs the planning process to generate design artifacts from the spec. Provide your tech stack, architecture, and technical constraints as arguments.
+Generates design artifacts from the spec. Provide your tech stack, architecture, and technical constraints as arguments.
 
 ```bash
-/speckit.plan Use .NET Aspire with Postgres. The frontend is Blazor Server with drag-and-drop boards and real-time updates. Expose REST APIs for projects, tasks, and notifications.
+/speckit.plan Use .NET Aspire with Postgres. The frontend is Blazor Server with drag-and-drop boards and real-time updates.
 ```
 
-**Output:** `specs/<feature>/plan.md` — containing technology choices, architecture decisions, data models, and component breakdowns.
+**Output:** `specs/<feature>/plan.md` — technology choices, architecture decisions, data models, and component breakdowns.
 
 ### `/speckit.checklist`
 
-Generates a quality checklist — think of it as **unit tests for your requirements**. It checks whether the spec itself is complete, clear, unambiguous, and consistent.
+Generates a quality checklist — **unit tests for your requirements**. Validates the spec is complete, clear, unambiguous, and consistent.
 
 ```bash
 /speckit.checklist
@@ -100,9 +175,7 @@ Generates a quality checklist — think of it as **unit tests for your requireme
 /speckit.checklist Focus on the Kanban board interactions and comment permissions.
 ```
 
-**What it checks:** Are drag-and-drop rules defined for every column? Is behavior specified for a deleted assigned user? Are edge cases covered?
-
-If the checklist surfaces gaps, loop back to `/speckit.clarify` or `/speckit.specify` to tighten the spec before breaking the work down.
+If the checklist surfaces gaps, loop back to `/speckit.clarify` or `/speckit.specify`.
 
 ### `/speckit.tasks`
 
@@ -125,13 +198,13 @@ Tests are generated within a user story's phase when requested. Tasks are marked
 
 ### `/speckit.analyze`
 
-Performs a **read-only** cross-artifact consistency and quality analysis across `spec.md`, `plan.md`, and `tasks.md`. It never edits files — it produces a report and can optionally suggest remediations.
+Performs a **read-only** cross-artifact consistency analysis across `spec.md`, `plan.md`, and `tasks.md`. It never edits files — it produces a report and can optionally suggest remediations.
 
 ```bash
 /speckit.analyze
 ```
 
-**What it finds:** Tasks with no matching requirement, plan choices that contradict the spec, missing acceptance criteria. Run it before implementing while artifacts can still be adjusted cheaply.
+**What it finds:** Tasks with no matching requirement, plan choices that contradict the spec, missing acceptance criteria.
 
 ### `/speckit.implement`
 
@@ -141,17 +214,15 @@ Executes the tasks in `tasks.md`, running each phase in dependency order and res
 /speckit.implement
 ```
 
-For large features, scope each run to avoid overwhelming the agent:
+For large features, scope each run:
 
 ```bash
-/speckit.implement Implement only the Setup and Foundational phases: project scaffolding and the project/task data model with basic CRUD. Stop before the user-story features.
+/speckit.implement Implement only the Setup and Foundational phases. Stop before the user-story features.
 ```
 
 ```bash
 /speckit.implement Now implement the Kanban board user story: drag-and-drop between columns.
 ```
-
-Verify each stage works before moving to the next.
 
 ### `/speckit.converge`
 
@@ -163,34 +234,36 @@ Assesses the codebase against the feature's spec, plan, and tasks to confirm not
 
 **Two outcomes:**
 
-- **Converged** — no gaps found. Tasks are unchanged. You see: `✅ Converged — the implementation satisfies the spec, plan, and tasks.` Proceed to review or open a PR.
+- **Converged** — no gaps found. Tasks are unchanged. Proceed to review or open a PR.
 - **Tasks appended** — gaps found. New tasks are added under a Convergence section. Run `/speckit.implement` to complete them, then `/speckit.converge` again. Repeat until converged.
 
 ## Development workflow
 
 ### End-to-end flow
 
-1. **Constitution** (once per project): Define principles your project follows.
-2. **Specify**: Write a natural-language description of the feature → spec.md created.
-3. **Clarify** (optional): Refine ambiguous areas.
-4. **Plan**: Add tech stack and architectural decisions → plan.md created.
-5. **Checklist** (optional): Validate the spec is complete and unambiguous.
-6. **Tasks**: Break work into ordered, parallelizable chunks → tasks.md created.
-7. **Analyze** (optional): Cross-check all three artifacts for consistency.
-8. **Implement**: Execute tasks phase by phase.
-9. **Converge**: Verify nothing was missed.
+1. **Initialize**: `specify init . --integration opencode --script sh --ignore-agent-tools`
+2. **Constitution** (once per project): Define principles your project follows.
+3. **Specify**: Write a natural-language description of the feature → spec.md created.
+4. **Clarify** (optional): Refine ambiguous areas.
+5. **Plan**: Add tech stack and architectural decisions → plan.md created.
+6. **Checklist** (optional): Validate the spec is complete and unambiguous.
+7. **Tasks**: Break work into ordered, parallelizable chunks → tasks.md created.
+8. **Analyze** (optional): Cross-check all three artifacts for consistency.
+9. **Implement**: Execute tasks phase by phase.
+10. **Converge**: Verify nothing was missed.
 
 ### Quick start
 
 Start with a small, well-defined feature:
 
 ```bash
-/speckit.specify Add a health check endpoint that returns status of all dependent services
+specify init . --integration opencode --script sh --ignore-agent-tools
 ```
 
-Then immediately plan and implement:
+Then in your coding agent:
 
 ```bash
+/speckit.specify Add a health check endpoint that returns status of all dependent services
 /speckit.plan Use Express.js with a /health route that checks PostgreSQL and Redis connectivity.
 /speckit.tasks
 /speckit.implement
@@ -199,6 +272,18 @@ Then immediately plan and implement:
 
 For more complex features, add clarify and analyze steps between specify and plan.
 
+## Troubleshooting
+
+### Air-gapped installation
+
+If your environment blocks access to PyPI or GitHub, use locally built wheels from the [spec-kit repository](https://github.com/github/spec-kit).
+
+### Stay current
+
+Run `specify self check` periodically to learn whether a newer release is available.
+
 ## See also
 
 - [OpenCode Configuration](./opencode.mdx) — agent setup and customization
+- [Spec Kit GitHub](https://github.com/github/spec-kit) — source code and releases
+- [Specify CLI on PyPI](https://pypi.org/project/specify-cli/) — published package
