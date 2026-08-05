@@ -1,0 +1,448 @@
+---
+sidebar_position: 3
+title: 'Compilation & JS Prototype Model'
+description: 'How TypeScript compiles to JavaScript, the JavaScript prototype chain and prototypal inheritance, ES6 classes as syntactic sugar, and comparison with Python object model.'
+tags: [typescript, javascript, compilation, prototype, inheritance, reference]
+last_updated: '2026-08-05'
+---
+
+# Compilation & JS Prototype Model
+
+## Overview
+
+TypeScript is a superset of JavaScript that adds static type checking at compile time. At runtime, all types are erased — the executing code is pure JavaScript. This document covers how TypeScript compiles to JavaScript, the JavaScript prototype-based inheritance model, how it differs from Python's class-based model, and the practical implications for developers working across both languages.
+
+## How TypeScript compiles to JavaScript
+
+TypeScript compilation is **type erasure** plus **downleveling**. The compiler:
+
+1. Parses `.ts`/`.tsx` into an AST.
+2. **Type-checks** the AST using the type system — this is where errors are emitted.
+3. **Strips type annotations** — interfaces, type aliases, generics, parameter types, return types are all removed.
+4. **Downlevels** modern ECMAScript syntax to the configured `target` (e.g., `async/await` → generators for ES2015 target).
+5. Emits `.js` (and optionally `.d.ts` and `.js.map`) files.
+
+### Type erasure example
+
+```typescript
+// source.ts
+interface User {
+  id: number;
+  name: string;
+}
+
+function greet(user: User): string {
+  return `Hello, ${user.name}`;
+}
+
+const alice: User = { id: 1, name: "Alice" };
+greet(alice);
+```
+
+Compiles to (target: ES2020, stripped of comments):
+
+```javascript
+// output.js
+function greet(user) {
+  return `Hello, ${user.name}`;
+}
+
+const alice = { id: 1, name: "Alice" };
+greet(alice);
+```
+
+No interfaces, no type annotations, no `: User`, no `: string` return type. The runtime behaviour is identical — TypeScript adds zero runtime overhead.
+
+### Enums — the exception
+
+Unlike most TypeScript features, `enum` generates runtime code:
+
+```typescript
+enum Color { Red, Green, Blue }
+```
+
+Compiles to:
+
+```javascript
+var Color;
+(function (Color) {
+  Color[Color["Red"] = 0] = "Red";
+  Color[Color["Green"] = 1] = "Green";
+  Color[Color["Blue"] = 2] = "Blue";
+})(Color || (Color = {}));
+```
+
+For zero-runtime-overhead enums, use `const enum` (inlines values at compile time) or string literal unions (`type Color = "red" | "green" | "blue"`).
+
+### Downleveling
+
+When `target` is lower than the syntax used:
+
+```typescript
+// source.ts
+class Foo {
+  #privateField = 42;
+  get value() { return this.#privateField; }
+}
+```
+
+With `target: ES5`:
+
+```javascript
+var Foo = (function () {
+  function Foo() {
+    // ... polyfilled private field via WeakMap
+    this._privateField = 42;
+  }
+  Object.defineProperty(Foo.prototype, "value", {
+    get: function () { return this._privateField; },
+    enumerable: false, configurable: true
+  });
+  return Foo;
+})();
+```
+
+### Declaration files (.d.ts)
+
+`.d.ts` files describe the shape of JavaScript libraries without generating any output:
+
+```typescript
+// lodash.d.ts
+declare module "lodash" {
+  export function chunk<T>(array: T[], size: number): T[][];
+  export function debounce<T extends (...args: any[]) => any>(
+    fn: T, wait: number, options?: { leading?: boolean }
+  ): T;
+}
+```
+
+These are the bridge between typed and untyped worlds — they provide type information for the compiler but produce zero bytes of JavaScript.
+
+### tsconfig key options
+
+| Option | Effect |
+|---|---|
+| `target` | ECMAScript version for output (ES2022, ESNext, etc.) |
+| `module` | Module system in output (ESNext, NodeNext, CommonJS) |
+| `moduleResolution` | How imports are resolved (NodeNext for modern Node, bundler for Vite/Next.js) |
+| `strict` | Enables all strict type-checking flags |
+| `noEmit` | Type-check only — don't produce output files |
+| `declaration` | Generate `.d.ts` files alongside `.js` |
+
+## The JavaScript prototype model
+
+JavaScript uses **prototypal inheritance** rather than classical class-based inheritance. Every object has an internal `[[Prototype]]` link to another object. Property lookup traverses this chain.
+
+### `__proto__` vs `prototype`
+
+These are often confused but are distinct:
+
+| Property | On | Purpose |
+|---|---|---|
+| `__proto__` (or `[[Prototype]]`) | Every object | Points to the object's prototype — used for property lookup |
+| `prototype` | Only functions | The object that will be assigned as `[[Prototype]]` of instances created with `new` |
+
+```javascript
+function Dog(name) {
+  this.name = name;
+}
+
+Dog.prototype.bark = function() {
+  return `${this.name} says woof`;
+};
+
+const fido = new Dog("Fido");
+
+console.log(fido.__proto__ === Dog.prototype);   // true
+console.log(Dog.prototype.constructor === Dog);   // true
+console.log(fido.bark());                         // "Fido says woof"
+```
+
+The relationship:
+
+```
+    fido.__proto__ ─────────► Dog.prototype
+                                   │
+                                   ├── bark: function
+                                   ├── constructor: Dog
+                                   │
+                     __proto__     │
+                                   ▼
+                              Object.prototype
+                                   │
+                                   ├── toString: function
+                                   ├── hasOwnProperty: function
+                                   │
+                     __proto__     │
+                                   ▼
+                                   null
+```
+
+### Property lookup (the prototype chain)
+
+When you access `fido.bark`:
+
+1. Look at `fido` (the instance) — "bark" not found.
+2. Follow `fido.__proto__` to `Dog.prototype` — "bark" found. Call it with `fido` as `this`.
+
+When you access `fido.toString`:
+
+1. `fido` → not found.
+2. `Dog.prototype` → not found.
+3. `Object.prototype` → found.
+
+This is the **prototype chain** — a linked list of objects. Lookup stops at `null` (the prototype of `Object.prototype`).
+
+### Constructor functions and `new`
+
+The `new` keyword does four things:
+
+```javascript
+function Person(name) {
+  // 1. A new empty object is created: {}
+  // 2. The object's [[Prototype]] is set to Person.prototype
+  // 3. The constructor runs with `this` = the new object:
+  this.name = name;
+  // 4. The new object is returned (unless the constructor returns an object)
+}
+
+const p = new Person("Alice");
+// Equivalent to:
+// const p = Object.create(Person.prototype);
+// Person.call(p, "Alice");
+```
+
+### ES6 class syntax is syntactic sugar
+
+```javascript
+class Animal {
+  constructor(name) {
+    this.name = name;
+  }
+
+  speak() {
+    return `${this.name} makes a noise`;
+  }
+}
+
+class Dog extends Animal {
+  speak() {
+    return `${this.name} barks`;
+  }
+}
+```
+
+Is functionally equivalent to:
+
+```javascript
+function Animal(name) {
+  this.name = name;
+}
+Animal.prototype.speak = function() {
+  return `${this.name} makes a noise`;
+};
+
+function Dog(name) {
+  Animal.call(this, name);
+}
+Dog.prototype = Object.create(Animal.prototype);
+Dog.prototype.constructor = Dog;
+Dog.prototype.speak = function() {
+  return `${this.name} barks`;
+};
+```
+
+The class syntax is clearer, but the underlying mechanism is identical — it's all prototype chains.
+
+### `Object.create()` — the purest prototypal pattern
+
+```javascript
+const animal = {
+  speak() { return `${this.name} makes a noise`; }
+};
+
+const dog = Object.create(animal);  // dog.__proto__ === animal
+dog.name = "Fido";
+console.log(dog.speak());  // "Fido makes a noise"
+```
+
+No constructors, no `new` — just objects linked to other objects. This is the pattern that most directly expresses JavaScript's prototypal nature.
+
+## JavaScript inheritance vs Python inheritance
+
+### Key differences
+
+| Concept | JavaScript | Python |
+|---|---|---|
+| **Inheritance model** | Prototypal (delegation) | Class-based (instance-of) |
+| **Base mechanism** | Object → prototype chain up to null | Class → MRO linearization (C3) |
+| **Multiple inheritance** | Not supported natively (mixins via Object.assign) | Fully supported with C3 linearization |
+| **Method lookup** | Walk `__proto__` chain until found or null | Walk `__mro__` tuple until found or AttributeError |
+| **`this` / `self`** | Dynamically bound (depends on call site) | Static (explicit first parameter) |
+| **Class creation** | `class` is sugar over constructor + prototype | `type(name, bases, namespace)` via metaclass |
+| **Metaprogramming** | `Proxy`, `Reflect`, monkey-patching | Metaclasses, descriptors, `__getattr__` |
+| **Privacy** | `#privateField` (hard private), `_convention` | `_convention` only — no hard privacy |
+| **Static methods** | `static` keyword (on constructor) | `@staticmethod` (plain function), `@classmethod` (receives class) |
+
+### Inherited vs own properties
+
+JavaScript distinguishes between **own** and **inherited** properties:
+
+```javascript
+const obj = { a: 1 };
+
+console.log(obj.hasOwnProperty("a"));           // true (own)
+console.log(obj.hasOwnProperty("toString"));    // false (inherited from Object.prototype)
+console.log("toString" in obj);                 // true (in traverses the chain)
+
+for (const key in obj) {
+  if (obj.hasOwnProperty(key)) {
+    // only own enumerable properties
+  }
+}
+```
+
+Python has no direct equivalent — `obj.__dict__` only contains instance attributes, and `dir(obj)` shows both instance and class attributes combined.
+
+### Method binding — the critical difference
+
+In JavaScript, `this` is determined at **call time**, not definition time:
+
+```javascript
+const obj = {
+  name: "Alice",
+  greet() { return `Hello, ${this.name}`; }
+};
+
+const fn = obj.greet;
+fn();  // "Hello, undefined" — this is global/window, not obj
+
+// Fix with .bind()
+const bound = obj.greet.bind(obj);
+bound();  // "Hello, Alice"
+
+// Arrow functions capture lexical this
+const obj2 = {
+  name: "Bob",
+  greet: () => `Hello, ${this.name}`  // `this` from enclosing scope
+};
+```
+
+In Python, `self` is always the instance the method was accessed from (bound at access time via the descriptor protocol):
+
+```python
+class Person:
+    def __init__(self, name):
+        self.name = name
+    def greet(self):
+        return f"Hello, {self.name}"
+
+p = Person("Alice")
+fn = p.greet
+fn()  # "Hello, Alice" — self is bound to p
+```
+
+This is one of the most common footguns when moving between Python and JavaScript.
+
+### Prototype pollution (JS-specific danger)
+
+Because prototypes are mutable objects, JavaScript is vulnerable to prototype pollution:
+
+```javascript
+// Dangerous: modifies all objects
+Object.prototype.polluted = true;
+
+const x = {};
+console.log(x.polluted);  // true — every object now has this property
+```
+
+Python's class objects are also technically mutable, but instance `__dict__` lookups take priority over class attributes (for non-data descriptors), making the surface area smaller. More importantly, built-in types in Python are immutable at the C level — you cannot add methods to `int` or `str`.
+
+### Type-system contrast
+
+TypeScript adds a structural type system on top of JavaScript, erased at runtime:
+
+```typescript
+interface Named {
+  name: string;
+}
+
+function greet(entity: Named) {
+  console.log(`Hello, ${entity.name}`);
+}
+
+// Works — structural typing checks shape, not declaration
+greet({ name: "Alice", age: 30 });
+```
+
+Python uses a nominal type system (types must be explicitly related via inheritance or protocols):
+
+```python
+class Named(Protocol):
+    name: str
+
+def greet(entity: Named) -> None:
+    print(f"Hello, {entity.name}")
+
+@runtime_checkable  # requires isinstance support
+class Person(Named):
+    name: str
+```
+
+TypeScript's structural typing is a better fit for JavaScript's duck-typing philosophy. Python's `Protocol` brings similar structural typing, but with opt-in runtime checkability.
+
+## Practical cross-language patterns
+
+### Polymorphism without inheritance
+
+**JavaScript** (duck typing):
+```javascript
+function makeSound(animal) {
+  console.log(animal.speak());
+}
+
+makeSound({ speak: () => "meow" });  // no inheritance needed
+```
+
+**Python** (duck typing / Protocol):
+```python
+def make_sound(animal):
+    print(animal.speak())
+
+# Works with any object that has .speak()
+make_sound(type("Cat", (), {"speak": lambda self: "meow"})())
+```
+
+Both languages support ad-hoc polymorphism through duck typing, but TypeScript's structural typing makes it safer at compile time.
+
+### Mixins
+
+**JavaScript**:
+```javascript
+const Serializable = Base => class extends Base {
+  toJSON() { return JSON.stringify(this); }
+};
+
+class User extends Serializable(class {}) {
+  name = "Alice";
+}
+```
+
+**Python**:
+```python
+class SerializableMixin:
+    def to_json(self):
+        return json.dumps(self.__dict__)
+
+class User(SerializableMixin):
+    name = "Alice"
+```
+
+Both achieve composition over inheritance through mixins, but Python's MRO provides deterministic method resolution, while JavaScript's prototype chain is a strictly linear delegation.
+
+## See also
+
+- [Node.js & TypeScript](./nodejs.mdx) — project setup, ESLint, Express patterns
+- [Next.js](./nextjs.mdx) — App Router, server components, data fetching
+- [Node.js Event Loop](./nodejs-event-loop.mdx) — how JavaScript's single-threaded concurrency works at runtime
+- [Python Object Model & Inheritance](../python/object-model.mdx) — compare with class-based MRO, metaclasses, and descriptors

@@ -1,0 +1,7 @@
+position: 5
+label: Python
+link:
+  type: generated-index
+  title: Python
+  description: Python language deep-dives, async patterns, package management, frameworks, and production references.
+  slug: python

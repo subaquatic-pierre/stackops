@@ -1,0 +1,390 @@
+---
+sidebar_position: 2
+title: 'Futures & Async Runtime'
+description: 'In-depth technical breakdown of Rust async: the Future trait, Pin/Unpin, wakers, state-machine desugaring, the tokio runtime, and work-stealing scheduling.'
+tags: [rust, async, futures, tokio, pin, reference]
+last_updated: '2026-08-05'
+---
+
+# Futures & Async Runtime
+
+## Overview
+
+Rust's async model is unique: there is no built-in runtime. The language provides the `Future` trait and `async`/`await` syntax, and the ecosystem supplies the executor. This separation means you can run async code on tokio, smol, async-std, or a custom embedded executor — the same `Future` works everywhere. This document covers the `Future` trait internals, `Pin`/`Unpin`, the state-machine transformation, and the tokio runtime architecture.
+
+## The Future trait
+
+A `Future` is a state machine that can be polled to make progress:
+
+```rust
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+pub trait Future {
+    type Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;
+}
+```
+
+Key design points:
+
+- **No inherent scheduling** — `poll` simply checks if the value is ready. The executor calls `poll` and handles the scheduling.
+- **`Pin`** — ensures the future is not moved in memory between polls (critical for self-referential state machines).
+- **`Context`** — carries a `Waker` that the future calls when it's ready to make progress again.
+
+### Poll states
+
+```rust
+pub enum Poll<T> {
+    Ready(T),    // The value is ready — don't poll again.
+    Pending,     // Not ready yet — the waker was stored, will be called.
+}
+```
+
+A future that returns `Poll::Pending` MUST have stored the waker and MUST arrange for it to be called when progress is possible. A future that returns `Poll::Ready` may be dropped — calling `poll` again is logic error (though safe, it may panic or return spurious values depending on the implementation).
+
+## How `async fn` desugars
+
+An `async fn` or `async {}` block compiles to an anonymous type implementing `Future`. The compiler transforms the function body into a state machine.
+
+### Simple desugaring
+
+```rust
+async fn fetch(url: &str) -> String {
+    let resp = reqwest::get(url).await;
+    resp.text().await.unwrap()
+}
+```
+
+Compiles roughly to:
+
+```rust
+enum FetchFuture<'a> {
+    Start { url: &'a str },
+    AwaitingGet { get_future: GetFuture },
+    AwaitingText { resp: Response, text_future: TextFuture },
+    Done,
+}
+
+impl Future for FetchFuture<'_> {
+    type Output = String;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<String> {
+        loop {
+            match self.project() {  // safe projection via Pin
+                FetchFuture::Start { url } => {
+                    let get_future = reqwest::get(url);
+                    self.set(FetchFuture::AwaitingGet { get_future });
+                }
+                FetchFuture::AwaitingGet { get_future } => {
+                    let resp = match get_future.poll(cx) {
+                        Poll::Ready(r) => r,
+                        Poll::Pending => return Poll::Pending,
+                    };
+                    let text_future = resp.text();
+                    self.set(FetchFuture::AwaitingText { resp, text_future });
+                }
+                FetchFuture::AwaitingText { text_future, .. } => {
+                    let text = match text_future.poll(cx) {
+                        Poll::Ready(t) => t.unwrap(),
+                        Poll::Pending => return Poll::Pending,
+                    };
+                    self.set(FetchFuture::Done);
+                    return Poll::Ready(text);
+                }
+                FetchFuture::Done => panic!("polled after ready"),
+            }
+        }
+    }
+}
+```
+
+Every `.await` point becomes a state variant. The compiler generates an enum, a poll method, and projection helpers to safely access fields through `Pin`.
+
+## Pin and Unpin
+
+### The self-referential problem
+
+When `async fn` holds a reference to data on its own stack frame, the future becomes **self-referential** — it contains a pointer to itself:
+
+```rust
+async {
+    let x = 42;
+    let r = &x;        // r points into this future's memory
+    some_async_fn().await;   // .await suspends here
+    println!("{}", r);       // r must still be valid after resume
+}
+```
+
+If the future were moved in memory, `r` would become a dangling pointer. `Pin` prevents moves.
+
+### Unpin vs !Unpin
+
+- **`Unpin`** types are safe to move even while pinned (e.g., `i32`, `String`, `Vec<T>` where `T: Unpin`).
+- **`!Unpin`** types cannot be moved once pinned. Generated `async` futures are `!Unpin` by default.
+
+```rust
+use std::marker::Unpin;
+use std::pin::Pin;
+
+// Pin<&mut T> only provides &mut T if T: Unpin
+fn requires_unpin<T: Unpin>(_: &mut T) {}
+
+let mut x = 42;
+requires_unpin(Pin::new(&mut x).get_mut());  // OK — i32: Unpin
+
+// For !Unpin types, you need unsafe pin projection
+```
+
+### Practical implications
+
+- Most futures are stored on the heap (`Box<dyn Future>` or tokio's allocation) where pinning is guaranteed because the allocation itself doesn't move.
+- `tokio::spawn` requires `Future + Send + 'static`. The spawned future is heap-allocated, so pinning is handled.
+- If you poll a future on the stack, use `pin!` from tokio or `pin_mut!` from futures-core:
+
+```rust
+use tokio::pin;
+
+async fn my_async_fn() -> i32 { 42 }
+
+let future = my_async_fn();
+pin!(future);  // pin to the stack
+let result = future.poll(cx);  // safe — Pinned
+```
+
+## Wakers and the wake mechanism
+
+The `Waker` is how a future tells the executor "poll me again." Under the hood:
+
+1. When a future returns `Poll::Pending`, it stores a clone of the `Waker` from `Context`.
+2. When the I/O resource becomes ready (e.g., a socket is readable), the resource's callback calls `waker.wake()`.
+3. `wake()` enqueues the waker's associated task back onto the executor's run queue.
+
+### Building a waker
+
+```rust
+use std::task::{Waker, RawWaker, RawWakerVTable};
+
+unsafe fn clone_raw(ptr: *const ()) -> RawWaker {
+    RawWaker::new(ptr, &V_TABLE)
+}
+unsafe fn wake_raw(ptr: *const ()) {
+    // Re-enqueue the task that ptr points to
+}
+unsafe fn wake_by_ref_raw(ptr: *const ()) {
+    // Same as wake_raw but takes &self
+}
+unsafe fn drop_raw(_ptr: *const ()) {
+    // Cleanup
+}
+
+const V_TABLE: RawWakerVTable = RawWakerVTable::new(
+    clone_raw, wake_raw, wake_by_ref_raw, drop_raw,
+);
+```
+
+In practice you never write this manually — tokio and other runtimes provide these implementations wrapped in higher-level APIs.
+
+## The tokio runtime
+
+### Architecture
+
+tokio uses a **multi-threaded work-stealing scheduler** as its default runtime:
+
+```
+┌──────────────────────────────────────────────────┐
+│                   tokio Runtime                   │
+│                                                    │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐            │
+│  │ Worker 0│  │ Worker 1│  │ Worker 2│  ...       │
+│  │          │  │          │  │          │           │
+│  │ Run queue│  │ Run queue│  │ Run queue│           │
+│  │ I/O poll │  │ I/O poll │  │ I/O poll │           │
+│  └─────────┘  └─────────┘  └─────────┘            │
+│       │             │             │                 │
+│       └─────────────┼─────────────┘                 │
+│                     │                               │
+│              ┌──────┴──────┐                        │
+│              │  I/O Driver  │  (epoll/kqueue/iocp)  │
+│              └─────────────┘                        │
+│              ┌─────────────┐                        │
+│              │ Timer Wheel  │  (hashed timing wheel)│
+│              └─────────────┘                        │
+│              ┌─────────────┐                        │
+│              │  Blocking    │                        │
+│              │  Pool        │  (spare threads)       │
+│              └─────────────┘                        │
+└──────────────────────────────────────────────────┘
+```
+
+### Work-stealing
+
+Each worker thread has its own **local run queue** (a lock-free deque). When a worker runs out of tasks, it **steals** from another worker's queue:
+
+1. The owning worker pushes/pops from the "bottom" of its deque (fast, lock-free).
+2. Stealing workers pop from the "top" (lock-free with atomic CAS).
+3. This minimises contention — the owner and a thief operate on opposite ends.
+
+### Spawning and runtime handles
+
+```rust
+#[tokio::main]
+async fn main() {
+    // Spawn a task onto the current runtime
+    let handle = tokio::spawn(async {
+        // This runs concurrently on any available worker
+        fetch_data().await
+    });
+
+    let result = handle.await.unwrap();
+
+    // Get a runtime handle for use outside async context
+    let rt_handle = tokio::runtime::Handle::current();
+
+    // Spawn from synchronous code
+    std::thread::spawn(move || {
+        rt_handle.block_on(async {
+            // This runs on the tokio runtime from a non-async thread
+        });
+    });
+}
+```
+
+### Choosing the right runtime
+
+```rust
+// Multi-threaded (default) — for most workloads
+#[tokio::main]
+async fn main() { ... }
+
+// Single-threaded — for embedded, tests, or predictable ordering
+#[tokio::main(flavor = "current_thread")]
+async fn main() { ... }
+
+// Custom configuration
+fn main() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .thread_name("my-worker")
+        .build()
+        .unwrap();
+
+    rt.block_on(async { ... });
+}
+```
+
+## Select and join
+
+### tokio::select! — race multiple futures
+
+```rust
+use tokio::select;
+use tokio::time::{sleep, Duration};
+
+async fn race() {
+    select! {
+        _ = sleep(Duration::from_secs(5)) => {
+            println!("5 seconds elapsed");
+        }
+        _ = sleep(Duration::from_secs(1)) => {
+            println!("1 second elapsed");
+        }
+    }
+    // Only the first branch prints — select! returns after one completes
+}
+```
+
+`select!` polls all branches in a biased order (top-to-bottom) and returns when the first branch completes. Remaining branches are dropped. Use `biased;` prefix for guaranteed order; otherwise the order is pseudo-random for fairness.
+
+### futures::join! — wait for all
+
+```rust
+use futures::join;
+
+let (res_a, res_b, res_c) = join!(fetch_a(), fetch_b(), fetch_c());
+// All three run concurrently; join! blocks until all complete
+```
+
+### tokio::try_join! — propagate errors
+
+```rust
+use tokio::try_join;
+
+async fn work() -> Result<(), Box<dyn std::error::Error>> {
+    let (a, b) = try_join!(fallible_fetch("/a"), fallible_fetch("/b"))?;
+    Ok(())
+}
+// If either future errors, the other is cancelled and the error propagates
+```
+
+## Streams
+
+Streams are async iterators — `Future` for sequences:
+
+```rust
+use futures::stream::{self, StreamExt};
+
+async fn process_stream() {
+    let stream = stream::iter(vec![1, 2, 3, 4, 5]);
+
+    // Map over a stream
+    let mapped = stream.map(|x| async move { x * 2 });
+
+    // Buffer up to N concurrent operations
+    let buffered = mapped.buffer_unordered(3);
+    // At most 3 futures run concurrently; preserves ordering in output
+
+    // Collect into a Vec
+    let results: Vec<i32> = buffered.collect().await;
+}
+```
+
+### Common stream patterns
+
+```rust
+use futures::stream::StreamExt;
+use tokio::time::{sleep, Duration, timeout};
+
+// Throttle — limit to 1 item per second
+stream.throttle(Duration::from_secs(1));
+
+// Timeout per item
+stream.map(|item| timeout(Duration::from_secs(5), process(item)));
+
+// Concurrency limit with ordered output
+stream.map(process).buffered(10);   // at most 10 in-flight, output ordered
+
+// Concurrency limit with unordered output
+stream.map(process).buffer_unordered(10);  // output in completion order
+```
+
+## tokio vs std::thread comparison
+
+| Dimension | tokio task | std::thread |
+|---|---|---|
+| **Creation cost** | ~2 KiB allocation + atomic operations | ~2-8 MiB OS stack + syscall |
+| **Context switch** | Function call (poll) — ~nanoseconds | OS context switch — ~microseconds |
+| **Maximum count** | Millions per process | ~Thousands per process |
+| **Blocking I/O** | Must use async I/O or spawn_blocking | Native — blocks the thread |
+| **CPU-bound work** | Blocks the worker thread — use `spawn_blocking` | Works natively |
+| **Stack size** | Grows on demand (poll resizing) | Fixed, typically 2 MiB |
+
+## Common pitfalls
+
+| Pitfall | Explanation | Fix |
+|---|---|---|
+| **Blocking in async** | `std::thread::sleep` or blocking I/O stalls the worker | Use `tokio::time::sleep`, async I/O, or `spawn_blocking` |
+| **Holding a Mutex across `.await`** | The task may not resume on the same thread; `std::sync::MutexGuard` is not `Send` | Use `tokio::sync::Mutex` or drop the guard before `.await` |
+| **Unbounded concurrency** | `buffer_unordered(usize::MAX)` can OOM | Always set a concurrency limit |
+| **Not advancing spawned tasks** | `tokio::spawn` returns a `JoinHandle`; dropping it does not cancel the task | Explicitly `await` or `.abort()` handles |
+| **Deadlocking on single-threaded runtime** | `block_on` inside an async context on current_thread | Use `Handle::block_on` only outside async |
+
+## See also
+
+- [Rust Reference](./rust.mdx) — cargo workflow, Axum, WASM, and no_std patterns
+- [Dynamic Dispatch & Trait Objects](./dynamic-dispatch.mdx) — how trait objects and virtual dispatch work
+- [Multithread Primitives](./multithread-primitives.mdx) — Mutex, RwLock, mpsc, and atomic primitives
+- [Python Async Deep-Dive](../python/async-overview.mdx) — compare with Python's asyncio event loop

@@ -1,0 +1,337 @@
+---
+sidebar_position: 3
+title: 'Dynamic Dispatch & Trait Objects'
+description: 'Deep-dive into Rust dynamic dispatch: trait objects, vtables, object safety rules, Sized vs ?Sized, performance tradeoffs, and when to use dyn vs generics.'
+tags: [rust, dynamic-dispatch, trait-objects, vtable, reference]
+last_updated: '2026-08-05'
+---
+
+# Dynamic Dispatch & Trait Objects
+
+## Overview
+
+Rust provides two dispatch mechanisms: **static dispatch** (monomorphization via generics) and **dynamic dispatch** (via `dyn Trait` and trait objects). Static dispatch is zero-cost at runtime but produces more code (code bloat). Dynamic dispatch adds a vtable lookup per call but allows heterogeneous collections. Understanding when to choose each is fundamental to idiomatic Rust.
+
+## Static dispatch (monomorphization)
+
+When you write a generic function, the compiler generates a separate copy for each concrete type used:
+
+```rust
+fn print_value<T: std::fmt::Display>(value: &T) {
+    println!("{}", value);
+}
+
+// The compiler generates:
+// fn print_value_i32(value: &i32) { ... }
+// fn print_value_String(value: &String) { ... }
+
+print_value(&42);
+print_value(&"hello".to_string());
+```
+
+The call site knows the exact function address at compile time — the linker can even inline it. This is **zero-cost abstraction**: you pay nothing at runtime that you wouldn't pay if you wrote the specialized versions by hand.
+
+### Monomorphization tradeoffs
+
+| Pro | Con |
+|---|---|
+| Zero runtime overhead | Binary size grows linearly with distinct type uses |
+| Compiler can inline | Compile time increases |
+| Exact type known (size, alignment) | Cannot store different types together in a collection |
+
+## Dynamic dispatch (`dyn Trait`)
+
+Dynamic dispatch uses **trait objects** — fat pointers containing both a data pointer and a vtable pointer:
+
+```
+┌────────────────────┐
+│   &dyn Display     │
+├──────────┬─────────┤
+│ data ptr │ vtable  │   (16 bytes on 64-bit: 2 × usize)
+└────┬─────┴────┬────┘
+     │           │
+     ▼           ▼
+┌─────────┐  ┌──────────────────┐
+│  data   │  │  vtable for Type │
+│ (e.g.   │  ├──────────────────┤
+│  i32)   │  │ drop:  <fn ptr>  │
+│         │  │ size:  4         │
+│         │  │ align: 4         │
+│         │  │ fmt:   <fn ptr>  │
+└─────────┘  └──────────────────┘
+```
+
+A `&dyn Display` is 16 bytes on 64-bit: 8 bytes for the data pointer, 8 bytes for the vtable pointer.
+
+### Using trait objects
+
+```rust
+trait Animal {
+    fn speak(&self) -> &str;
+    fn legs(&self) -> u32 { 4 }  // default impl
+}
+
+struct Dog;
+impl Animal for Dog {
+    fn speak(&self) -> &str { "woof" }
+}
+
+struct Spider;
+impl Animal for Spider {
+    fn speak(&self) -> &str { "..." }
+    fn legs(&self) -> u32 { 8 }
+}
+
+// Heterogeneous collection — all implement Animal but are different sizes
+let animals: Vec<Box<dyn Animal>> = vec![
+    Box::new(Dog),
+    Box::new(Spider),
+];
+
+for a in &animals {
+    println!("{} ({} legs)", a.speak(), a.legs());
+}
+```
+
+Without `dyn`, you cannot store `Dog` and `Spider` in the same `Vec` because they have different sizes.
+
+### Five forms of trait objects
+
+| Form | Size | Ownership | Use case |
+|---|---|---|---|
+| `&dyn Trait` | 16 bytes | Borrowed | Passing reference, no ownership |
+| `&mut dyn Trait` | 16 bytes | Mutably borrowed | Mutating through the trait |
+| `Box<dyn Trait>` | 16 bytes (heap data) | Owned | Storing, returning, collections |
+| `Arc<dyn Trait>` | 16 bytes (heap data) | Shared owned | Multi-threaded shared ownership |
+| `Pin<Box<dyn Trait>>` | 16 bytes (pinned heap) | Owned + pinned | Async trait objects |
+
+## Object safety
+
+Not all traits can be made into trait objects. A trait is **object-safe** if all of its methods satisfy:
+
+1. **No `Self: Sized` requirement** — methods cannot require a known size at the call site.
+2. **No generic type parameters on methods** — the vtable can't hold a function for every possible type.
+3. **`Self` only in receiver position** — `self`, `&self`, `&mut self`, `Box<self>`, etc. are OK; `-> Self` is not.
+4. **No associated constants** (stable Rust limitation).
+
+### Examples of non-object-safe traits
+
+```rust
+// Non-object-safe: method has a type parameter
+trait Parser {
+    fn parse<T: FromStr>(&self, input: &str) -> Result<T, T::Err>;  // ✗
+}
+
+// Non-object-safe: returns Self
+trait Clone {
+    fn clone(&self) -> Self;  // ✗
+}
+
+// Non-object-safe: associated constant
+trait Config {
+    const MAX_SIZE: usize;  // ✗ (stabilized in nightly)
+}
+
+// Fix: use where Self: Sized to opt-out methods
+trait Cloneable {
+    fn clone_box(&self) -> Box<dyn Cloneable>;  // ✓ returns trait object
+}
+
+// Fix: explicit Sized bound
+trait Parser {
+    fn parse_str(&self, input: &str) -> Result<String, ParseError>;  // ✓ concrete type
+
+    // Opt-out non-object-safe methods with Sized
+    fn parse<T: FromStr>(&self, input: &str) -> Result<T, T::Err>
+    where Self: Sized;  // ✓ only available when Self is known
+}
+```
+
+When a method has `where Self: Sized`, it is not part of the trait object's vtable and cannot be called through `dyn Trait`.
+
+### Checking object safety at compile time
+
+```rust
+fn requires_object_safe<T: MyTrait + ?Sized>() {}
+
+// The compiler will error if MyTrait is not object-safe
+// This pattern is useful in libraries that need to enforce it
+```
+
+A raw `T: MyTrait` means `T: MyTrait + Sized`. You must add `?Sized` for the compiler to check object safety.
+
+## `Sized` and `?Sized`
+
+`Sized` is an auto trait — every concrete type is `Sized` by default. Types whose size is unknown at compile time are `!Sized` (unsized). The only unsized types are:
+
+- `[T]` — slices
+- `dyn Trait` — trait objects
+- `str` — string slices
+- Structs whose last field is unsized (rare)
+
+```rust
+// Implicitly T: Sized
+fn concrete<T: Display>(value: &T) { ... }
+
+// Explicitly opt out: allow unsized types
+fn unsized<T: Display + ?Sized>(value: &T) { ... }
+```
+
+`?Sized` means "this type may or may not be Sized." It does NOT mean "the type is unsized" — it relaxes the default `Sized` bound.
+
+### Why Sized matters for generics
+
+```rust
+fn store_on_stack<T>(value: T) {
+    // The compiler must know T's size to allocate the stack frame.
+    // T: Sized is implied — this works.
+}
+
+fn store_on_heap<T: ?Sized>(value: Box<T>) {
+    // Box<T> is always Sized (it's a pointer), even when T is not.
+    // This is fine.
+}
+```
+
+## Performance comparison
+
+### Static dispatch
+
+```rust
+fn static_dispatch<T: Animal>(animal: &T) {
+    animal.speak();  // direct function call — compiler can inline
+}
+```
+
+- Zero runtime overhead.
+- Compiler knows the exact callee — inlining possible.
+- Each monomorphization duplicates code.
+
+### Dynamic dispatch
+
+```rust
+fn dynamic_dispatch(animal: &dyn Animal) {
+    animal.speak();  // vtable[0](data) — indirect call through function pointer
+}
+```
+
+- Cost: ~3-5 CPU cycles for vtable lookup + indirect branch.
+- Prevents inlining (compiler can't know which function is called).
+- Single copy of the caller function.
+
+### Benchmark guidance
+
+| Scenario | Recommendation |
+|---|---|
+| Hot loop, < 5 implementations | Static dispatch |
+| Cold code, many implementations | Dynamic dispatch |
+| Heterogeneous collection (e.g. plugin system) | Dynamic dispatch (only option) |
+| Library exposing a single trait method | Dynamic dispatch reduces binary size for consumers |
+| Binary size constrained (embedded, WASM) | Dynamic dispatch for large generic functions |
+
+## When to use which
+
+### Use static dispatch (generics) when:
+
+- The number of types is small and known at compile time.
+- Performance is critical in hot paths.
+- You need to return the concrete type by value.
+- The trait methods need generic parameters on methods.
+
+### Use dynamic dispatch (trait objects) when:
+
+- You need to store heterogeneous types in the same collection.
+- You want to reduce binary size (avoid monomorphization bloat).
+- You're building a plugin/extension system.
+- The set of types is unbounded or determined at runtime.
+- You want to decouple the API from concrete types (e.g., returning `Box<dyn Error>`).
+
+### Hybrid approach
+
+```rust
+// Inner function is generic (fast, monomorphized)
+fn process_impl<T: Processor + ?Sized>(processor: &T, data: &Data) -> Result {
+    processor.validate(data)?;
+    processor.transform(data)
+}
+
+// Outer function takes a trait object (flexible, single binary copy)
+pub fn process(processor: &dyn Processor, data: &Data) -> Result {
+    process_impl(processor, data)
+}
+```
+
+This pattern — sometimes called "thin wrapper" — gives you the API flexibility of `dyn Trait` while keeping the hot code monomorphized. The dyn-to-generics conversion has a negligible vtable-lookup overhead at the boundary.
+
+## Trait object limitations and workarounds
+
+### Cannot call generic methods
+
+```rust
+trait Serializer {
+    fn serialize<T: Serialize>(&self, value: &T) -> String;
+}
+
+fn take_serializer(s: &dyn Serializer) {
+    // s.serialize(&42);  // ✗ error: generic method can't be called on trait object
+}
+```
+
+**Workaround**: erase the generic to a trait object:
+
+```rust
+trait Serializable {
+    fn serialize_with(&self, s: &dyn Serializer) -> String;
+}
+
+trait Serializer {
+    fn serialize_serializable(&self, value: &dyn Serializable) -> String;
+}
+```
+
+### Cannot clone a trait object
+
+`Clone` is not object-safe (it returns `Self`). **Workaround**: define a helper method:
+
+```rust
+trait ClonableAnimal: Animal {
+    fn clone_box(&self) -> Box<dyn ClonableAnimal>;
+}
+
+impl<T: Animal + Clone + 'static> ClonableAnimal for T {
+    fn clone_box(&self) -> Box<dyn ClonableAnimal> {
+        Box::new(self.clone())
+    }
+}
+
+let cloned: Box<dyn ClonableAnimal> = original.clone_box();
+```
+
+### Downcasting from trait objects
+
+Use `std::any::Any`:
+
+```rust
+use std::any::Any;
+
+trait Animal: Any { ... }
+
+let animals: Vec<Box<dyn Animal>> = ...;
+
+for a in animals {
+    if let Some(dog) = a.as_any().downcast_ref::<Dog>() {
+        println!("Found a dog!");
+    }
+}
+
+// Requires adding as_any() to the trait:
+trait Animal: Any {
+    fn as_any(&self) -> &dyn Any;
+}
+```
+
+## See also
+
+- [Rust Reference](./rust.mdx) — cargo, Axum, WASM, no_std
+- [Futures & Async Runtime](./async-futures.mdx) — async traits, Pin, and the tokio scheduler
+- [Multithread Primitives](./multithread-primitives.mdx) — `Arc<dyn Fn()>` and `Arc<dyn Any>` patterns

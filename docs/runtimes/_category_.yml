@@ -1,7 +1,0 @@
-position: 7
-label: Runtimes
-link:
-  type: generated-index
-  title: Runtimes
-  description: Language runtimes, package managers, and project bootstrapping references.
-  slug: runtimes

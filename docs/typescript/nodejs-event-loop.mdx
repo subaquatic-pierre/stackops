@@ -1,0 +1,424 @@
+---
+sidebar_position: 4
+title: 'Node.js Event Loop'
+description: 'Complete technical breakdown of the Node.js event loop: libuv architecture, event loop phases, microtasks vs macrotasks, thread pool, and avoiding blocking the loop.'
+tags: [nodejs, event-loop, libuv, microtasks, reference]
+last_updated: '2026-08-05'
+---
+
+# Node.js Event Loop
+
+## Overview
+
+The Node.js event loop is what allows JavaScript — a single-threaded language — to handle thousands of concurrent I/O operations without blocking. Built on libuv (originally developed for Node.js), the event loop orchestrates the execution of callbacks, timers, I/O operations, and microtasks. Understanding its phases is essential for writing performant, non-blocking Node.js applications.
+
+## The event loop in 30 seconds
+
+The event loop is an infinite loop that runs in the main thread:
+
+```
+while (there_are_pending_operations) {
+    1. Process timers (setTimeout, setInterval that have expired)
+    2. Process pending callbacks (deferred I/O callbacks)
+    3. Idle, prepare (internal libuv housekeeping)
+    4. Poll (block for new I/O events, execute ready I/O callbacks)
+    5. Check (setImmediate callbacks)
+    6. Close callbacks (socket.on('close'), etc.)
+}
+```
+
+Between each phase transition, Node.js drains the **microtask queue** (`process.nextTick` and Promise callbacks).
+
+## Event loop phases in detail
+
+### Phase 1: Timers
+
+Executes callbacks scheduled by `setTimeout` and `setInterval` whose timer has expired:
+
+```javascript
+setTimeout(() => {
+  console.log("timeout fired");
+}, 1000);
+// After ~1000ms, the callback is queued for the next Timer phase.
+
+setInterval(() => {
+  console.log("interval");
+}, 2000);
+// Repeatedly queued every ~2000ms.
+```
+
+**Important**: the delay is a **minimum**, not a guarantee. If the event loop is busy processing another phase, the timer callback will be delayed:
+
+```javascript
+const start = Date.now();
+
+setTimeout(() => {
+  console.log(`Fired after ${Date.now() - start}ms`);
+}, 1000);
+
+// Block the event loop for 2 seconds
+while (Date.now() - start < 2000) {}
+// Output: "Fired after ~2000ms" — the 1s timer was delayed by the blocking loop
+```
+
+### Phase 2: Pending callbacks
+
+Executes I/O callbacks deferred from the previous cycle. Specifically, this is for callbacks that were delayed because the poll phase was too busy — mostly TCP errors from the OS (`ECONNREFUSED` on connect attempts, for example).
+
+Most I/O callbacks (file reads, network responses) execute in the **Poll phase**, not here. This phase is a catch-all for deferred error callbacks.
+
+### Phase 3: Idle / Prepare
+
+Internal libuv phases — not directly accessible from JavaScript. Used for preparing the poll phase and handling idle watchers.
+
+### Phase 4: Poll
+
+The most important phase. The poll phase:
+
+1. **Computes how long to block** for I/O:
+   - If the poll queue has callbacks: timeout = 0 (don't block).
+   - If timers are scheduled: timeout = time until the next timer.
+   - If nothing is scheduled: timeout = Infinity (block until woken by I/O).
+2. **Blocks on the OS I/O multiplexer** (`epoll` on Linux, `kqueue` on macOS, `IOCP` on Windows).
+3. **Executes ready callbacks** from the poll queue.
+
+When a callback is executed, it may queue new callbacks. The poll phase processes them all before returning control to the event loop.
+
+```javascript
+const fs = require("fs");
+
+fs.readFile("data.txt", (err, data) => {
+  // This callback runs in the Poll phase
+  console.log("File read complete");
+});
+```
+
+### Phase 5: Check
+
+Executes `setImmediate` callbacks:
+
+```javascript
+setImmediate(() => {
+  console.log("immediate callback");
+});
+```
+
+`setImmediate` is specifically designed to run immediately **after** the poll phase, before the next timer phase.
+
+### Phase 6: Close callbacks
+
+Executes close event handlers:
+
+```javascript
+const server = require("net").createServer();
+server.on("close", () => {
+  // This callback runs in the Close phase
+  console.log("Server closed");
+});
+server.close();
+```
+
+## setImmediate vs setTimeout(fn, 0)
+
+These are often confused. The key difference:
+
+```javascript
+// Inside an I/O callback, setImmediate always runs first
+const fs = require("fs");
+
+fs.readFile(__filename, () => {
+  setTimeout(() => console.log("timeout"), 0);
+  setImmediate(() => console.log("immediate"));
+});
+// Output: immediate, timeout
+```
+
+Inside an I/O callback (poll phase), the order is deterministic: `setImmediate` runs in the next Check phase, `setTimeout(fn, 0)` runs in the next Timers phase — and Check comes before Timers in the cycle.
+
+**Outside I/O callbacks**, the order is non-deterministic (depends on system timer resolution):
+
+```javascript
+// At the top level — order varies between runs
+setTimeout(() => console.log("timeout"), 0);
+setImmediate(() => console.log("immediate"));
+// Could be either order depending on how long the process took to start
+```
+
+**Best practice**: wrap in an I/O callback if deterministic ordering matters.
+
+## Microtasks: process.nextTick and Promises
+
+### The microtask queue
+
+Microtasks run **between each phase**, and within a phase between each callback:
+
+```
+[ Phase N ]
+    |
+    ├── Execute callback 1
+    ├── Drain microtasks (nextTick, then Promises)
+    ├── Execute callback 2
+    ├── Drain microtasks
+    ├── ...
+    ▼
+[ Phase N+1 ]
+    ├── Drain microtasks (before entering the phase)
+    ├── ...
+```
+
+### process.nextTick vs Promise
+
+Both are microtasks, but `process.nextTick` has **higher priority**:
+
+```javascript
+Promise.resolve().then(() => console.log("promise 1"));
+process.nextTick(() => console.log("nextTick 1"));
+Promise.resolve().then(() => console.log("promise 2"));
+process.nextTick(() => console.log("nextTick 2"));
+
+// Output:
+// nextTick 1
+// nextTick 2
+// promise 1
+// promise 2
+```
+
+Node.js drains **all** `nextTick` callbacks before any Promise callbacks.
+
+### The nextTick recursion danger
+
+Because `process.nextTick` callbacks run before the event loop continues, a recursive `nextTick` starves the event loop:
+
+```javascript
+// DO NOT DO THIS
+function recursiveNextTick() {
+  process.nextTick(recursiveNextTick);
+}
+recursiveNextTick();
+
+setTimeout(() => console.log("timer"), 1000); // NEVER RUNS
+```
+
+The event loop is perpetually stuck draining `nextTick` callbacks and never reaches the Timer phase. Use `setImmediate` to yield to the event loop:
+
+```javascript
+function recursiveImmediate() {
+  // This yields between iterations — timers and I/O can be processed
+  setImmediate(recursiveImmediate);
+}
+```
+
+### Complete execution order example
+
+```javascript
+const fs = require("fs");
+
+console.log("1. start");
+
+setTimeout(() => console.log("2. setTimeout"), 0);
+setImmediate(() => console.log("3. setImmediate"));
+
+fs.readFile(__filename, () => {
+  console.log("4. readFile callback");
+
+  setTimeout(() => console.log("5. setTimeout inside I/O"), 0);
+  setImmediate(() => console.log("6. setImmediate inside I/O"));
+
+  process.nextTick(() => console.log("7. nextTick inside I/O"));
+  Promise.resolve().then(() => console.log("8. Promise inside I/O"));
+});
+
+process.nextTick(() => console.log("9. nextTick at top level"));
+Promise.resolve().then(() => console.log("10. Promise at top level"));
+
+// Output order:
+// 1. start
+// 9. nextTick at top level
+// 10. Promise at top level
+// 2. setTimeout        OR  3. setImmediate   (non-deterministic)
+// 3. setImmediate       OR  2. setTimeout
+// 4. readFile callback
+// 7. nextTick inside I/O
+// 8. Promise inside I/O
+// 6. setImmediate inside I/O
+// 5. setTimeout inside I/O
+```
+
+## The thread pool (libuv worker pool)
+
+Node.js uses a thread pool (default: 4 threads) for operations that cannot be done asynchronously at the OS level:
+
+- All `fs` filesystem operations (except `fs.FSWatcher`).
+- `dns.lookup()` (not `dns.resolve()` which uses the network directly).
+- Crypto operations (`crypto.pbkdf2`, `crypto.randomBytes`, etc.).
+- `zlib` compression/decompression.
+
+The thread pool size is configurable:
+
+```bash
+UV_THREADPOOL_SIZE=8 node app.js
+```
+
+```javascript
+// At the top of your entry point
+process.env.UV_THREADPOOL_SIZE = "8";
+```
+
+### How the thread pool works
+
+```
+Main Thread (event loop)           Thread Pool
+        │                              │
+        │ fs.readFile() ──────────────►│ Thread 1: reads file
+        │                              │ Thread 2: idle
+        │                              │ Thread 3: idle
+        │                              │ Thread 4: idle
+        │                              │
+        │ (event loop continues)       │
+        │                              │ Thread 1: done —
+        │ ◄─── callback enqueued ──────│ notifies main thread
+        │                              │
+        ▼ (next Poll phase)            ▼
+   callback runs
+```
+
+### Thread pool exhaustion
+
+If 4 `fs.readFile` calls are already in the pool, a 5th call waits for a thread:
+
+```javascript
+// 10 concurrent file reads on a 4-thread pool
+for (let i = 0; i < 10; i++) {
+  fs.readFile(`file${i}.txt`, (err, data) => {
+    console.log(`${i} done at ${Date.now() - start}ms`);
+  });
+}
+// First 4 start immediately, 5-10 queue up and run as threads free up
+```
+
+For I/O-heavy applications, increase `UV_THREADPOOL_SIZE` or consider using async file I/O via `fs.promises` with `O_DIRECT` on Linux (libuv cannot fully leverage io_uring yet as of 2025).
+
+## Don't block the event loop
+
+### What blocks the event loop
+
+| Operation | Blocking? | Fix |
+|---|---|---|
+| `JSON.parse(largeString)` | Yes | Offload via worker thread or stream parsers |
+| `crypto.pbkdf2Sync()` | Yes | Use async `crypto.pbkdf2()` |
+| `fs.readFileSync()` | Yes | Use `fs.promises.readFile()` |
+| Heavy regex on long strings | Yes | Offload or use incremental regex |
+| Large synchronous loops | Yes | Split into chunks with `setImmediate` |
+| `child_process.execSync()` | Yes | Use `child_process.exec()` |
+
+### Detecting event loop lag
+
+```javascript
+const { eventLoopUtilization, performance } = require("perf_hooks");
+
+// Track ELU (Event Loop Utilization) — Node.js 14+
+const start = eventLoopUtilization();
+
+setTimeout(() => {
+  const end = eventLoopUtilization(start);
+  console.log(`ELU idle: ${(end.idle / 1000).toFixed(2)}µs`);
+  console.log(`ELU active: ${(end.active / 1000).toFixed(2)}µs`);
+  console.log(`ELU utilization: ${(end.utilization * 100).toFixed(1)}%`);
+}, 5000);
+```
+
+### Offloading CPU-bound work with worker_threads
+
+```javascript
+// main.js
+const { Worker } = require("worker_threads");
+
+function runHeavyTask(input) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker("./worker.js", { workerData: input });
+    worker.on("message", resolve);
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
+      if (code !== 0) reject(new Error(`Worker stopped with exit code ${code}`));
+    });
+  });
+}
+
+async function main() {
+  // These run in parallel, each in its own OS thread
+  const [r1, r2] = await Promise.all([
+    runHeavyTask(40),
+    runHeavyTask(41),
+  ]);
+  console.log(r1, r2);
+}
+```
+
+```javascript
+// worker.js
+const { parentPort, workerData } = require("worker_threads");
+
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+const result = fibonacci(workerData);
+parentPort.postMessage(result);
+```
+
+## The cluster module
+
+For CPU-bound HTTP servers, the `cluster` module forks multiple processes to utilize all CPU cores:
+
+```javascript
+const cluster = require("cluster");
+const http = require("http");
+const os = require("os");
+
+if (cluster.isPrimary) {
+  const numCPUs = os.cpus().length;
+  console.log(`Primary ${process.pid} running`);
+
+  // Fork a worker for each CPU
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  cluster.on("exit", (worker) => {
+    console.log(`Worker ${worker.process.pid} died — restarting`);
+    cluster.fork();  // auto-restart
+  });
+} else {
+  // Workers share the same port
+  http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end(`Hello from worker ${process.pid}\n`);
+  }).listen(8000);
+
+  console.log(`Worker ${process.pid} started`);
+}
+```
+
+Each worker gets its own event loop, memory space, and V8 instance. Requests are distributed by the OS kernel (on Linux, the `SO_REUSEPORT` socket option means the kernel does round-robin load balancing automatically).
+
+## Event loop best practices
+
+| Practice | Why |
+|---|---|
+| **Never block the main thread** | Blocking starves all other callbacks, timers, and I/O |
+| **Use async crypto/filesystem APIs** | The `*Sync` variants block the entire event loop |
+| **Limit `process.nextTick` recursion** | Can starve the event loop — use `setImmediate` instead |
+| **Keep callbacks fast** | Each callback delays everything scheduled after it |
+| **Watch the thread pool** | Default 4 threads can be a bottleneck for I/O-heavy apps |
+| **Use worker threads for CPU work** | Keeps the main event loop responsive |
+| **Cluster for multi-core utilization** | One Node.js process uses one CPU core by default |
+| **Monitor event loop lag** | Use APM tools or `eventLoopUtilization()` |
+
+## See also
+
+- [Node.js & TypeScript](./nodejs.mdx) — project setup, ESLint, and Express patterns
+- [Next.js](./nextjs.mdx) — framework built on Node.js with edge runtime options
+- [Compilation & JS Prototype Model](./compilation-js-prototype.mdx) — understanding JavaScript's runtime model
+- [Python Async Deep-Dive](../python/async-overview.mdx) — compare event loop architectures across languages
+- [Rust Async Runtime](../rust/async-futures.mdx) — tokio's work-stealing scheduler vs libuv

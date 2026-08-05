@@ -1,0 +1,454 @@
+---
+sidebar_position: 4
+title: 'Multithread Primitives'
+description: 'Comprehensive guide to Rust concurrency primitives: Mutex, RwLock, mpsc channels, Arc, atomics, Condvar, Barrier, OnceLock, tokio sync variants, and crossbeam.'
+tags: [rust, concurrency, mutex, rwlock, mpsc, atomics, tokio, reference]
+last_updated: '2026-08-05'
+---
+
+# Multithread Primitives
+
+## Overview
+
+Rust's type system makes concurrency safe at compile time. `Send` and `Sync` traits govern which types can cross thread boundaries, and the standard library provides battle-tested primitives from mutexes to channels to atomics. This document covers every major concurrency primitive in `std::sync` and `tokio::sync`, with guidance on when to use each one.
+
+## Mutex — mutual exclusion
+
+### std::sync::Mutex
+
+A blocking mutual exclusion lock. Exactly one thread can hold the lock at a time:
+
+```rust
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+let counter = Arc::new(Mutex::new(0));
+
+let handles: Vec<_> = (0..10).map(|_| {
+    let counter = Arc::clone(&counter);
+    thread::spawn(move || {
+        let mut num = counter.lock().unwrap();
+        *num += 1;
+        // lock released here when `num` goes out of scope
+    })
+}).collect();
+
+for h in handles { h.join().unwrap(); }
+assert_eq!(*counter.lock().unwrap(), 10);
+```
+
+Key behaviors:
+- `lock()` **blocks** the calling thread until the lock is available.
+- Returns a `MutexGuard<T>` — deref to `&mut T`, auto-releases on drop.
+- If a thread panics while holding the lock, it becomes **poisoned**. `lock()` returns `Err(PoisonError)` — you can still access the data via `into_inner()`.
+- **Must not hold a `std::sync::Mutex` across `.await`** — the task may not resume on the same thread, and `MutexGuard` is not `Send`.
+
+### When to use std::sync::Mutex
+
+| Scenario | Use? |
+|---|---|
+| Synchronous, short critical sections | ✓ |
+| Held across `.await` | ✗ — use `tokio::sync::Mutex` |
+| Very high contention | ✗ — can cause thread parking overhead |
+| Simple shared mutable state | ✓ — default choice |
+
+### Parking_lot::Mutex (community alternative)
+
+`parking_lot` offers faster mutex implementations with fewer dependencies:
+
+```rust
+use parking_lot::Mutex;
+
+let m = Mutex::new(0);
+*m.lock() += 1;
+// No unwrap() needed — never poisoned
+// No guard poisoning; panic-in-holder releases the lock cleanly
+```
+
+Advantages: smaller, faster (spins briefly before parking), never poisoned, const-constructible. Highly recommended for performance-sensitive code.
+
+## RwLock — read-write lock
+
+Allows **multiple readers** or **one writer**:
+
+```rust
+use std::sync::RwLock;
+
+let lock = RwLock::new(5);
+
+// Many readers concurrently
+let r1 = lock.read().unwrap();
+let r2 = lock.read().unwrap();
+assert_eq!(*r1 + *r2, 10);
+drop(r1);
+drop(r2);
+
+// One writer — blocks until all readers release
+let mut w = lock.write().unwrap();
+*w = 10;
+```
+
+### RwLock vs Mutex tradeoffs
+
+| Criterion | Mutex | RwLock |
+|---|---|---|
+| **Single access** | One thread only | One writer OR many readers |
+| **Overhead** | Lower — no reader tracking | Higher — atomic reader count |
+| **Write starvation** | N/A | Possible under heavy read load |
+| **Best for** | Short critical sections | Read-heavy workloads |
+| **Worst for** | Read-heavy workloads (unnecessary serialization) | Write-heavy or balanced workloads (extra overhead) |
+
+Rule of thumb: use `RwLock` when reads outnumber writes at least 10:1 and read sections are non-trivial. Otherwise `Mutex` is simpler and faster.
+
+## MPSC channels
+
+### std::sync::mpsc — multi-producer, single-consumer
+
+```rust
+use std::sync::mpsc;
+use std::thread;
+
+let (tx, rx) = mpsc::channel::<String>();
+
+// Many producers (tx is Clone)
+let tx1 = tx.clone();
+thread::spawn(move || { tx1.send("from thread 1".into()).unwrap(); });
+let tx2 = tx.clone();
+thread::spawn(move || { tx2.send("from thread 2".into()).unwrap(); });
+drop(tx);  // drop the original or rx.iter() will never terminate
+
+// Single consumer
+for msg in rx.iter() {
+    println!("{}", msg);
+}
+// rx.iter() stops when all senders are dropped
+```
+
+### Channel variants
+
+```rust
+// Unbounded — send never blocks (risk: memory exhaustion)
+let (tx, rx) = mpsc::channel();
+
+// Bounded — send blocks when full (backpressure)
+let (tx, rx) = mpsc::sync_channel(10); // capacity of 10
+
+// Try — non-blocking variants
+tx.try_send(msg);  // Result<(), TrySendError>
+rx.try_recv();     // Result<T, TryRecvError>
+```
+
+### tokio::sync::mpsc — async channels
+
+```rust
+use tokio::sync::mpsc;
+
+let (tx, mut rx) = mpsc::channel::<i32>(32); // bounded, capacity 32
+
+// Async send — waits for capacity when full
+tokio::spawn(async move {
+    tx.send(42).await.unwrap();
+});
+
+// Async receive — waits for data when empty
+while let Some(msg) = rx.recv().await {
+    println!("{}", msg);
+}
+```
+
+### std vs tokio channels
+
+| Feature | `std::sync::mpsc` | `tokio::sync::mpsc` |
+|---|---|---|
+| **Receiver type** | `Receiver<T>` | `mpsc::Receiver<T>` |
+| **Blocking recv** | `rx.recv()` blocks thread | ✗ no blocking API |
+| **Async recv** | ✗ not available | `rx.recv().await` |
+| **Closure** | Sender drop closes channel | Same |
+| **Use in async** | Use only in `spawn_blocking` | Primary choice in tokio tasks |
+
+## tokio::sync primitives
+
+### tokio::sync::Mutex
+
+An async mutex — safe to hold across `.await`:
+
+```rust
+use tokio::sync::Mutex;
+
+let m = Mutex::new(0);
+
+async fn increment(m: &Mutex<i32>) {
+    let mut guard = m.lock().await;
+    *guard += 1;
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    // guard auto-drops here — safe because tokio Mutex is Send
+}
+```
+
+Unlike `std::sync::Mutex`, the guard **can** be sent between threads (it implements `Send`). However, the lock implementation uses an async semaphore internally, making it **slower** than `std::sync::Mutex` for short critical sections.
+
+**Prefer `std::sync::Mutex`** when the critical section does not cross an `.await` boundary.
+
+### tokio::sync::RwLock
+
+Async read-write lock:
+
+```rust
+use tokio::sync::RwLock;
+
+let lock = RwLock::new(5);
+
+// Concurrent reads
+let r1 = lock.read().await;
+let r2 = lock.read().await;
+
+// Write waits until all reads drop
+let mut w = lock.write().await;
+*w = 10;
+```
+
+**Caveat**: tokio's `RwLock` is **not** fair — under heavy read load, writers can starve. Use `tokio::sync::RwLock::max_reads()` to mitigate this.
+
+### Semaphore
+
+Limits concurrent access to a resource:
+
+```rust
+use tokio::sync::Semaphore;
+use std::sync::Arc;
+
+let sem = Arc::new(Semaphore::new(5));  // 5 concurrent permits
+
+for i in 0..100 {
+    let permit = sem.clone().acquire_owned().await.unwrap();
+    tokio::spawn(async move {
+        // At most 5 of these run concurrently
+        do_work(i).await;
+        drop(permit);  // return the permit
+    });
+}
+```
+
+### Notify
+
+A single-waker event primitive — lighter than a semaphore:
+
+```rust
+use tokio::sync::Notify;
+use std::sync::Arc;
+
+let notify = Arc::new(Notify::new());
+
+// Waiter
+let n = notify.clone();
+let handle = tokio::spawn(async move {
+    n.notified().await;
+    println!("woken up!");
+});
+
+// Notifier
+notify.notify_one();  // wakes exactly one waiter
+// notify.notify_waiters();  // wakes all waiters
+
+handle.await.unwrap();
+```
+
+### Barrier
+
+Synchronize multiple tasks at a rendezvous point:
+
+```rust
+use tokio::sync::Barrier;
+use std::sync::Arc;
+
+let barrier = Arc::new(Barrier::new(3));
+
+for i in 0..3 {
+    let b = barrier.clone();
+    tokio::spawn(async move {
+        println!("{i} doing phase 1");
+        b.wait().await;  // all 3 must arrive before any proceed
+        println!("{i} doing phase 2");
+    });
+}
+```
+
+`std::sync::Barrier` is the blocking equivalent for OS threads.
+
+## Atomic primitives
+
+Atomics provide lock-free, wait-free operations on primitive types:
+
+```rust
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
+
+let flag = AtomicBool::new(false);
+let counter = AtomicUsize::new(0);
+
+// Store
+flag.store(true, Ordering::Release);
+
+// Load
+let v = flag.load(Ordering::Acquire);
+
+// Atomic operations
+counter.fetch_add(1, Ordering::Relaxed);
+counter.fetch_sub(1, Ordering::Relaxed);
+counter.compare_exchange(5, 10, Ordering::AcqRel, Ordering::Acquire);
+```
+
+### Memory ordering
+
+| Ordering | Guarantee | Cost | Use case |
+|---|---|---|---|
+| `Relaxed` | Only atomicity, no ordering guarantee | Cheapest | Counters where order doesn't matter |
+| `Acquire` / `Release` | Acquire-load sees all stores before a corresponding Release-store | Moderate | Mutex implementation, flags |
+| `AcqRel` | Both Acquire and Release | Moderate | Compare-exchange loops |
+| `SeqCst` | Total global order | Most expensive | When you need globally consistent ordering |
+
+Default to `Relaxed` for counters. Use `Acquire`/`Release` pairs for flag-based signalling. Reserve `SeqCst` for when you're unsure — it's never incorrect, just slower.
+
+### Atomic patterns
+
+```rust
+// Spinlock
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::hint;
+
+let locked = AtomicBool::new(false);
+
+fn acquire() {
+    while locked.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
+        hint::spin_loop();  // yield to CPU on contention
+    }
+}
+
+fn release() {
+    locked.store(false, Ordering::Release);
+}
+
+// Lock-free counter
+static HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+
+// One-time initialization
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+INIT.call_once(|| {
+    // runs exactly once across all threads
+    initialize_subsystem();
+});
+```
+
+## Arc — shared ownership
+
+```rust
+use std::sync::Arc;
+
+let data = Arc::new(vec![1, 2, 3]);
+
+// Cheap clone — increments atomic reference count
+let clone1 = Arc::clone(&data);
+let clone2 = Arc::clone(&data);
+
+// When the last Arc is dropped, the inner vec is freed
+```
+
+`Arc<T>` provides `Send` and `Sync` when `T: Send + Sync`. For single-threaded shared ownership, use `Rc<T>` instead — it's cheaper (non-atomic reference count).
+
+## Condvar — condition variables
+
+Waits until a predicate becomes true:
+
+```rust
+use std::sync::{Arc, Mutex, Condvar};
+
+let pair = Arc::new((Mutex::new(false), Condvar::new()));
+let pair2 = Arc::clone(&pair);
+
+// Waiter thread
+thread::spawn(move || {
+    let (lock, cvar) = &*pair2;
+    let mut started = lock.lock().unwrap();
+    while !*started {
+        started = cvar.wait(started).unwrap();
+    }
+    println!("started!");
+});
+
+// Signaller
+let (lock, cvar) = &*pair;
+let mut started = lock.lock().unwrap();
+*started = true;
+cvar.notify_one();
+```
+
+Always wrap `wait` in a `while` loop — spurious wakeups can occur.
+
+## OnceLock / OnceCell (stable since Rust 1.80)
+
+Lazy, one-time-initialized values:
+
+```rust
+use std::sync::OnceLock;
+
+static CONFIG: OnceLock<String> = OnceLock::new();
+
+fn get_config() -> &'static String {
+    CONFIG.get_or_init(|| {
+        std::fs::read_to_string("config.toml").unwrap()
+    })
+}
+```
+
+`OnceLock<T>` is `Send + Sync` when `T: Send + Sync`. Use `std::cell::OnceCell` for single-threaded contexts.
+
+## crossbeam channels (community crate)
+
+`crossbeam` provides faster, more featureful channels:
+
+```rust
+use crossbeam::channel;
+
+// Multi-producer, multi-consumer (unlike std which is SP/MP→SC)
+let (tx, rx) = channel::unbounded();
+
+// Select over multiple channels
+crossbeam::select! {
+    recv(rx1) -> msg => println!("rx1: {:?}", msg),
+    recv(rx2) -> msg => println!("rx2: {:?}", msg),
+    default(Duration::from_millis(100)) => println!("timeout"),
+}
+```
+
+Key advantages over `std::sync::mpsc`:
+- Multiple consumers (MPMC instead of MPSC).
+- `select!` macro for waiting on multiple channels simultaneously.
+- Generally faster under contention.
+
+## Decision matrix
+
+| You need to... | Use |
+|---|---|
+| Protect short, non-async critical sections | `std::sync::Mutex` |
+| Protect across `.await` points | `tokio::sync::Mutex` |
+| Read-heavy shared state | `std::sync::RwLock` / `tokio::sync::RwLock` |
+| Send data between threads (one consumer) | `std::sync::mpsc` |
+| Send data between async tasks | `tokio::sync::mpsc` |
+| Limit concurrent access (N permits) | `tokio::sync::Semaphore` |
+| Wake a task on an event | `tokio::sync::Notify` |
+| Rendezvous point for threads/tasks | `std::sync::Barrier` / `tokio::sync::Barrier` |
+| Lock-free counters or flags | `AtomicUsize`, `AtomicBool` |
+| Shared read-only or read-write ownership | `Arc<T>` |
+| Wait for a predicate | `std::sync::Condvar` |
+| One-time lazy initialization | `OnceLock<T>` |
+| MPMC channels or channel `select!` | `crossbeam::channel` |
+| Ultra-low-latency mutex (no poisoning) | `parking_lot::Mutex` |
+
+## See also
+
+- [Rust Reference](./rust.mdx) — cargo workflow, Axum, project patterns
+- [Futures & Async Runtime](./async-futures.mdx) — how tokio schedules tasks that use these primitives
+- [Dynamic Dispatch](./dynamic-dispatch.mdx) — `Arc<dyn Trait>` and `Box<dyn Trait>` patterns with Send/Sync
+- [Node.js Event Loop](../typescript/nodejs-event-loop.mdx) — compare single-threaded JS concurrency model

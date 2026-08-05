@@ -18,9 +18,11 @@ import {
   Database,
   Activity,
   GitBranch,
-  Code,
+  Code2,
   Cog,
   Bot,
+  Shield,
+  Braces,
 } from "lucide-react";
 
 <div className="">
@@ -34,87 +36,115 @@ StackOps is a knowledge base for infrastructure, operations, and development wor
 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 not-prose my-8">
 
 <GridCard
-  href="/docs/aws"
-  title="AWS Cloud"
-  description="Identity, networking, operational playbooks, and common architecture patterns for Amazon Web Services."
-  icon={<Cloud size={28} />}
-/>
-
-<GridCard
-  href="/docs/docker"
-  title="Docker"
-  description="Container lifecycle, image management, Compose reference, and production project examples."
-  icon={<Container size={28} />}
-/>
-
-<GridCard
-  href="/docs/kubernetes"
-  title="Kubernetes"
-  description="Cluster operations, manifests, RBAC, Helm, EKS, node setup, and design patterns."
-  icon={<Network size={28} />}
-/>
-
-<GridCard
+  className="text-center"
   href="/docs/linux"
   title="Linux &amp; Systems"
   description="System configuration, common locations, command-line recipes, networking, and kernel."
-  icon={<Terminal size={28} />}
+  icon={<Terminal size={40} />}
 />
 
 <GridCard
-  href="/docs/system-architecture"
-  title="System Architecture"
-  description="Patterns, principles, and reference material for designing reliable systems."
-  icon={<Cpu size={28} />}
-/>
-
-<GridCard
+  className="text-center"
   href="/docs/terraform"
   title="Terraform"
   description="Getting started, state, modules, loops, secrets, testing, and team collaboration."
-  icon={<Globe size={28} />}
+  icon={<Globe size={40} />}
 />
 
 <GridCard
-  href="/docs/runtimes"
-  title="Runtimes"
-  description="Python, Rust, and Node.js / TypeScript — package managers, frameworks, and project patterns."
-  icon={<Code size={28} />}
+  className="text-center"
+  href="/docs/kubernetes"
+  title="Kubernetes"
+  description="Cluster operations, manifests, RBAC, Helm, EKS, node setup, and design patterns."
+  icon={<Network size={40} />}
 />
 
 <GridCard
-  href="/docs/databases"
-  title="Databases"
-  description="PostgreSQL and MongoDB — user management, CRUD, backup/restore, and configuration."
-  icon={<Database size={28} />}
+  className="text-center"
+  href="/docs/rust"
+  title="Rust"
+  description="Ownership, async runtime, concurrency primitives, dynamic dispatch, Axum, WASM, and no_std patterns."
+  icon={<Shield size={40} />}
 />
 
 <GridCard
-  href="/docs/sre"
-  title="SRE &amp; Observability"
-  description="Prometheus, Grafana, Loki, Mimir — architecture tradeoffs and incident management."
-  icon={<Activity size={28} />}
+  className="text-center"
+  href="/docs/python"
+  title="Python"
+  description="Language internals, async patterns, object model, package management, and FastAPI production references."
+  icon={<Code2 size={40} />}
 />
 
 <GridCard
+  className="text-center"
+  href="/docs/typescript"
+  title="TypeScript"
+  description="Compilation model, JavaScript prototype chain, Node.js event loop, Next.js patterns, and tooling."
+  icon={<Braces size={40} />}
+/>
+
+<GridCard
+  className="text-center"
+  href="/docs/docker"
+  title="Docker"
+  description="Container lifecycle, image management, Compose reference, and production project examples."
+  icon={<Container size={40} />}
+/>
+
+<GridCard
+  className="text-center"
+  href="/docs/aws"
+  title="AWS Cloud"
+  description="Identity, networking, operational playbooks, and common architecture patterns for Amazon Web Services."
+  icon={<Cloud size={40} />}
+/>
+
+<GridCard
+  className="text-center"
   href="/docs/gitops"
   title="GitOps"
   description="ArgoCD application management, progressive delivery, and GitOps deployment patterns."
-  icon={<GitBranch size={28} />}
+  icon={<GitBranch size={40} />}
 />
 
 <GridCard
+  className="text-center"
+  href="/docs/databases"
+  title="Databases"
+  description="PostgreSQL and MongoDB — user management, CRUD, backup/restore, and configuration."
+  icon={<Database size={40} />}
+/>
+
+<GridCard
+  className="text-center"
+  href="/docs/sre"
+  title="SRE &amp; Observability"
+  description="Prometheus, Grafana, Loki, Mimir — architecture tradeoffs and incident management."
+  icon={<Activity size={40} />}
+/>
+
+<GridCard
+  className="text-center"
   href="/docs/editors"
   title="Editors"
   description="Vim and VS Code — configuration, keybindings, extensions, and workflow references."
-  icon={<Cog size={28} />}
+  icon={<Cog size={40} />}
 />
 
 <GridCard
+  className="text-center"
+  href="/docs/system-architecture"
+  title="System Architecture"
+  description="Patterns, principles, and reference material for designing reliable systems."
+  icon={<Cpu size={40} />}
+/>
+
+<GridCard
+  className="text-center"
   href="/docs/agentic-engineering"
   title="Agentic Engineering"
   description="OpenCode configuration, Spec Kit workflow, custom agents, and Docker sandboxing."
-  icon={<Bot size={28} />}
+  icon={<Bot size={40} />}
 />
 
 </div>

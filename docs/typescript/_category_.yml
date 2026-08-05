@@ -1,0 +1,7 @@
+position: 6
+label: TypeScript
+link:
+  type: generated-index
+  title: TypeScript
+  description: TypeScript compilation, JavaScript runtime, Node.js event loop, frameworks, and production patterns.
+  slug: typescript

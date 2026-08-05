@@ -1,0 +1,7 @@
+position: 4
+label: Rust
+link:
+  type: generated-index
+  title: Rust
+  description: Rust language internals, async runtime, concurrency primitives, type system, and production tooling references.
+  slug: rust
