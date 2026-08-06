@@ -56,7 +56,7 @@ export default function DocRootLayoutSidebar({
           </button>
         ) : (
           <>
-            <div className="flex-1 min-h-0 max-h-[89vh] overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl -mr-2">
+            <div className="flex-1 min-h-0 max-h-[89vh] overflow-y-auto overflow-x-hidden border-r border-black/5 dark:border-white/[0.04] bg-white/80 dark:bg-surface-0/80 backdrop-blur-md rounded-xl -mr-2 thin-scrollbar">
               <div className="pb-6">
                 <DocSidebarDesktop
                   sidebar={sidebar}

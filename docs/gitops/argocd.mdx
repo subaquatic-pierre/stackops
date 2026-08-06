@@ -182,6 +182,292 @@ spec:
     automated: {}
 ```
 
+## ApplicationSet — multi-app automation
+
+ApplicationSet automates creating and managing multiple Applications from a single template. Instead of manually writing an Application manifest for every environment or cluster, define a generator that produces Applications automatically.
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────┐
+│              ApplicationSet                   │
+│                                                │
+│  ┌──────────┐     ┌──────────────────┐        │
+│  │ Generator│────▶│ Template (app)   │        │
+│  │ (list,   │     │  ↓ ↓ ↓           │        │
+│  │  git,    │     │  Application A   │        │
+│  │  cluster,│     │  Application B   │        │
+│  │  matrix) │     │  Application C   │        │
+│  └──────────┘     └──────────────────┘        │
+└──────────────────────────────────────────────┘
+```
+
+### List generator — per-environment apps
+
+The simplest generator: a static list of values that each produce an Application.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: myapp-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: staging
+            namespace: myapp-staging
+            replicas: "2"
+          - env: production
+            namespace: myapp-prod
+            replicas: "5"
+          - env: eu-west
+            namespace: myapp-eu
+            replicas: "3"
+  template:
+    metadata:
+      name: "myapp-{{env}}"
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/myorg/myapp-deploy
+        targetRevision: main
+        path: "overlays/{{env}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+```
+
+This single 30-line manifest generates 3 Applications (`myapp-staging`, `myapp-production`, `myapp-eu-west`) — one per environment.
+
+### Git generator — discover apps from repo layout
+
+Scan directories or files in a Git repository and generate an Application per match. The most common pattern: a monorepo where each subdirectory is a deployable service.
+
+**Directory-based (one app per subdirectory):**
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-services
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/myorg/infra
+        revision: main
+        directories:
+          - path: apps/*
+  template:
+    metadata:
+      name: "{{path.basename}}"
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/myorg/infra
+        targetRevision: main
+        path: "{{path}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{path.basename}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+```
+
+```
+# Git repo structure this generator matches:
+infra/
+└── apps/
+    ├── backend/      → Application: backend (auto-created)
+    ├── frontend/     → Application: frontend (auto-created)
+    ├── monitoring/   → Application: monitoring (auto-created)
+    └── ingress/      → Application: ingress (auto-created)
+```
+
+Add a new directory under `apps/`, push, and ArgoCD creates the corresponding Application automatically.
+
+**File-based (discover from JSON/YAML files):**
+
+```yaml
+generators:
+  - git:
+      repoURL: https://github.com/myorg/infra
+      revision: main
+      files:
+        - path: "environments/*.json"
+  template:
+    metadata:
+      name: "{{name}}"
+    spec:
+      source:
+        path: "{{path}}"
+      destination:
+        namespace: "{{namespace}}"
+```
+
+```json
+// environments/staging.json
+{
+  "name": "myapp-staging",
+  "path": "overlays/staging",
+  "namespace": "myapp-staging",
+  "replicas": 2
+}
+```
+
+### Cluster generator — deploy to every cluster
+
+When ArgoCD manages multiple clusters, this generator discovers them and creates an Application per cluster.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-bootstrap
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: "bootstrap-{{name}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/myorg/infra
+        targetRevision: main
+        path: bootstrap
+      destination:
+        server: "{{server}}"
+        namespace: argocd
+      syncPolicy:
+        automated: {}
+```
+
+Every cluster registered with ArgoCD automatically gets the `bootstrap-{cluster}` Application — no per-cluster manual configuration needed.
+
+### Matrix generator — combine generators
+
+Cross-product of two generators — e.g., deploy every app to every environment:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: services-per-env
+  namespace: argocd
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - env: staging
+                  namespace: staging
+                - env: production
+                  namespace: prod
+          - git:
+              repoURL: https://github.com/myorg/services
+              revision: main
+              directories:
+                - path: services/*
+  template:
+    metadata:
+      name: "{{path.basename}}-{{env}}"
+    spec:
+      source:
+        repoURL: https://github.com/myorg/services
+        path: "{{path.path}}"
+      destination:
+        namespace: "{{namespace}}"
+```
+
+This generates `N × M` Applications: every service × every environment.
+
+### Generator comparison
+
+| Generator | Source of truth | Best for |
+|---|---|---|
+| **List** | Static YAML list | Fixed set of environments (dev/staging/prod) |
+| **Git — directories** | Git repo structure | Monorepo with one dir per app |
+| **Git — files** | JSON/YAML config files in Git | Declarative per-app config |
+| **Cluster** | ArgoCD cluster secrets | Multi-cluster bootstrap |
+| **Matrix** | Product of two generators | Every app × every env |
+| **Merge** | Merged values from two generators | Override defaults per environment |
+| **SCM Provider** | GitHub/GitLab/Bitbucket API | Per-repo Application generation |
+| **Pull Request** | Open PRs in a repo | Preview environments (PR→temp namespace) |
+
+### PR generator — preview environments
+
+Create temporary Applications for every open pull request:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: preview-envs
+  namespace: argocd
+spec:
+  generators:
+    - pullRequest:
+        github:
+          owner: myorg
+          repo: myapp
+          tokenRef:
+            secretName: github-token
+            key: token
+        requeueAfterSeconds: 300
+  template:
+    metadata:
+      name: "myapp-pr-{{number}}"
+      annotations:
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: "#preview-envs"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/myorg/myapp
+        targetRevision: "{{head_sha}}"
+        path: kubernetes
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "pr-{{number}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+```
+
+Every PR gets its own namespace (`pr-42`) and Application — merge the PR and the preview environment is cleaned up automatically (when the branch is deleted).
+
+```bash
+# Check which preview envs are running
+argocd appset get preview-envs
+
+# Manually trigger regeneration
+argocd appset generate preview-envs
+```
+
 ## Progressive delivery (Argo Rollouts)
 
 Replace standard Deployments with Rollout objects for blue-green and canary deployments:

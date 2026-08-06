@@ -50,7 +50,7 @@ export default function DocItemLayout({
 
       {/* Desktop TOC — hidden below xl breakpoint */}
       {docTOC.desktop && metadata.slug !== "/" && (
-        <aside className="hidden xl:block w-56 flex-shrink-0 sticky top-[68px] max-h-[calc(100vh-68px)] overflow-y-auto">
+        <aside className="hidden xl:block w-56 flex-shrink-0 sticky top-[68px] h-[90vh]">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
             On this page
           </div>

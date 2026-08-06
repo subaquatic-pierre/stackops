@@ -20,6 +20,11 @@
   line-height: 1.5;
 }
 
+.theme-doc-toc-desktop {
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+
 /* Divider between category and subitems */
 .theme-doc-sidebar-item-category > .menu__list {
   border-left: 1px solid rgba(0, 0, 0, 0.06);
@@ -46,7 +51,10 @@
   font-weight: 500;
   line-height: 1.4;
   text-decoration: none;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .theme-doc-footer-tags-row a:hover {
