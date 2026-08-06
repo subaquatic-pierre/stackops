@@ -35,7 +35,7 @@ function DocCategoryGeneratedIndexPageContent({
   const filteredItems = filterDocCardListItems(category.items);
 
   return (
-    <div className="doc-category-index">
+    <div className="doc-category-index max-w-7xl">
       <DocVersionBanner />
       <DocBreadcrumbs />
       <DocVersionBadge />
@@ -63,9 +63,7 @@ function DocCategoryGeneratedIndexPageContent({
   );
 }
 
-export default function DocCategoryGeneratedIndexPage(
-  props: Props,
-): ReactNode {
+export default function DocCategoryGeneratedIndexPage(props: Props): ReactNode {
   return (
     <>
       <DocCategoryGeneratedIndexPageMetadata {...props} />

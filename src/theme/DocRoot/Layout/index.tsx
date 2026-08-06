@@ -13,9 +13,9 @@ export default function DocRootLayout({
   const [hiddenSidebarContainer, setHiddenSidebarContainer] = useState(false);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="container flex flex-col min-h-screen">
       <BackToTopButton />
-      <div className="container flex flex-1 items-start gap-8 lg:gap-12 py-2 lg:py-2">
+      <div className="flex flex-1 items-start gap-8 lg:gap-12 py-2 lg:py-2">
         {sidebar && (
           <DocRootLayoutSidebar
             sidebar={sidebar.items}

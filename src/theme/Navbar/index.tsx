@@ -59,7 +59,7 @@ export default function Navbar() {
   return (
     <>
       <nav className="navbar sticky top-0 z-50 backdrop-blur-md bg-white/70 dark:bg-surface-0/70 border-b border-black/5 dark:border-white/[0.04]">
-        <div className="container max-w-xl flex items-center justify-between">
+        <div className="container flex items-center justify-between">
           {/* Logo area */}
           <div className="flex items-center">
             {isDocsPage ? (

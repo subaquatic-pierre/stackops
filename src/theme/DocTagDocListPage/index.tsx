@@ -35,7 +35,7 @@ function DocTagDocListPageContent({
 }: Props & { title: string }): ReactNode {
   return (
     <HtmlClassNameProvider className={ThemeClassNames.page.docsTagDocListPage}>
-      <div className="container max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-7xl mx-auto px-6 py-12">
         {tag.unlisted && <Unlisted />}
 
         {/* Back link */}

@@ -28,7 +28,7 @@ export default function BlogLayout(props: Props): ReactNode {
             {toc && <div className="col col--2">{toc}</div>}
           </div>
         ) : (
-          <main className="max-w-4xl mx-auto px-4">{children}</main>
+          <main className="max-w-7xl mx-auto px-4">{children}</main>
         )}
       </div>
     </Layout>
