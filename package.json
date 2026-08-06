@@ -1,6 +1,6 @@
 {
-  "name": "stack-garden",
-  "version": "0.0.1",
+  "name": "stackops",
+  "version": "0.1.16",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — Build the Docusaurus site and push a tag to trigger
-# GitHub Actions deployment to GitHub Pages.
+# deploy.sh — Build the Docusaurus site and deploy directly to GitHub Pages
+# by force-pushing the build output to the gh-pages branch.
 #
 # Usage:
 #   ./scripts/deploy.sh               # auto-increment patch version
 #   ./scripts/deploy.sh minor         # bump minor version
 #   ./scripts/deploy.sh major         # bump major version
-#   ./scripts/deploy.sh v1.2.3          # use an explicit version tag
+#   ./scripts/deploy.sh 1.2.3         # use an explicit version tag
 #
-# The GitHub Actions workflow at .github/workflows/deploy.yml listens
-# for tag pushes and handles the actual GitHub Pages deployment.
+# The script builds the site, then pushes the contents of build/ directly
+# to the gh-pages branch — no GitHub Actions / CI pipeline required.
 
 set -euo pipefail
 
@@ -34,7 +34,7 @@ command -v node >/dev/null 2>&1 || err "Node.js is required but not found."
 command -v npm  >/dev/null 2>&1 || err "npm is required but not found."
 command -v git  >/dev/null 2>&1 || err "git is required but not found."
 
-# Ensure we have a clean working tree (stash-check only — don't actually stash).
+# Ensure we have a clean working tree.
 if ! git diff-index --quiet HEAD --; then
   warn "Working tree is dirty. Commit or stash changes before deploying."
   exit 1
@@ -49,7 +49,7 @@ log "Current branch: ${CURRENT_BRANCH}"
 # ── determine tag ─────────────────────────────────────────────────────
 
 latest_tag() {
-  git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"
+  git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0"
 }
 
 LATEST="$(latest_tag)"
@@ -69,19 +69,16 @@ TAG=""
 
 if [ $# -eq 0 ]; then
   # Default: bump patch version.
-  # Strip a leading 'v' from the latest tag so we can parse semver.
   BASE="${LATEST#v}"
   MAJOR="${BASE%%.*}"
   REST="${BASE#*.}"
   MINOR="${REST%%.*}"
   PATCH="${REST#*.}"
   NEW_PATCH=$((PATCH + 1))
-  TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+  TAG="${MAJOR}.${MINOR}.${NEW_PATCH}"
 elif [ $# -eq 1 ]; then
   case "$1" in
     major|minor|patch)
-      # Let npm bump the version in package.json and return the new version.
-      # (This also updates package-lock.json.)
       NEW_VERSION="$(npm version "$1" --no-git-tag-version)"
       TAG="${NEW_VERSION}"
       log "Bumped package.json version to ${NEW_VERSION}"
@@ -119,7 +116,7 @@ npm run build
 
 log "Build completed successfully."
 
-# ── tag & push ────────────────────────────────────────────────────────
+# ── tag source branch ─────────────────────────────────────────────────
 
 log "Creating tag ${TAG}..."
 git tag -a "${TAG}" -m "deploy: ${TAG}" 2>/dev/null || {
@@ -137,6 +134,26 @@ if ! git diff --quiet package.json package-lock.json; then
   git push origin "${CURRENT_BRANCH}"
 fi
 
-echo ""
-log "Tag ${TAG} pushed. GitHub Actions will handle the deployment."
-log "Monitor progress at: https://github.com/subaquatic-pierre/stackops/actions"
+# ── deploy to gh-pages ────────────────────────────────────────────────
+
+log "Deploying build output to gh-pages branch..."
+
+TMP_DIR="$(mktemp -d)"
+trap "rm -rf '${TMP_DIR}'" EXIT
+
+cp -a build/. "${TMP_DIR}/"
+
+cd "${TMP_DIR}"
+git init -q
+git checkout -B gh-pages
+git add -A
+git commit -m "deploy: ${TAG} [skip ci]" --allow-empty
+
+# Force-push the build artifacts to the gh-pages branch.
+GIT_REMOTE="$(git -C "${ROOT_DIR}" remote get-url origin)"
+git push -f "${GIT_REMOTE}" gh-pages
+
+cd "${ROOT_DIR}"
+
+log "Deployed to gh-pages branch successfully."
+log "Site will be live shortly at: https://stackops.link"
