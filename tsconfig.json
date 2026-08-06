@@ -12,5 +12,5 @@
       "@site/src/*": ["./src/*"]
     }
   },
-  "exclude": [".docusaurus", "build"]
+  "exclude": [".docusaurus", "build", "references"]
 }
