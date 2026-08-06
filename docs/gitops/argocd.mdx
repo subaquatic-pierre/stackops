@@ -288,7 +288,475 @@ git push origin main
 # ArgoCD automatically detects the change and syncs within 3 minutes (default polling)
 ```
 
+## Notifications
+
+ArgoCD Notifications sends alerts on sync status, health changes, and deployment events to Slack, email, webhooks, and more.
+
+### Architecture
+
+```
+Application sync/health change
+        │
+        ▼
+┌──────────────────┐     ┌──────────────┐
+│ ArgoCD           │────▶│ Notifications│────▶ Slack
+│ (emits events)   │     │ Controller   │────▶ Email
+└──────────────────┘     │ (triggers +  │────▶ Webhook
+                         │  templates)  │────▶ Grafana
+                         └──────────────┘
+```
+
+### Setup
+
+```bash
+# Install notifications controller
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj-labs/argocd-notifications/stable/manifests/install.yaml
+
+# Install triggers and templates
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj-labs/argocd-notifications/stable/catalog/install.yaml
+```
+
+### Slack notifications
+
+```yaml
+# argocd-notifications-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd
+stringData:
+  slack-token: xoxb-your-slack-bot-token
+```
+
+```yaml
+# argocd-notifications-cm.yaml — triggers and templates
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  # Trigger: when to send a notification
+  trigger.on-sync-succeeded: |
+    - description: Application synced successfully
+      send:
+        - app-sync-succeeded
+      when: app.status.operationState.phase == 'Succeeded'
+  trigger.on-sync-failed: |
+    - description: Application sync failed
+      send:
+        - app-sync-failed
+      when: app.status.operationState.phase == 'Failed'
+  trigger.on-deployed: |
+    - description: Application is synced and healthy
+      send:
+        - app-deployed
+      when: app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
+  trigger.on-health-degraded: |
+    - description: Application health degraded
+      send:
+        - app-health-degraded
+      when: app.status.health.status == 'Degraded'
+
+  # Template: what to send
+  template.app-sync-succeeded: |
+    message: |
+      ✅ {{.app.metadata.name}} synced successfully to {{.app.spec.destination.namespace}}.
+      Revision: {{.app.status.sync.revision}}
+      {{.app.status.operationState.syncResult.revision}}
+    slack:
+      attachments: |
+        [{
+          "color": "#36a64f",
+          "title": "{{.app.metadata.name}}",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "fields": [
+            {"title": "Sync Status", "value": "{{.app.status.sync.status}}"},
+            {"title": "Repository", "value": "{{.app.spec.source.repoURL}}"}
+          ]
+        }]
+
+  template.app-sync-failed: |
+    message: |
+      ❌ {{.app.metadata.name}} sync FAILED.
+      {{range .app.status.conditions}}
+        {{.message}}
+      {{end}}
+    slack:
+      attachments: |
+        [{
+          "color": "#ff0000",
+          "title": "{{.app.metadata.name}}",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+        }]
+
+  # Subscription: which app gets which triggers — annotate the app
+  # metadata.annotations:
+  #   notifications.argoproj.io/subscribe.on-sync-succeeded.slack: my-channel
+```
+
+Apply subscription via application annotation:
+
+```yaml
+# In the Application manifest
+metadata:
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: "#deployments"
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: "#alerts"
+    notifications.argoproj.io/subscribe.on-deployed.slack: "#deployments"
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: "#alerts"
+```
+
+## RBAC — Access Control
+
+ArgoCD's built-in RBAC controls who can do what with which applications. Policies are defined in the `argocd-rbac-cm` ConfigMap.
+
+### Policy structure
+
+```
+p, <subject>, <resource>, <action>, <object>, <permission>
+```
+
+### Common patterns
+
+```yaml
+# argocd-rbac-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  # Default policy (applied when no specific rule matches)
+  policy.default: role:readonly
+
+  # CSV policy format
+  policy.csv: |
+    # Grant admin role to specific users
+    g, admin, role:admin
+
+    # Team-based roles via OIDC groups
+    g, platform-team, role:admin
+    g, backend-team, role:admin
+
+    # Role definitions: what each role can do
+    p, role:admin, *, *, *, allow
+    p, role:readonly, *, get, *, allow
+    p, role:readonly, *, sync, *, deny
+
+    # Application-level permissions
+    p, backend-team, applications, sync, backend/*, allow
+    p, backend-team, applications, get, backend/*, allow
+    p, backend-team, applications, delete, backend/*, deny
+
+    # Project-level permissions
+    p, frontend-team, applications, *, frontend/*, allow
+    p, frontend-team, projects, get, frontend, allow
+```
+
+### Built-in roles
+
+| Role | Permissions |
+|---|---|
+| `role:admin` | Full access to all resources |
+| `role:readonly` | View only, no changes allowed |
+
+## SSO — OIDC Authentication
+
+Integrate ArgoCD with your identity provider (Okta, Auth0, Google, Azure AD, Keycloak) so users log in with existing credentials and groups.
+
+### OIDC configuration
+
+```yaml
+# argocd-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  url: https://argocd.example.com
+  oidc.config: |
+    name: Okta
+    issuer: https://dev-123456.okta.com
+    clientID: 0oa1abc2def3ghi4jk5
+    clientSecret: $oidc.okta.clientSecret
+    requestedScopes:
+      - openid
+      - profile
+      - email
+      - groups
+    requestedIDTokenClaims:
+      groups:
+        essential: true
+
+  # Map OIDC groups to ArgoCD roles (requires RBAC above)
+  # In argocd-rbac-cm:
+  #   g, platform-team, role:admin
+```
+
+```bash
+# Create the client secret
+kubectl create secret generic argocd-oidc-secret \
+  -n argocd \
+  --from-literal=okta.clientSecret=<your-client-secret>
+```
+
+### Dex (bundled OIDC proxy)
+
+ArgoCD includes Dex for when your provider doesn't support OIDC directly. Dex translates LDAP, SAML, GitHub, and other protocols to OIDC.
+
+```yaml
+# argocd-cm.yaml — Dex with GitHub OAuth
+data:
+  dex.config: |
+    connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          clientID: $dex.github.clientID
+          clientSecret: $dex.github.clientSecret
+          orgs:
+            - name: myorg
+              teams:
+                - platform-team
+                - backend-team
+```
+
+## ArgoCD Image Updater
+
+Automatically updates container images in Git when new versions are pushed to a registry. No CI pipeline needed for image tag updates.
+
+```bash
+# Install Image Updater
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml
+```
+
+### Application annotation
+
+```yaml
+# Annotate your Application to enable auto-updates
+metadata:
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: myapp=myorg/myapp
+    argocd-image-updater.argoproj.io/myapp.update-strategy: semver
+    argocd-image-updater.argoproj.io/myapp.allow-tags: regexp:^v?[0-9]+\.[0-9]+\.[0-9]+$
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
+
+    # Optional: only update to patch versions (no minors)
+    # argocd-image-updater.argoproj.io/myapp.update-strategy: latest
+    # argocd-image-updater.argoproj.io/myapp.ignore-tags: "*rc*,*alpha*,*beta*"
+```
+
+### Update strategies
+
+| Strategy | Behavior | Example |
+|---|---|---|
+| `semver` | Follows semantic versioning | v1.2.3 → v1.2.4, NOT v1.3.0 |
+| `latest` | Always update to newest tag | Uses creation timestamp |
+| `name` | Alphabetically newest tag | Uses tag name sorting |
+| `digest` | Pinned to a specific SHA digest | Immutable pinning |
+
+### Registry credentials
+
+```yaml
+# argocd-image-updater pulls from private registries
+# Create a secret per registry
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dockerhub-creds
+  namespace: argocd
+  labels:
+    argocd-image-updater.argoproj.io/image-list: myorg/myapp
+stringData:
+  # Format: <registry>:<username>:<password>
+  registries: |
+    - "https://index.docker.io/v1/:myuser:mypassword"
+```
+
+## Argo Workflows
+
+Argo Workflows is a Kubernetes-native workflow engine for running complex jobs — CI pipelines, data processing, ML training, and infrastructure automation.
+
+### Core concepts
+
+| Concept | Description |
+|---|---|
+| **Workflow** | A DAG (directed acyclic graph) of steps |
+| **Template** | Reusable step definition (container, script, resource) |
+| **Step** | A single unit of work in a workflow |
+| **Artifact** | Files passed between steps (S3, GCS, volumes) |
+| **Parameter** | Inputs/outputs passed between steps |
+
+### Hello World workflow
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-world-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      steps:
+        - - name: hello
+            template: greet
+            arguments:
+              parameters:
+                - name: message
+                  value: "Hello from Argo Workflows!"
+
+    - name: greet
+      inputs:
+        parameters:
+          - name: message
+      container:
+        image: alpine:latest
+        command: [echo]
+        args: ["{{inputs.parameters.message}}"]
+```
+
+```bash
+# Submit a workflow
+argo submit hello-world.yaml
+
+# List workflows
+argo list
+
+# Watch logs
+argo logs @latest
+
+# Get workflow status
+argo get @latest
+```
+
+### DAG workflow (parallel steps)
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ci-pipeline-
+spec:
+  entrypoint: ci
+  templates:
+    - name: ci
+      dag:
+        tasks:
+          - name: lint
+            template: run-lint
+          - name: test
+            template: run-test
+            dependencies: [lint]
+          - name: build-backend
+            template: docker-build
+            arguments:
+              parameters:
+                - name: service
+                  value: backend
+            dependencies: [test]
+          - name: build-frontend
+            template: docker-build
+            arguments:
+              parameters:
+                - name: service
+                  value: frontend
+            dependencies: [test]
+          - name: deploy
+            template: argocd-sync
+            dependencies: [build-backend, build-frontend]
+
+    - name: run-lint
+      container:
+        image: node:22
+        command: [npm]
+        args: [run, lint]
+
+    - name: run-test
+      container:
+        image: node:22
+        command: [npm]
+        args: [test]
+
+    - name: docker-build
+      inputs:
+        parameters:
+          - name: service
+      container:
+        image: docker:latest
+        command: [docker]
+        args: [build, -t, "{{inputs.parameters.service}}:latest", "."]
+
+    - name: argocd-sync
+      container:
+        image: argoproj/argocd:latest
+        command: [argocd]
+        args: [app, sync, my-app, --insecure, --grpc-web]
+```
+
+### Argo Events — event-driven triggers
+
+```
+GitHub push → Webhook → EventSource → Sensor → Argo Workflow / ArgoCD Sync
+```
+
+```yaml
+# EventSource: listens for GitHub webhooks
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: github
+spec:
+  github:
+    push:
+      repository: myorg/myapp
+      events:
+        - push
+      webhook:
+        endpoint: /push
+        port: "12000"
+        method: POST
+        url: https://events.example.com
+
+---
+# Sensor: triggers a workflow on push event
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: github-push
+spec:
+  dependencies:
+    - name: push
+      eventSourceName: github
+      eventName: push
+  triggers:
+    - template:
+        name: argo-workflow
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: ci-pipeline-
+              spec:
+                entrypoint: ci
+                templates:
+                  - name: ci
+                    container:
+                      image: alpine
+                      command: [echo]
+                      args: ["Build triggered by push"]
+```
+
 ## See also
 
 - [Helm Reference](../kubernetes/helm.mdx) — package management for Kubernetes
-- [Observability](../sre/observability.mdx) — Prometheus, Grafana, Loki, Mimir
+- [Observability Stack](../sre/observability.mdx) — Prometheus, Grafana, Loki, Tempo, Mimir
+- [OpenTelemetry](../sre/opentelemetry.mdx) — instrumentation and collection

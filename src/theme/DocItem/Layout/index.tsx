@@ -30,7 +30,6 @@ export default function DocItemLayout({
   children: React.ReactNode;
 }): React.ReactElement {
   const { metadata } = useDoc();
-  console.log(metadata);
   const docTOC = useDocTOC();
 
   return (

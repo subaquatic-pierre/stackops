@@ -3,10 +3,12 @@
  */
 import React from "react";
 import Link from "@docusaurus/Link";
-import { BookOpen, FolderGit2, X } from "lucide-react";
+import { BookOpen, FolderGit2, HomeIcon, X } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import { Button } from "@site/src/components/ui/button";
 import { mobileLinkClass } from "./linkStyles";
+import NavbarSearch from "./Search";
+import { useLocation } from "@docusaurus/router";
 
 interface MobileNavPanelProps {
   isOpen: boolean;
@@ -21,6 +23,9 @@ export default function MobileNavPanel({
   isDocsPage,
   isJournalPage,
 }: MobileNavPanelProps) {
+  const location = useLocation();
+  const isHomePage = location.pathname === "/";
+
   return (
     <>
       {/* Backdrop */}
@@ -51,6 +56,11 @@ export default function MobileNavPanel({
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 px-5 py-4">
+          <NavbarSearch className="w-full">{undefined}</NavbarSearch>
+          <Link to="/" className={mobileLinkClass(isHomePage)}>
+            <HomeIcon className="w-4 h-4" />
+            <span>Home</span>
+          </Link>
           <Link to="/docs/" className={mobileLinkClass(isDocsPage)}>
             <BookOpen className="w-4 h-4" />
             <span>Technical Reference</span>
@@ -68,6 +78,7 @@ export default function MobileNavPanel({
             <SiGithub className="w-4 h-4" />
             <span>GitHub</span>
           </Link>
+
           <div className="mt-auto pt-4 border-t border-black/5 dark:border-white/[0.06]">
             <span className="text-xs text-slate-400">
               Sidebar — toggle document categories via the logo

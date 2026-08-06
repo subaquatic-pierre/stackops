@@ -186,6 +186,298 @@ Mimir is a horizontally scalable, highly available, long-term storage backend fo
 | **Compactor** | Merges and deduplicates blocks in object storage |
 | **Ruler** | Evaluates recording and alerting rules |
 
+## OpenTelemetry
+
+OpenTelemetry (OTel) is the CNCF standard for generating, collecting, and exporting telemetry data. It unifies traces, metrics, and logs into a single framework, replacing vendor-specific agents with a vendor-neutral pipeline.
+
+### Architecture
+
+```
+┌───────────────────────────────────────────────────────┐
+│  Application                                           │
+│  ┌─────────┐  ┌──────────┐  ┌────────────┐            │
+│  │  Traces  │  │  Metrics │  │    Logs     │            │
+│  │  (SDK)   │  │  (SDK)   │  │  (SDK/Bridge)│           │
+│  └────┬─────┘  └────┬─────┘  └─────┬──────┘            │
+│       └──────────────┼─────────────┘                   │
+│                      ▼                                 │
+│            ┌─────────────────┐                         │
+│            │ OTel Collector  │  (agent/sidecar/gateway)│
+│            │  - Receivers    │                         │
+│            │  - Processors   │                         │
+│            │  - Exporters    │                         │
+│            └───────┬─────────┘                         │
+└────────────────────┼───────────────────────────────────┘
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+    ┌─────────┐ ┌───────┐ ┌─────────┐
+    │  Tempo  │ │ Mimir │ │  Loki   │
+    │ (traces)│ │(metrics)│ │ (logs) │
+    └─────────┘ └───────┘ └─────────┘
+```
+
+### Collector configuration
+
+The collector runs as a DaemonSet (agent) or Deployment (gateway) and routes telemetry to backends:
+
+```yaml
+# otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  prometheusremotewrite/mimir:
+    endpoint: http://mimir:9009/api/v1/push
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite/mimir]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [loki]
+```
+
+### Auto-instrumentation (Node.js)
+
+```bash
+# No code changes — just require the module at startup
+node --require @opentelemetry/auto-instrumentations-node app.js
+```
+
+```javascript
+// tracing.js — minimal manual setup
+const { NodeSDK } = require("@opentelemetry/sdk-node");
+const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-grpc");
+
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter({ url: "http://localhost:4317" }),
+});
+sdk.start();
+```
+
+## Tempo — Distributed Tracing
+
+Tempo is Grafana's distributed tracing backend. Unlike Jaeger or Zipkin, Tempo is designed to be cost-effective at scale by separating search from storage — it only indexes trace IDs and service names, keeping trace data in cheap object storage.
+
+### When to use Tempo
+
+| Need | Tempo | Jaeger |
+|---|---|---|
+| Massive trace volumes (billions/day) | ✓ (S3-backed) | Limited by Cassandra/ES |
+| Full-text search on spans | ✗ (use Loki for logs) | ✓ (Elasticsearch) |
+| Tight Grafana integration (TraceQL, Exemplars) | ✓ | Partial |
+| Simple single-binary deployment | ✓ (monolithic mode) | ✓ |
+
+### TraceQL quick reference
+
+```traceql
+# Find traces where a service errored
+{ .http.status_code >= 500 }
+
+# Find slow traces
+{ duration > 3s }
+
+# Trace with specific attribute
+{ resource.service.name = "checkout" && .http.method = "POST" }
+
+# Aggregate: count of spans by service
+{ } | count() by resource.service.name
+
+# Histogram of span durations
+{ } | histogram(duration) by name
+```
+
+### Tempo deployment modes
+
+| Mode | Description | When |
+|---|---|---|
+| **Monolithic** | Single binary, local storage | Dev, small-scale (< 10M spans/day) |
+| **Scalable monolithic** | Single binary, S3 backend | Medium scale, simpler than microservices |
+| **Microservices** | Separate scaling per component | Large scale (> 100M spans/day) |
+
+```bash
+# Start Tempo in monolithic mode with S3 backend
+docker run -d --name tempo \
+  -p 3200:3200 \
+  -v ./tempo.yaml:/etc/tempo.yaml \
+  grafana/tempo:latest -config.file=/etc/tempo.yaml
+```
+
+### Tempo + Loki + Grafana integration
+
+Grafana auto-correlates traces with logs when both are configured as data sources. Add a `traceID` to your structured logs and Grafana shows a "Tempo" button next to log lines — click it to see the full trace for that request.
+
+## Grafana Alloy
+
+Alloy is Grafana's unified agent — the successor to Promtail, Grafana Agent, and the OpenTelemetry Collector. It collects logs, metrics, and traces using a single binary and pipeline-based configuration language.
+
+### Replacing Promtail with Alloy
+
+```hcl
+# alloy-config.alloy — replaces promtail-config.yaml
+logging {
+  level = "info"
+}
+
+loki.source.file varlogs {
+  targets = [
+    { __path__ = "/var/log/*.log", job = "varlogs" },
+    { __path__ = "/var/log/nginx/*.log", job = "nginx" },
+  ]
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.source.docker containers {
+  host = "unix:///var/run/docker.sock"
+  labels = {
+    job = "docker",
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write default {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
+
+### Alloy + OpenTelemetry (metrics + traces)
+
+```hcl
+// otelcol.receiver.otlp receives OTLP data from instrumented apps
+otelcol.receiver.otlp default {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch default {
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+    traces  = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.prometheus default {
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write mimir {
+  endpoint {
+    url = "http://mimir:9009/api/v1/push"
+  }
+}
+
+otelcol.exporter.otlp tempo {
+  client {
+    endpoint = "tempo:4317"
+    tls { insecure = true }
+  }
+}
+```
+
+## End-to-end deployment (docker-compose)
+
+A complete observability stack in a single `docker-compose.yml` — suitable for development and small production environments:
+
+```yaml
+# docker-compose.yml — full LGTM stack (Loki, Grafana, Tempo, Mimir) + Alloy
+version: "3.8"
+
+services:
+  # ── Metrics ──────────────────────────────────────────
+  mimir:
+    image: grafana/mimir:latest
+    command: ["-ingester.ring.replication-factor=1", "-target=all", "-config.file=/etc/mimir.yaml"]
+    ports: ["9009:9009"]
+    volumes:
+      - ./mimir.yaml:/etc/mimir.yaml
+      - mimir-data:/data
+
+  # ── Logs ─────────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    ports: ["3100:3100"]
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # ── Traces ───────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    ports: ["3200:3200", "4317:4317"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - tempo-data:/var/tempo
+
+  # ── Agent (logs + traces collection) ─────────────────
+  alloy:
+    image: grafana/alloy:latest
+    ports: ["12345:12345"]
+    volumes:
+      - ./alloy-config.alloy:/etc/alloy/config.alloy
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ── Visualization ────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_INSTALL_PLUGINS: grafana-lokiexplore-app
+    volumes:
+      - ./datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  mimir-data:
+  tempo-data:
+  grafana-data:
+```
+
+```bash
+# Start the full stack
+docker compose up -d
+
+# Verify all components
+curl http://localhost:3000       # Grafana UI
+curl http://localhost:3100/ready # Loki
+curl http://localhost:3200/ready # Tempo
+curl http://localhost:9009/ready # Mimir
+```
+
 ## Architecture tradeoffs
 
 ### Monolithic deployment
@@ -332,5 +624,7 @@ receivers:
 
 ## See also
 
+- [OpenTelemetry](./opentelemetry.mdx) — instrumentation and collector configuration
+- [SRE Architecture](./architecture.mdx) — deployment patterns and SLOs
 - [GitOps with ArgoCD](../gitops/argocd.mdx) — continuous deployment patterns
 - [AWS VPC Architecture Overview](../aws/vpc-architecture-overview.mdx) — network architecture

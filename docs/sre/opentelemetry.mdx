@@ -1,0 +1,367 @@
+---
+sidebar_position: 3
+title: 'OpenTelemetry — Instrumentation & Collection'
+description: 'OpenTelemetry reference: SDK setup, collector architecture, auto-instrumentation patterns, sampling strategies, and integration with the Grafana LGTM stack.'
+tags: [sre, observability, opentelemetry, tracing, metrics, logs, reference]
+last_updated: '2026-08-06'
+---
+
+# OpenTelemetry — Instrumentation & Collection
+
+## Overview
+
+OpenTelemetry (OTel) is the CNCF standard for telemetry data — traces, metrics, and logs. It provides vendor-neutral SDKs, a collector, and auto-instrumentation for most languages, so you instrument once and export to any backend (Tempo, Mimir, Loki, Jaeger, Datadog, etc.).
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│                   Application                         │
+│  ┌──────────┐  ┌───────────┐  ┌──────────────┐       │
+│  │  Traces  │  │  Metrics  │  │    Logs       │       │
+│  │  (SDK)   │  │   (SDK)   │  │  (SDK/Bridge) │       │
+│  └────┬─────┘  └─────┬─────┘  └──────┬───────┘       │
+│       └──────────────┼───────────────┘               │
+│                      ▼                               │
+│            ┌─────────────────┐                       │
+│            │ OTel Collector  │  Deployment modes:    │
+│            │  - Receivers    │  • Agent (DaemonSet)  │
+│            │  - Processors   │  • Gateway (Deploy)   │
+│            │  - Exporters    │  • Sidecar (per-pod)  │
+│            │  - Connectors   │                       │
+│            └───────┬─────────┘                       │
+└────────────────────┼─────────────────────────────────┘
+                     │
+          ┌──────────┼──────────┬──────────┐
+          ▼          ▼          ▼          ▼
+    ┌─────────┐ ┌───────┐ ┌─────────┐ ┌────────┐
+    │  Tempo  │ │ Mimir │ │  Loki   │ │ Jaeger │
+    │ (traces)│ │(mtrcs)│ │ (logs)  │ │ (legacy)│
+    └─────────┘ └───────┘ └─────────┘ └────────┘
+```
+
+## Signals: traces, metrics, logs
+
+| Signal | Purpose | OTel term | Export format |
+|---|---|---|---|
+| **Traces** | End-to-end request flow across services | Spans, SpanContext | OTLP |
+| **Metrics** | Numerical measurements over time | Instruments (Counter, Histogram, Gauge) | OTLP, Prometheus |
+| **Logs** | Structured event records | LogRecords | OTLP |
+
+### Context propagation
+
+Traces flow across services via HTTP headers:
+
+```
+Client → Service A → Service B → Service C
+  │         │           │           │
+  └─ traceparent: 00-<trace-id>-<span-id>-01 ─────────┘
+     (W3C Trace Context header propagated at every hop)
+```
+
+```http
+# W3C Trace Context (automatic with OTel SDK)
+traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+```
+
+## Auto-instrumentation
+
+The fastest way to get telemetry — zero or minimal code changes.
+
+### Node.js
+
+```bash
+# Zero-code: load auto-instrumentation at startup
+npm install @opentelemetry/api \
+  @opentelemetry/auto-instrumentations-node \
+  @opentelemetry/sdk-node \
+  @opentelemetry/exporter-trace-otlp-grpc
+
+node --require @opentelemetry/auto-instrumentations-node server.js
+```
+
+```javascript
+// tracing.js — explicit SDK configuration (more control)
+const { NodeSDK } = require("@opentelemetry/sdk-node");
+const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-grpc");
+const { OTLPMetricExporter } = require("@opentelemetry/exporter-metrics-otlp-grpc");
+const { BatchSpanProcessor } = require("@opentelemetry/sdk-trace-base");
+const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
+const { Resource } = require("@opentelemetry/resources");
+
+const sdk = new NodeSDK({
+  resource: new Resource({
+    "service.name": "checkout-service",
+    "service.version": "2.1.0",
+    "deployment.environment": "production",
+  }),
+  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter({
+    url: "http://collector:4317",
+  }))],
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({ url: "http://collector:4317" }),
+    exportIntervalMillis: 15000,
+  }),
+});
+
+sdk.start();
+// The SDK auto-instruments: HTTP frameworks, gRPC, databases, message queues, etc.
+```
+
+### Python
+
+```bash
+pip install opentelemetry-distro opentelemetry-exporter-otlp
+opentelemetry-bootstrap -a install
+```
+
+```python
+# app.py — SDK configuration
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+resource = Resource(attributes={"service.name": "checkout-service"})
+provider = TracerProvider(resource=resource)
+provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter(endpoint="http://collector:4317"))
+)
+trace.set_tracer_provider(provider)
+
+# Start with auto-instrumentation
+# opentelemetry-instrument python app.py
+```
+
+### Go
+
+```go
+// main.go
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    "go.opentelemetry.io/otel/sdk/resource"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
+)
+
+func initTracer() (*sdktrace.TracerProvider, error) {
+    exporter, err := otlptracegrpc.New(
+        context.Background(),
+        otlptracegrpc.WithEndpoint("collector:4317"),
+        otlptracegrpc.WithInsecure(),
+    )
+    if err != nil {
+        return nil, err
+    }
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithBatcher(exporter),
+        sdktrace.WithResource(resource.NewWithAttributes(
+            semconv.ServiceNameKey.String("checkout-service"),
+        )),
+    )
+    otel.SetTracerProvider(tp)
+    return tp, nil
+}
+```
+
+### Java
+
+```bash
+# Download the Java agent JAR (single file, no code changes)
+wget https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+
+# Run your app with the agent
+java -javaagent:opentelemetry-javaagent.jar \
+  -Dotel.service.name=checkout-service \
+  -Dotel.traces.exporter=otlp \
+  -Dotel.exporter.otlp.endpoint=http://collector:4317 \
+  -jar myapp.jar
+```
+
+## Collector deployment patterns
+
+### Agent mode (DaemonSet)
+
+One collector per node — receives telemetry from local workloads and forwards to backends. Lowest latency, simplest networking.
+
+```yaml
+# Kubernetes DaemonSet example
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector-agent
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector-agent
+  template:
+    metadata:
+      labels:
+        app: otel-collector-agent
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:latest
+          args: ["--config=/etc/otel/config.yaml"]
+          ports:
+            - containerPort: 4317  # OTLP gRPC
+            - containerPort: 4318  # OTLP HTTP
+            - containerPort: 8888  # Metrics (internal)
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+```
+
+### Gateway mode (Deployment)
+
+A centralized collector cluster that receives from agents, processes in bulk, and exports to backends. Use when you need tail sampling, attribute redaction, or multi-tenant routing.
+
+```yaml
+# Gateway collector pipeline — tail sampling
+processors:
+  tail_sampling:
+    decision_wait: 10s
+    policies:
+      - name: errors-only
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: latency
+        type: latency
+        latency: { threshold_ms: 500 }
+      - name: probabilistic
+        type: probabilistic
+        probabilistic: { sampling_percentage: 10 }
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [tail_sampling, batch]
+      exporters: [otlp/tempo]
+```
+
+## Manual instrumentation patterns
+
+When auto-instrumentation isn't enough, add custom spans:
+
+```javascript
+// Node.js — custom span with attributes and events
+const { trace } = require("@opentelemetry/api");
+const tracer = trace.getTracer("checkout-service");
+
+async function processOrder(orderId) {
+  return tracer.startActiveSpan("process-order", async (span) => {
+    span.setAttribute("order.id", orderId);
+    span.setAttribute("order.items", 3);
+
+    try {
+      const result = await chargePayment(orderId);
+      span.addEvent("payment-charged", { amount: result.amount });
+      span.setStatus({ code: trace.SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.recordException(err);
+      span.setStatus({ code: trace.SpanStatusCode.ERROR, message: err.message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+```python
+# Python — custom span with context manager
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+with tracer.start_as_current_span("process-order") as span:
+    span.set_attribute("order.id", order_id)
+    span.set_attribute("order.items", 3)
+    try:
+        result = charge_payment(order_id)
+        span.set_status(trace.Status(trace.StatusCode.OK))
+    except Exception as e:
+        span.record_exception(e)
+        span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+        raise
+```
+
+```go
+// Go — manual span
+ctx, span := tracer.Start(ctx, "process-order")
+defer span.End()
+
+span.SetAttributes(
+    attribute.String("order.id", orderID),
+    attribute.Int("order.items", 3),
+)
+
+result, err := chargePayment(ctx, orderID)
+if err != nil {
+    span.RecordError(err)
+    span.SetStatus(codes.Error, err.Error())
+    return err
+}
+span.SetStatus(codes.Ok, "")
+```
+
+## Sampling strategies
+
+| Strategy | Description | Use case |
+|---|---|---|
+| **Always on** | Sample 100% of traces | Dev, low-traffic services |
+| **Always off** | Sample nothing | Performance testing |
+| **Probabilistic** | Sample a fixed percentage (e.g., 10%) | High-traffic production |
+| **Tail-based** | Decide after the trace completes (in collector) | Keep all errors + slow traces |
+| **Parent-based** | Respect parent's sampling decision | Ensures complete traces |
+
+```yaml
+# Head sampling in SDK config (fraction-based)
+export OTEL_TRACES_SAMPLER=traceidratio
+export OTEL_TRACES_SAMPLER_ARG=0.1  # 10%
+
+# Per-service override via OTEL_RESOURCE_ATTRIBUTES
+export OTEL_RESOURCE_ATTRIBUTES=service.name=checkout-service
+```
+
+## Metrics with OpenTelemetry
+
+```javascript
+// Creating and recording metrics
+const { metrics } = require("@opentelemetry/api");
+const meter = metrics.getMeter("checkout-service");
+
+// Counter: only increases (request count, errors)
+const orderCounter = meter.createCounter("orders.total", {
+  description: "Total number of orders processed",
+});
+orderCounter.add(1, { status: "success" });
+
+// Histogram: distribution of values (latency, sizes)
+const orderDuration = meter.createHistogram("orders.duration", {
+  description: "Order processing duration in ms",
+  unit: "ms",
+});
+orderDuration.record(elapsed, { payment_method: "card" });
+
+// UpDownCounter: can increase or decrease (active connections)
+const activeOrders = meter.createUpDownCounter("orders.active", {
+  description: "Orders currently being processed",
+});
+activeOrders.add(1);   // order started
+activeOrders.add(-1);  // order completed
+```
+
+## See also
+
+- [Observability Stack](./observability.mdx) — Prometheus, Grafana, Loki, Mimir, Tempo, Alloy
+- [SRE Architecture](./architecture.mdx) — deployment patterns and SLOs
+- [GitOps with ArgoCD](../gitops/argocd.mdx) — continuous deployment
