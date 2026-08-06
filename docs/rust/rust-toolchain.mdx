@@ -1,0 +1,392 @@
+---
+sidebar_position: 5
+title: 'Rust Toolchain'
+description: 'Complete guide to managing the Rust toolchain: installation with rustup, channel switching, cross-compilation targets, components, per-project pinning, and nightly features.'
+tags: [rust, toolchain, rustup, cargo, cross-compilation, nightly, reference]
+last_updated: '2026-08-06'
+---
+
+# Rust Toolchain
+
+## Overview
+
+`rustup` is the official Rust toolchain manager. It handles installation, updates, channel selection (stable / beta / nightly), cross-compilation targets, and tooling components. Every Rust developer should be comfortable with `rustup` — it is the single entry point for everything beyond `cargo`.
+
+## Installation
+
+### Linux / macOS / WSL
+
+The recommended path is the official installer script. It downloads `rustup` and installs the latest stable toolchain in one step:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+During installation, you can customize the install location with an environment variable:
+
+```bash
+CARGO_HOME=/opt/rust RUSTUP_HOME=/opt/rustup curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Windows
+
+Download and run `rustup-init.exe` from [rustup.rs](https://rustup.rs). For headless CI environments, use the silent install flag:
+
+```powershell
+.\rustup-init.exe -y --default-toolchain stable
+```
+
+### Unattended / CI install
+
+Skip the interactive prompts with `-y`, specify a toolchain, and install extra components and targets in one shot:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    --default-toolchain stable \
+    --component rustfmt clippy \
+    --target wasm32-unknown-unknown
+```
+
+### Post-install
+
+After installation, source the environment:
+
+```bash
+source "$HOME/.cargo/env"
+```
+
+Or add `~/.cargo/bin` to your `PATH` manually in your shell profile (`.bashrc`, `.zshrc`, or `config.fish`).
+
+Verify everything works:
+
+```bash
+rustc --version      # rustc 1.85.0 (4d91de4e4 2026-07-14)
+cargo --version      # cargo 1.85.0
+rustup --version     # rustup 1.28.0
+```
+
+## Channels
+
+Rust has three release channels, each serving a different purpose:
+
+| Channel   | Purpose                                                  | Update cadence     |
+|-----------|----------------------------------------------------------|--------------------|
+| `stable`  | Production code. Guaranteed backward compatibility.      | Every 6 weeks      |
+| `beta`    | Preview of next stable. Mostly stable, final testing.    | Every 6 weeks      |
+| `nightly` | Bleeding edge. Unstable features, latest compiler work.  | Every night        |
+
+### Switching the default channel
+
+```bash
+rustup default stable     # production
+rustup default beta       # preview upcoming release
+rustup default nightly    # live on the edge
+```
+
+### Using a channel for a single command
+
+Run any cargo command against a specific channel without changing the default:
+
+```bash
+cargo +nightly build
+cargo +beta test
+cargo +stable fmt --check
+```
+
+### Installing additional channels
+
+The default channel is installed during `rustup` setup. Add others as needed:
+
+```bash
+rustup toolchain install nightly
+rustup toolchain install beta
+```
+
+## Updating toolchains
+
+Rust ships a new stable release every six weeks, and nightly builds every night. Keep your toolchains current:
+
+```bash
+# Update all installed toolchains
+rustup update
+
+# Update only stable
+rustup update stable
+
+# Update only nightly to latest
+rustup update nightly
+
+# Check what got updated
+rustup show
+```
+
+Stable point releases (e.g., `1.85.0` → `1.85.1`) mostly contain bug fixes and are safe to update immediately. The changelog lives at [releases.rs](https://releases.rs).
+
+## Managing components
+
+Components are optional additions to a toolchain — linters, formatters, language server, and source code for `std`. Each component is installed per toolchain.
+
+### List what is available
+
+```bash
+rustup component list --toolchain stable
+```
+
+Installed components are marked with `(installed)`. Common components:
+
+| Component      | Purpose                                           |
+|----------------|---------------------------------------------------|
+| `rustfmt`      | Official Rust formatter                           |
+| `clippy`       | Official Rust linter                              |
+| `rust-src`     | Standard library source (needed for `rust-analyzer`) |
+| `rust-analyzer`| Rust language server                              |
+| `rust-docs`    | Local Rust documentation                          |
+| `llvm-tools`   | LLVM tools (`llvm-objdump`, `llvm-cov`, etc.)     |
+
+### Add and remove
+
+```bash
+rustup component add clippy rustfmt rust-src
+rustup component remove rust-docs
+```
+
+Components are toolchain-specific, so `rust-src` for nightly does not automatically install it for stable. Add it to each toolchain separately or target it:
+
+```bash
+rustup component add rust-src --toolchain nightly
+```
+
+## Cross-compilation targets
+
+By default, `rustc` compiles for the host architecture. Adding targets enables cross-compilation — from `x86_64-unknown-linux-gnu` to ARM, WebAssembly, or bare-metal.
+
+### List available and installed targets
+
+```bash
+# All targets (hundreds)
+rustup target list
+
+# Only installed targets
+rustup target list --installed
+```
+
+### Frequently used targets
+
+```bash
+# WebAssembly (browser)
+rustup target add wasm32-unknown-unknown
+
+# ARM Linux (Raspberry Pi / AWS Graviton)
+rustup target add aarch64-unknown-linux-gnu
+
+# ARM Linux with musl (fully static binary)
+rustup target add aarch64-unknown-linux-musl
+
+# Bare-metal ARM Cortex-M
+rustup target add thumbv7em-none-eabihf
+
+# x86_64 with musl (fully static binary)
+rustup target add x86_64-unknown-linux-musl
+
+# Windows cross-compilation from Linux
+rustup target add x86_64-pc-windows-gnu
+```
+
+Target naming follows the pattern `{arch}-{vendor}-{os}[-{abi}]`. `none` as the OS means "no operating system" (bare metal).
+
+### Building for a target
+
+```bash
+cargo build --target wasm32-unknown-unknown --release
+cargo build --target aarch64-unknown-linux-musl --release
+```
+
+### Native vs. cross-compilation note
+
+For some targets (e.g., `aarch64-unknown-linux-gnu`) you also need the system linker (`gcc-aarch64-linux-gnu` on Debian/Ubuntu). For musl targets the Rust toolchain ships its own static libc, so no extra toolchain is needed beyond the target.
+
+## Per-project toolchain pinning
+
+When a project requires a specific channel or toolchain version, pin it in the repository so every contributor (and CI) picks it up automatically.
+
+### `rust-toolchain.toml`
+
+Create `rust-toolchain.toml` at the repo root:
+
+```toml
+[toolchain]
+channel = "1.82.0"
+components = ["rustfmt", "clippy", "rust-src"]
+targets = ["wasm32-unknown-unknown"]
+profile = "default"
+```
+
+Keys:
+
+| Key          | Purpose                                                  |
+|--------------|----------------------------------------------------------|
+| `channel`    | Version (`"1.82.0"`), channel (`"stable"`), or `"nightly"` |
+| `components` | Extra components to install for this project             |
+| `targets`    | Cross-compilation targets for this project               |
+| `profile`    | `"default"`, `"minimal"` (no docs), or `"complete"`      |
+
+Once this file exists, `cargo` and `rustup` commands issued from anywhere inside the repository automatically use the pinned toolchain. `rustup` will download and install the channel, components, and targets if they are not already present.
+
+Commit `rust-toolchain.toml` to version control.
+
+### Legacy `rust-toolchain` file
+
+Older projects use a plain `rust-toolchain` file with a single line:
+
+```text
+nightly
+```
+
+Prefer the TOML format — it supports components and targets.
+
+## Nightly features
+
+Nightly unlocks unstable compiler features behind feature gates. Use the `#![feature(...)]` attribute at the crate root.
+
+### Common nightly features
+
+```rust
+#![feature(once_cell_try)]          // try_insert on OnceLock
+#![feature(let_chains)]             // if-let chains
+#![feature(async_closure)]          // async || {}
+#![feature(try_blocks)]             // try { ... } blocks
+#![feature(decl_macro)]             // Declarative macros 2.0
+```
+
+Find all available features in the [Unstable Book](https://doc.rust-lang.org/unstable-book/).
+
+### CI with nightly
+
+Nightly builds are not guaranteed to be stable — today's build might fail tomorrow. For CI, pin to a specific nightly date:
+
+```toml
+# rust-toolchain.toml
+[toolchain]
+channel = "nightly-2026-08-01"
+```
+
+Nightly archives are available at `https://static.rust-lang.org/dist/` with the date suffix.
+
+## Listing and inspecting
+
+```bash
+# Full overview: installed toolchains, default, active directory override
+rustup show
+
+# List all installed toolchains with paths
+rustup toolchain list
+
+# Show the active toolchain (respects rust-toolchain.toml)
+rustup show active-toolchain
+
+# Deeper system info
+rustup check
+```
+
+## Removing and cleaning up
+
+```bash
+# Remove a specific toolchain
+rustup toolchain remove nightly
+
+# Remove a target from a toolchain
+rustup target remove wasm32-unknown-unknown --toolchain stable
+
+# Remove a component from a toolchain
+rustup component remove rust-src --toolchain stable
+
+# Uninstall rustup entirely (removes ~/.cargo, ~/.rustup)
+rustup self uninstall
+```
+
+## Environment variables
+
+`rustup` and `cargo` respond to several environment variables for non-standard setups:
+
+| Variable              | Purpose                                             |
+|-----------------------|-----------------------------------------------------|
+| `RUSTUP_HOME`         | Override the rustup metadata directory              |
+| `CARGO_HOME`          | Override the cargo / rustup install root            |
+| `RUSTUP_TOOLCHAIN`    | Force a specific toolchain (overrides project pinning) |
+| `RUSTC_WRAPPER`       | Inject a wrapper around `rustc` (e.g., `sccache`)   |
+| `RUSTFLAGS`           | Extra flags passed to every `rustc` invocation      |
+| `CARGO_BUILD_TARGET`  | Default `--target` for all cargo commands           |
+| `RUST_BACKTRACE`      | Set to `1` or `full` for stack traces on panic      |
+
+```bash
+# Force nightly regardless of rust-toolchain.toml
+RUSTUP_TOOLCHAIN=nightly cargo build
+
+# Set a permanent default target
+export CARGO_BUILD_TARGET=wasm32-unknown-unknown
+```
+
+## Common issues
+
+### `error: toolchain 'stable-x86_64-unknown-linux-gnu' is not installed`
+
+The stable toolchain was removed or never installed. Reinstall it:
+
+```bash
+rustup toolchain install stable
+```
+
+### `error[E0658]: use of unstable library feature`
+
+The code uses a nightly-only feature but you are compiling with stable. Switch the toolchain:
+
+```bash
+cargo +nightly build
+```
+
+Or pin nightly in the project:
+
+```bash
+rustup override set nightly
+```
+
+### `error: linker 'cc' not found`
+
+You are missing a C compiler. For cross-compilation targets you may need the target's linker:
+
+```bash
+# Debian / Ubuntu
+sudo apt install gcc-aarch64-linux-gnu    # ARM64
+sudo apt install gcc-arm-linux-gnueabihf  # ARM32
+
+# macOS (via Homebrew)
+brew tap messense/macos-cross-toolchains
+brew install aarch64-unknown-linux-gnu
+```
+
+Musl targets bundle their own libc and do not need an external linker.
+
+### `error: no default toolchain configured`
+
+No default channel is set. Set one:
+
+```bash
+rustup default stable
+```
+
+### `rustup: command not found`
+
+`~/.cargo/bin` is not on your `PATH`. Source the env file or add it to your shell profile manually:
+
+```bash
+source "$HOME/.cargo/env"
+# or
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+## See also
+
+- [Rust Reference](./rust.mdx) — cargo workflow, Axum, WASM, and no_std patterns
+- [Rustup Book](https://rust-lang.github.io/rustup/) — official rustup documentation
+- [Unstable Book](https://doc.rust-lang.org/unstable-book/) — every nightly feature gate, documented
+- [releases.rs](https://releases.rs) — stable release changelogs and timelines
