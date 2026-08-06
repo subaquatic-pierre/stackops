@@ -33,7 +33,7 @@ function BlogTagsPostsPageContent({ tag, items }: Props): ReactNode {
   const title = useBlogTagsPostsPageTitle(tag);
 
   return (
-    <div className="container max-w-4xl mx-auto px-6 py-12">
+    <div className="py-12">
       {tag.unlisted && <Unlisted />}
 
       {/* Back link */}

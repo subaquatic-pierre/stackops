@@ -16,6 +16,7 @@ import Link from "@docusaurus/Link";
 import BlogLayout from "@theme/BlogLayout";
 import { Tag } from "lucide-react";
 import type { Props } from "@theme/BlogTagsListPage";
+import { groupTagsByFirstLetter } from "@site/src/lib/tag-utils";
 
 function BlogTagsListPageMetadata({ title }: { title: string }): ReactNode {
   return (
@@ -32,7 +33,7 @@ function BlogTagsListPageContent({
 }: Props & { title: string }): ReactNode {
   if (tags.length === 0) {
     return (
-      <div className="container max-w-4xl mx-auto px-6 py-12">
+      <div className="py-12">
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-8">
           {title}
         </h1>
@@ -46,17 +47,11 @@ function BlogTagsListPageContent({
     );
   }
 
-  // Build a map of first-letter -> tags[] for grouped display
-  const grouped: Record<string, (typeof tags)[number][]> = {};
-  for (const tag of tags) {
-    const letter = tag.label.charAt(0).toUpperCase();
-    if (!grouped[letter]) grouped[letter] = [];
-    grouped[letter].push(tag);
-  }
-  const letters = Object.keys(grouped).sort();
+  // Group tags by first letter for alphabetical display
+  const { groups: grouped, letters } = groupTagsByFirstLetter(tags);
 
   return (
-    <div className="container max-w-4xl mx-auto px-6 py-12">
+    <div className="py-12">
       <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-10">
         {title}
       </h1>

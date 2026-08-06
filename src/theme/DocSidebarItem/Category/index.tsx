@@ -1,67 +1,25 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import clsx from 'clsx';
 import {
   ThemeClassNames,
   useThemeConfig,
-  usePrevious,
   Collapsible,
   useCollapsible,
 } from '@docusaurus/theme-common';
 import { isSamePath } from '@docusaurus/theme-common/internal';
 import {
   isActiveSidebarItem,
-  findFirstSidebarItemLink,
   useDocSidebarItemsExpandedState,
   useVisibleSidebarItems,
 } from '@docusaurus/plugin-content-docs/client';
 import Link from '@docusaurus/Link';
 import { translate } from '@docusaurus/Translate';
-import useIsBrowser from '@docusaurus/useIsBrowser';
 import DocSidebarItems from '@theme/DocSidebarItems';
 import DocSidebarItemLink from '@theme/DocSidebarItem/Link';
-
-function useAutoExpandActiveCategory({
-  isActive,
-  collapsed,
-  updateCollapsed,
-  activePath,
-}: {
-  isActive: boolean;
-  collapsed: boolean;
-  updateCollapsed: (toCollapsed?: boolean) => void;
-  activePath: string;
-}) {
-  const wasActive = usePrevious(isActive);
-  const previousActivePath = usePrevious(activePath);
-  useEffect(() => {
-    const justBecameActive = isActive && !wasActive;
-    const stillActiveButPathChanged =
-      isActive && wasActive && activePath !== previousActivePath;
-    if ((justBecameActive || stillActiveButPathChanged) && collapsed) {
-      updateCollapsed(false);
-    }
-  }, [
-    isActive,
-    wasActive,
-    collapsed,
-    updateCollapsed,
-    activePath,
-    previousActivePath,
-  ]);
-}
-
-function useCategoryHrefWithSSRFallback(item: any): string | undefined {
-  const isBrowser = useIsBrowser();
-  return useMemo(() => {
-    if (item.href && !item.linkUnlisted) {
-      return item.href;
-    }
-    if (isBrowser || !item.collapsible) {
-      return undefined;
-    }
-    return findFirstSidebarItemLink(item);
-  }, [item, isBrowser]);
-}
+import {
+  useAutoExpandActiveCategory,
+  useCategoryHrefWithSSRFallback,
+} from './hooks';
 
 function CategoryLinkLabel({ label }: { label: string }) {
   return (

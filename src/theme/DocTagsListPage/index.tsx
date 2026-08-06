@@ -14,6 +14,7 @@ import Heading from "@theme/Heading";
 import Link from "@docusaurus/Link";
 import { Tag } from "lucide-react";
 import type { Props } from "@theme/DocTagsListPage";
+import { groupTagsByFirstLetter } from "@site/src/lib/tag-utils";
 
 function DocTagsListPageMetadata({ title }: { title: string }): ReactNode {
   return (
@@ -44,14 +45,8 @@ function DocTagsListPageContent({
     );
   }
 
-  // Build a map of first-letter -> tags[] for grouped display
-  const grouped: Record<string, (typeof tags)[number][]> = {};
-  for (const tag of tags) {
-    const letter = tag.label.charAt(0).toUpperCase();
-    if (!grouped[letter]) grouped[letter] = [];
-    grouped[letter].push(tag);
-  }
-  const letters = Object.keys(grouped).sort();
+  // Group tags by first letter for alphabetical display
+  const { groups: grouped, letters } = groupTagsByFirstLetter(tags);
 
   return (
     <HtmlClassNameProvider className={ThemeClassNames.page.docsTagsListPage}>
