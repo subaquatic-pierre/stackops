@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkstackops=self.webpackChunkstackops||[]).push([["28338"],{89647(e){e.exports=JSON.parse('{"authors":[{"name":"Pierre","title":"Software Engineer","url":"https://github.com/subaquatic-pierre","imageURL":"https://github.com/subaquatic-pierre.png","key":"pierre","page":null,"count":49}]}')}}]);
