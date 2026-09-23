@@ -32,7 +32,7 @@ website: https://www.codativity.com
 
 ## Overview
 
-**Codativity** is the corporate digital presence for CODATIVITY Software Solutions — a Dubai-based software development agency. The website is a headless CMS-powered Next.js application that showcases the agency's services, products, solutions, portfolio case studies, and thought leadership blog.
+[**Codativity**](https://www.codativity.com) is a leading software agency. It is the corporate digital presence for CODATIVITY Software Solutions — a Dubai-based software development agency. The website is a headless CMS-powered Next.js application that showcases the agency's services, products, solutions, portfolio case studies, and thought leadership blog.
 
 Every piece of content — from the homepage hero to project case studies — is managed through Strapi and statically generated via Next.js ISR. The site includes dedicated standalone landing pages for products like **CodaExpo** (event management platform) and solution pages like **CodaPay** (payment processing) and **CodaWeb** (web infrastructure).
 
@@ -46,64 +46,3 @@ Every piece of content — from the homepage hero to project case studies — is
 - **GDPR compliance:** Cookie consent banner for EU visitors
 - **Dual GitOps pipeline:** Both Azure DevOps and GitHub Actions CI/CD available
 - **Dynamic SEO:** Shared SEO component reused across all content types, dynamic sitemap
-
----
-
-## Architecture
-
-A **www + api split** following the headless CMS pattern:
-
-| Service           | Role                              |
-| ----------------- | --------------------------------- |
-| **www** (Next.js) | Public corporate website with ISR |
-| **api** (Strapi)  | Headless CMS managing all content |
-| **PostgreSQL**    | CMS database                      |
-
-The frontend fetches all dynamic content from Strapi's REST API. Static pages are generated at build time with ISR revalidation every 10 seconds, so CMS updates propagate nearly instantly.
-
----
-
-## Frontend — Next.js Pages Router
-
-Built with Next.js 15 Pages Router, TypeScript, and MUI v5 for the component library. Animations are powered by Framer Motion and AOS, with Swiper and React Slick for carousels.
-
-### Pages
-
-- **Home** — Hero, services overview, client logos, testimonials
-- **Services** — Four dedicated service pages (Business Software, Modernization, Web Apps, Product Development)
-- **Solutions** — CodaPay and CodaWeb solution pages
-- **Products** — CodaExpo landing page (standalone micro-site with hero, features, FAQ)
-- **Our Work** — Portfolio of client projects
-- **Case Studies** — Rich project detail pages with structured sections: approach, challenge, solution, results, benefits
-- **Blog** — Articles with categories and tags
-- **About, Contact, Careers, Privacy Policy**
-
-### Case Study System
-
-Project detail pages are structured with dedicated CMS components for each section — approach, challenge, solution, challenges overview, benefits, and results. This gives every case study a professional, magazine-quality layout while keeping content completely editable through Strapi.
-
----
-
-## CMS — Strapi Backend
-
-Strapi manages all content through a well-organized collection schema:
-
-- **GlobalSite** — Singleton with site-wide settings, logo, and branding
-- **Page** — i18n-ready pages with block-based content composition
-- **Project** — Portfolio case studies with structured detail sections
-- **Post / Category / Tag** — Blog content with taxonomy
-- **Testimonial** — Client testimonials for homepage and project pages
-
-Shared components (SEO metadata, media embeds, approach sections, solution overviews, quotes, sliders) are reused across content types for consistency.
-
----
-
-## Tech Stack
-
-| Layer                    | Technology                                                                    |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| **Frontend**             | Next.js (Pages Router), React, TypeScript, MUI v5, Framer Motion, AOS, Swiper |
-| **CMS**                  | Strapi (headless), PostgreSQL                                                 |
-| **Email**                | Nodemailer + SendGrid SMTP                                                    |
-| **Internationalization** | i18n-ready content types (English base, expandable)                           |
-| **Rendering**            | SSG with ISR (10-second revalidation)                                         |
