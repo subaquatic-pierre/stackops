@@ -66,6 +66,21 @@ npm run build
 
 This generates the optimized site in the `build/` directory. You can test the production build locally using `npm run serve`.
 
+### Deploying
+
+Deployment is a single command. It builds the site, tags a release, and force-pushes the output to the `gh-pages` branch (which serves `https://stackops.link`):
+
+```bash
+make deploy            # auto-increment patch version
+make deploy minor      # bump minor version
+make deploy major      # bump major version
+make deploy 1.2.3      # explicit version tag
+```
+
+The underlying script runs `npm ci`, `npm run typecheck`, and `npm run build` before publishing. It requires a clean working tree and the `y` confirmation prompt can be skipped by calling `bash scripts/deploy.sh --yes` directly.
+
+Tag pushes to `origin` also trigger the GitHub Actions workflow in `.github/workflows/deploy.yml`, which builds and publishes the same site via GitHub Pages.
+
 ### Troubleshooting Cache
 
 If you encounter layout or styling issues after checking out new branches or modifying core `docusaurus.config.ts` paths, clear the bundler cache:
