@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkstackops=self.webpackChunkstackops||[]).push([["20558"],{40234(e){e.exports=JSON.parse('{"metadata":{"permalink":"/journal","page":1,"postsPerPage":10,"totalPages":5,"totalCount":49,"nextPage":"/journal/page/2","blogDescription":"A running log of engineering projects, labs, and journal entries.","blogTitle":"Journal"}}')}}]);
