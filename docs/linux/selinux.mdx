@@ -1,0 +1,605 @@
+---
+sidebar_position: 17
+title: 'SELinux'
+description: 'Deep reference for SELinux: DAC vs MAC, security contexts, enforcing/permissive modes, file contexts, booleans, policy modules, port labeling, denial analysis with audit tooling, relabeling, and container volume labels.'
+tags: [linux, selinux, security, mac, permissions, audit, reference]
+last_updated: '2026-09-25'
+---
+
+# SELinux
+
+## Overview
+
+SELinux (Security-Enhanced Linux) is a mandatory access control (MAC) framework built into the kernel. It originated as a set of patches from the NSA and was merged into the mainline kernel in the early 2000s. It is the default MAC implementation on RHEL, Fedora, CentOS Stream, Rocky, and AlmaLinux; Debian and Ubuntu install it only when explicitly requested, defaulting instead to AppArmor.
+
+The distinction that matters is DAC versus MAC:
+
+- **Discretionary access control (DAC)** is the classic Unix model: owner/group/other permission bits, ACLs, and the root superuser. Access is *discretionary* because the object owner decides who may access it, and root can override every check.
+- **Mandatory access control (MAC)** is a system-wide policy that no user, including root, may bypass. Every subject (process) and object (file, socket, port, capability) carries a label, and the kernel consults a compiled policy for every access. Even a process running as UID 0 is confined by its type.
+
+SELinux therefore does not replace DAC — it runs *after* DAC. A process must first pass the standard Unix permission check, then pass the SELinux check. This is why a correctly-labeled file can still be unreadable due to ordinary permissions, and why a file with `777` can still be denied by policy.
+
+What it actually protects: if an internet-facing daemon (`httpd`, `sshd`, `named`, `postfix`) is compromised, the attacker inherits that daemon's *domain* rather than the machine. A compromised `httpd_t` process cannot read `/etc/shadow`, rewrite `sshd` binaries, bind arbitrary ports, or traverse into other services' files, regardless of the UID it managed to obtain. This is confinement of the blast radius, not prevention of the initial exploit.
+
+The default **targeted** policy confines a defined set of system services while leaving ordinary interactive users in `unconfined_t`. This balances security with operational friction: most day-to-day administration is unaffected, while network-facing attack surface is confined. The stricter **mls** policy (multi-level security) enforces Bell-LaPadula confidentiality levels across all subjects and is uncommon outside government environments. Fedora/RHEL still run the targeted policy with MCS (multi-category security) enabled for category-based isolation.
+
+AppArmor, the default on Debian/Ubuntu, is also MAC but is **path-based** rather than label-based: profiles match binary paths and file paths directly rather than inode labels. This makes AppArmor easier to author but more vulnerable to path traversal and hardlink tricks; SELinux labels persist with the inode and survive renames, mounts, and hardlinks. Only one of the two is normally active on a host.
+
+## Core concepts
+
+SELinux identifies every subject and object with a **security context**, a colon-separated string:
+
+```
+user:role:type:level
+```
+
+Example of a real file label (the default content label for Apache):
+
+```
+system_u:object_r:httpd_sys_content_t:s0
+```
+
+| Field | Example | Meaning |
+|---|---|---|
+| SELinux user | `system_u` | Identity mapped from the Linux login via `semanage login` |
+| Role | `object_r` | RBAC role; `object_r` is used for all objects |
+| Type | `httpd_sys_content_t` | The type-enforcement label — the field policy actually matches on |
+| Level | `s0` | MLS/MCS sensitivity and categories (`s0:c1,c2`) |
+
+- **Type enforcement** is the core mechanism. Policy rules are stated as `allow <source_domain> <target_type>:<class> <permissions>`, for example `allow httpd_t httpd_sys_content_t:file read;`. A process runs in a **domain** (a type applied to a process, usually ending in `_t` for objects and `_t` for domains too, e.g. `httpd_t`, `sshd_t`).
+- **Roles** bind users to the domains they may enter. `sysadm_r` can transition to many administrative domains; `user_r` is limited. Role transitions are what `newrole` and `runcon` manipulate.
+- **SELinux users** (`user_u`, `staff_u`, `sysadm_u`, `unconfined_u`, `guest_u`, `xguest_u`) are abstractions mapped from Unix logins. They constrain which roles a login may assume.
+- **Sensitivity and categories** (the `:s0:c0,c10` suffix) provide MLS/MCS compartmentalization. MCS is used in the targeted policy to isolate virtual machines and containers: two processes on the same host cannot communicate unless they share a category set.
+
+The reference policy is installed by `policycoreutils` and `selinux-policy-targeted`. The main userland tools live in `policycoreutils`, `policycoreutils-python-utils` (RHEL) or `python3-setools`/`policycoreutils-python-utils` (Debian), and `setools-console` provides `sesearch` and `seinfo`.
+
+```bash
+# Install the tooling (RHEL/Fedora)
+sudo dnf install -y policycoreutils policycoreutils-python-utils selinux-policy-targeted setools-console
+
+# Install the tooling (Debian/Ubuntu)
+sudo apt install -y policycoreutils selinux-basics selinux-policy-default setools
+
+# Where the policy and context databases live
+ls /etc/selinux/targeted/contexts/files/   # file_contexts, file_contexts.local
+ls /etc/selinux/targeted/modules/active/   # installed modules and policy store
+```
+
+## Modes
+
+SELinux operates in one of three modes: **enforcing** (policy is applied and denials are blocked), **permissive** (policy violations are logged but not blocked), and **disabled** (no SELinux code runs and no labels are maintained). Permissive mode is the diagnostic mode; disabled is a one-way door that must be undone with a full relabel.
+
+```bash
+# Quick current mode
+getenforce                           # Enforcing | Permissive | Disabled
+
+# Detailed status
+sestatus                             # mode, policy, config paths
+sestatus -v                          # verbose: contexts of key processes and files
+sestatus -b                          # current boolean values
+
+# Switch mode at runtime (until reboot)
+setenforce 0                         # permissive
+setenforce 1                         # enforcing
+```
+
+The persistent configuration is `/etc/selinux/config`:
+
+```bash
+# /etc/selinux/config
+SELINUX=enforcing                     # enforcing | permissive | disabled
+SELINUXTYPE=targeted                  # targeted | mls | minimum
+```
+
+Changes to `SELINUX` and `SELINUXTYPE` require a reboot. `SELINUXTYPE` selects which policy tree under `/etc/selinux/` is loaded; switching between targeted and mls requires a relabel because the expected labels differ.
+
+At boot, the kernel command line can override the config for a single boot:
+
+```bash
+# Append to GRUB_CMDLINE_LINUX in /etc/default/grub, then rebuild grub
+selinux=0                             # disable SELinux entirely (no labels enforced)
+enforcing=0                           # boot permissive regardless of config
+autorelabel=1                         # force a full relabel at boot
+
+# Persist a kernel argument without hand-editing GRUB (RHEL/Fedora)
+sudo grubby --update-kernel ALL --args selinux=0
+sudo grubby --update-kernel ALL --remove-args selinux
+```
+
+**Why disabling forces a relabel:** when SELinux is disabled, the kernel stops maintaining the `security.selinux` extended attribute on new files. Files created in the meantime receive no label or an inherited stale one. Re-enabling with those unlabeled files would cause near-total denial, since policy matches on labels that are absent. The policy defaults to `autorelabel=1` behavior on the first boot after re-enabling, or you trigger it manually (see [Relabeling filesystems](#relabeling-filesystems)).
+
+## Inspecting contexts
+
+Most standard tools accept `-Z` (or `--context`) to append the security context column. This is the first diagnostic step for nearly every SELinux issue.
+
+```bash
+# Files and directories
+ls -Z /var/www/html                  # context of each entry
+ls -Zd /var/www/html                 # context of the directory itself
+ll -Z ./index.html                   # same, with a long listing
+
+# Processes
+ps -Z                                # all processes with domain
+ps auxZ                              # full listing with domain
+ps -eZ | grep httpd                  # filter by context or command
+
+# Current user and role context
+id -Z                                # context of the shell
+id -Z | cut -d: -f1                  # just the SELinux user
+
+# Sockets and listening ports
+ss -tlnpZ                            # TCP listeners with process and context
+ss -Z                                # all sockets with context
+sudo netstat -tlnpZ                  # legacy equivalent (deprecated)
+
+# Raw extended attribute holding the label
+getfattr -n security.selinux file.txt
+getfattr -d -m - file.txt            # dump all extended attributes
+
+# Find files whose context matches a glob (SELinux-enabled findutils)
+find / -context '*:httpd_sys_content_t:*' 2>/dev/null
+
+# Find mislabeled or unlabeled files: restorecon -n is a dry run that
+# reports only the paths the current policy would relabel
+sudo restorecon -R -n -v /home 2>/dev/null
+
+# Inspect a context string directly
+secon -t                              # type of the current process
+secon -u -r -t -l file.txt            # user, role, type, level of a file
+```
+
+The `-Z` output is authoritative. When a denial occurs, compare the label *in `ls -Z`* against the label *the policy expects*, which `matchpathcon` prints.
+
+## Managing file contexts
+
+Labels on disk come from a mapping between path patterns and types held in the **file context database**. `restorecon` reads that database and applies the expected label; `chcon` overrides it temporarily. Getting this distinction right is the crux of SELinux file administration.
+
+```bash
+# chcon: change the label NOW, but not persistently (lost on relabel)
+chcon -t httpd_sys_content_t /var/www/html/index.html
+chcon -R -t httpd_sys_content_t /srv/site        # recursive
+chcon -u system_u -r object_r -t var_t /data/db  # all three label fields
+chcon --reference=/var/www/html /srv/site        # copy label from another path
+```
+
+`chcon` changes are not recorded in the policy database. A subsequent `restorecon`, `fixfiles`, or `autorelabel` reverts them. For anything permanent, register the mapping instead:
+
+```bash
+# semanage fcontext: register a persistent path->type mapping
+sudo semanage fcontext -a -t httpd_sys_content_t "/srv/site(/.*)?"
+sudo semanage fcontext -a -e /var/www /srv/www    # equivalence to an existing path
+sudo semanage fcontext -l                          # list all mappings
+sudo semanage fcontext -l -C                       # only local (custom) mappings
+sudo semanage fcontext -m -t httpd_sys_content_t "/srv/site(/.*)?"  # modify
+sudo semanage fcontext -d "/srv/site(/.*)?"        # delete an entry
+
+# Apply the registered mapping
+sudo restorecon -R -v /srv/site
+```
+
+The regular-expression path form `"/path(/.*)?"` matches the directory and everything beneath it. The `-a` call alone does not touch the filesystem — you must run `restorecon` afterward to apply it.
+
+`restorecon` flags:
+
+```bash
+restorecon -v /var/www/html/index.html   # verbose: report label changes
+restorecon -R /srv/site                  # recurse
+restorecon -n /srv/site                  # dry run (show what would change)
+restorecon -F /srv/site                  # force reset even custom user labels
+restorecon -r /srv/site                  # use realpath before resolving
+restorecon -e /srv /srv/link             # exclude a path from recursion
+```
+
+`matchpathcon` prints the label policy expects for a path, making it the reference for comparison:
+
+```bash
+matchpathcon /var/www/html/index.html    # expected label per policy
+matchpathcon -V /srv/site                # verify and report mismatches
+matchpathcon -a /srv/site                # list all matching rules
+```
+
+`fixfiles` drives bulk relabeling operations:
+
+```bash
+sudo fixfiles relabel                    # relabel the whole filesystem per policy
+sudo fixfiles -F relabel                 # force, clearing user customizations
+sudo fixfiles restore /var/www           # restore default contexts under a path
+sudo fixfiles -R httpd check             # check files owned by an RPM package
+sudo fixfiles onboot                     # schedule a relabel for next boot
+sudo fixfiles -F onboot                  # force-relabel next boot
+```
+
+Custom mappings are written to `/etc/selinux/targeted/contexts/files/file_contexts.local`. Never edit this file by hand; `semanage fcontext` is the supported interface. `setfiles` applies a context file directly and is what the boot-time relabel actually runs:
+
+```bash
+sudo setfiles -v -r / /etc/selinux/targeted/contexts/files/file_contexts /srv/site
+```
+
+## Booleans
+
+Booleans are pre-built policy switches that toggle specific allow rules on or off at runtime without recompiling policy. They let the reference policy ship permissive-by-default behavior for optional features while allowing an administrator to close it. Booleans are the correct fix when a denial is caused by policy deliberately disabling a capability, rather than by a labeling mistake.
+
+```bash
+# Query
+getsebool httpd_can_network_connect        # one boolean
+getsebool -a                               # all booleans and values
+semanage boolean -l                        # all booleans with description and defaults
+semanage boolean -l -C                     # only locally modified booleans
+
+# Set at runtime only (lost on reboot)
+sudo setsebool httpd_can_network_connect on
+sudo setsebool httpd_can_network_connect off
+sudo togglesebool httpd_can_network_connect   # legacy flip command
+
+# Set persistently across reboots (-P required)
+sudo setsebool -P httpd_can_network_connect on
+sudo setsebool -P httpd_unified off
+
+# Equivalent persistent operations via semanage
+sudo semanage boolean -m --on httpd_can_network_connect
+sudo semanage boolean -m --off httpd_read_user_content
+```
+
+A boolean's current value is the kernel's runtime state; its persistent value is stored in the policy store. `getsebool` shows the former, `semanage boolean -l` shows both (for example `(off, off)` meaning current, persistent). Common booleans for services:
+
+```bash
+sudo setsebool -P httpd_can_network_connect on      # Apache may open outbound TCP
+sudo setsebool -P httpd_can_network_connect_db on   # Apache may reach database ports
+sudo setsebool -P httpd_enable_homedirs on          # Apache may serve ~user/public_html
+sudo setsebool -P ssh_sysadm_login on               # allow sysadm_r over SSH
+sudo setsebool -P use_nfs_home_dirs on              # home directories on NFS
+sudo setsebool -P samba_export_all_ro on            # Samba read-only export of all files
+sudo setsebool -P ftpd_full_access on               # FTP full filesystem access
+sudo setsebool -P container_manage_cgroup on        # containers may manage cgroups
+```
+
+## Users, roles & login mappings
+
+SELinux users and roles constrain what domains a Unix login can enter. The `semanage login` table maps Linux accounts to SELinux users; unmapped logins fall through to the `__default__` mapping.
+
+```bash
+# List SELinux users and login mappings
+sudo semanage user -l                    # SELinux users, roles, MLS ranges
+sudo semanage login -l                   # Unix login -> SELinux user mapping
+sudo semanage login -l -C                # only local custom mappings
+
+# Map a login to a SELinux user
+sudo semanage login -a -s staff_u jdoe   # jdoe logs in as staff_u
+sudo semanage login -a -s user_u alice
+sudo semanage login -a -s sysadm_u -r s0-s0:c0.c1023 root  # explicit range
+sudo semanage login -m -s user_u jdoe     # modify an existing mapping
+sudo semanage login -d jdoe               # delete a mapping
+
+# Change the fallback for all unmapped accounts
+sudo semanage login -m -s user_u __default__
+```
+
+The `__default__` entry governs every login without an explicit mapping. On standard targeted systems it is typically `unconfined_u`, which is why ordinary users are unrestricted. Setting it to `user_u` or `staff_u` confines all interactive users.
+
+`semanage user` defines the SELinux user itself, including the roles it may assume and the MLS range:
+
+```bash
+# Create a confined SELinux user with a role set
+sudo semanage user -a -R "staff_r system_r" -r s0 -L s0 -P user staff_u
+
+# Inspect fields: Selinux User, Roles, MLS/MCS Level, MLS/MCS Range, Prefix
+sudo semanage user -l
+
+# Remove a custom SELinux user
+sudo semanage user -d staff_u
+```
+
+Role transitions are performed explicitly. A `staff_u` user entering a administrative domain runs `newrole` or `sudo` (which is policy-aware via `sudo_role_transition`); `runcon` executes a command in an arbitrary context for testing:
+
+```bash
+newrole -r sysadm_r                      # enter a new role (prompts for password)
+runcon -t httpd_t -- /usr/sbin/httpd     # run a single command in a context
+runcon system_u:system_r:httpd_t:s0 id -Z
+```
+
+Misconfigured mappings are a common cause of "user logged in but cannot do anything": `id -Z` shows `user_u:user_r:user_t:s0` when `unconfined_u` was expected.
+
+## Ports & network labeling
+
+Ports carry labels just like files. A confined daemon may only `bind()` a port whose type is permitted for its domain. Binding an unlisted port produces `EACCES`/`Permission denied` in the application log and an AVC in the audit log.
+
+```bash
+# List port type mappings
+sudo semanage port -l                    # all port labels
+sudo semanage port -l -C                 # only local additions
+sudo semanage port -l | grep http        # inspect an existing type
+
+# Allow a daemon to bind a non-standard port
+sudo semanage port -a -t http_port_t -p tcp 8080
+sudo semanage port -a -t ssh_port_t -p tcp 2222
+sudo semanage port -a -t http_port_t -p tcp 8443
+sudo semanage port -m -t http_port_t -p tcp 8081   # modify existing entry
+sudo semanage port -d -t http_port_t -p tcp 8080   # delete a local entry
+
+# Network interface labeling
+sudo semanage interface -l                          # labeled interfaces
+sudo semanage interface -a -t netif_t eth1          # label an interface
+
+# Node labeling (per source address)
+sudo semanage node -l
+```
+
+The well-known privileged ports (`http_port_t` 80, 443, 488, 8008–8009; `ssh_port_t` 22; `smtp_port_t` 25) are pre-labeled. When Apache is told to listen on 8080, the bind fails until `semanage port -a -t http_port_t -p tcp 8080` registers it. If the port is already claimed by another type, `-a` rejects it as a duplicate — use `-m` to reassign it instead. This is a policy guardrail: it prevents an exploited daemon from opening arbitrary ports for exfiltration or command-and-control.
+
+## Policy modules
+
+When no boolean and no port/file label resolves a denial, custom policy is required. Use `audit2allow -M` to generate a module, but treat the generated rules as a draft to review (see [Denial analysis](#denial-analysis--troubleshooting)). The reference policy is the base; modules are additive refinements loaded into the module store.
+
+```bash
+# Inspect loaded modules
+sudo semodule -l                         # name and version of each module
+sudo semodule -l | grep myapp
+
+# Build and install
+sudo semodule -i myapp.pp                # install a compiled module
+sudo semodule -r myapp                   # remove a module by name
+sudo semodule -B                         # rebuild policy from the module store
+sudo semodule -R                         # reload policy without recompiling
+sudo semodule -X 300 -i myapp.pp         # install with priority 300 (higher wins)
+sudo semodule -X 300 -r myapp
+```
+
+The manual workflow from CIL/`.te` source to a loadable module:
+
+```bash
+# 1. Write the type enforcement source (myapp.te), then compile it
+checkmodule -M -m -o myapp.mod myapp.te
+# -M: enable MLS/MCS support
+# -m: compile to a module (not a base policy)
+
+# 2. Package the module and its file-context rules into a .pp
+semodule_package -o myapp.pp -m myapp.mod -f myapp.fc
+
+# 3. Install the package
+sudo semodule -i myapp.pp
+```
+
+A minimal `myapp.te` allowing a daemon to read a custom directory resembles:
+
+```
+policy_module(myapp, 1.0.0)
+
+type myapp_t;
+type myapp_exec_t;
+
+init_daemon_domain(myapp_t, myapp_exec_t)
+
+allow myapp_t var_log_t:file read;
+```
+
+Priority (`-X`) matters when multiple modules define the same rules: higher-priority modules override lower-priority ones, which is how local site policy is made to win over a distribution module. `semodule -i` alone installs at the default priority (400 in modern policy stores; the reference distribution modules sit below it). The module store lives under `/etc/selinux/targeted/modules/active/modules/`; the compiled binary policy is `/etc/selinux/targeted/policy/policy.NN`.
+
+## Denial analysis & troubleshooting
+
+Every denial is recorded by the kernel's audit subsystem. The workflow is: reproduce the failure, locate the AVC message, understand *why* it was denied, and only then choose a targeted fix.
+
+Audit log locations vary by distribution:
+
+```bash
+# RHEL/Fedora: auditd owns the log
+/var/log/audit/audit.log
+sudo ausearch -m avc -ts recent          # AVCs from the last 10 minutes
+sudo ausearch -m avc -ts today
+
+# Where the audit daemon is used
+systemctl status auditd
+
+# Ubuntu/Debian without auditd: consult the journal
+sudo journalctl _TRANSPORT=audit
+sudo journalctl -t audit | grep AVC
+sudo journalctl -t setroubleshoot
+```
+
+A raw AVC record looks like:
+
+```
+type=AVC msg=audit(1743091200.123:456): avc:  denied  { read } for  pid=1234 comm="httpd"
+  name="index.html" dev="sda1" ino=98765
+  scontext=system_u:system_r:httpd_t:s0
+  tcontext=unconfined_u:object_r:default_t:s0 tclass=file permissive=0
+```
+
+Read it as: the process in `scontext` (`httpd_t`) was denied `read` on the object `tcontext` (`default_t`), class `file`. The mismatch is almost always the target type — here `default_t` where `httpd_sys_content_t` was expected, indicating a mislabeled file.
+
+Search and summarize:
+
+```bash
+sudo ausearch -m avc -ts recent              # recent AVCs
+sudo ausearch -m avc -ts 09/24/2026 00:00:00 # since a timestamp
+sudo ausearch -m avc -c httpd                # filter by command
+sudo ausearch -m avc -p 1234                 # filter by PID
+sudo ausearch -m avc -su unconfined_u        # filter by source user
+sudo aureport -a                             # summary report of AVCs by type
+
+# Trace a reported issue through the full record
+sudo ausearch -m avc -i | tail -50
+```
+
+Interpretation tools. `audit2why` explains the policy reason for a denial (missing allow, boolean off, constraint); `audit2allow` drafts allow rules from logged denials:
+
+```bash
+sudo ausearch -m avc -ts recent | audit2why        # human-readable reason
+sudo ausearch -m avc -ts recent | audit2allow      # proposed allow rules
+sudo ausearch -m avc -c httpd -ts today | audit2allow   # only httpd denials
+sudo audit2allow -a                                # scan the whole audit log
+sudo audit2allow -a -M mypolicy                    # generate mypolicy.te/.pp
+sudo semodule -i mypolicy.pp                       # install after review
+sudo audit2allow -i /var/log/audit/audit.log -w    # list why-denied explanations
+```
+
+**Warning — do not blanket-allow.** `audit2allow` writes the most permissive rule that silences each denial, including rules that would defeat the confinement you rely on. A generated `allow httpd_t shadow_t:file read;` is a legitimate cryptographic-module access or an exfiltration path depending on context, and `audit2allow` cannot tell them apart. Always read every generated rule, prefer a boolean or a relabel when one fits, and never paste `audit2allow` output blindly into production. The tool answers "how do I make the denial stop", not "what is the correct policy".
+
+`setroubleshoot`/`sealert` pre-translate AVCs into human explanations and suggested fixes:
+
+```bash
+sudo dnf install -y setroubleshoot-server          # RHEL/Fedora package
+systemctl status setroubleshootd
+sudo sealert -a /var/log/audit/audit.log           # analyze all AVCs
+sudo sealert -l 3ff...                              # detail a specific alert by ID
+sudo sealert -b                                     # open the GUI alert browser
+
+# setools query the policy directly
+sesearch -A -s httpd_t -t httpd_sys_content_t       # all allows for a pair
+sesearch -A -s httpd_t -t http_port_t -c tcp_socket # all allow rules
+seinfo -t | grep httpd                              # types matching a name
+seinfo -x -t httpd_t                                # aliases
+```
+
+## Relabeling filesystems
+
+A relabel rewrites every `security.selinux` extended attribute on the filesystem to the label the current policy expects. It is required after re-enabling SELinux, after restoring a backup that did not preserve extended attributes, and after significant policy changes. Relabeling is safe for labels but can take a long time on large or slow filesystems; the machine is best left to complete it.
+
+```bash
+# Schedule a full relabel for the next boot
+sudo touch /.autorelabel
+sudo reboot
+
+# Same, via fixfiles (also supports forced relabel)
+sudo fixfiles onboot
+sudo fixfiles -F onboot
+
+# Relabel now, without rebooting
+sudo fixfiles relabel
+
+# Target only one tree
+sudo restorecon -R -v /srv/site
+sudo fixfiles restore /var/www
+
+# Force reset of user-customized labels during a relabel
+sudo fixfiles -F relabel
+```
+
+The boot-time mechanism matters: the GUI/CLI relabel can be interrupted, leaving labels half-applied, whereas `/.autorelabel` performs a clean relabel during early boot before services start, then reboots again on completion. Expect two reboots and a delay proportional to file count; `fixfiles` prints progress and reports the number of files examined. `genhomedircon` regenerates the per-user home-directory context rules when SELinux users are added or changed:
+
+```bash
+sudo genhomedircon                  # regenerate /etc/selinux/targeted/contexts/files/homedir_template output
+sudo semodule -B                    # regeneration is also triggered by a policy rebuild
+```
+
+On systems with truly enormous filesystems, relabeling every inode can take hours. It is more practical to relabel per-tree with `restorecon -R` for the paths that matter than to force a full pass.
+
+## SELinux & containers
+
+Container runtimes and SELinux interact at the volume-mount boundary. The default `container_t` domain (historically `svirt_lxc_net_t` for the sandbox) cannot access host files labeled for general use, so a bind-mounted volume must be relabeled for the container to read it.
+
+```bash
+# Bind-mount with a label
+podman run -v /host/data:/data:z nginx    # :z — shared label (multiple containers)
+podman run -v /host/data:/data:Z nginx    # :Z — private label (this container only)
+
+docker run -v /host/data:/data:z nginx    # Docker with SELinux support enabled
+```
+
+- `:z` relabels the host path for **shared** access: multiple containers may mount it.
+- `:Z` relabels the host path **exclusively** for one container; conflicting containers are denied. It is private and mutually exclusive with `:z`.
+- Both are **destructive to host labels** — the source directory's label is changed on the host, and any process outside the container group requiring the original label (for example, a host `httpd`) will then be denied.
+
+Manual equivalent when not using a runtime label flag:
+
+```bash
+# Older/MLS sandbox type
+sudo chcon -Rt svirt_sandbox_file_t /host/data
+
+# Modern container type
+sudo chcon -Rt container_file_t /host/data
+sudo restorecon -R -v /host/data          # revert once the container is done
+
+# Persistent type for a host directory intended for containers
+sudo semanage fcontext -a -t container_file_t "/srv/containers(/.*)?"
+sudo restorecon -R /srv/containers
+
+# Containers that run systemd or manage cgroups need a boolean
+sudo setsebool -P container_manage_cgroup on
+
+# Generate a confinement policy for a container
+sudo dnf install -y udica
+sudo udica -j /path/to/container.json mycontainer   # produce mycontainer.cil
+```
+
+Docker generally requires SELinux support to be enabled in the daemon and may need `--security-opt label=disable` for images that fight confinement; doing so removes the isolation and should be a deliberate choice. Podman integrates SELinux natively, including per-container MCS categories, and is the recommended runtime on RHEL-family hosts. Rootless Podman relabels user data in the user's namespace and does not affect host labels outside the container's user.
+
+## Common recipes
+
+```bash
+# 1. Allow a web server on a non-standard port (8080)
+sudo semanage port -a -t http_port_t -p tcp 8080
+sudo firewall-cmd --add-port=8080/tcp --permanent       # open the firewall too
+sudo firewall-cmd --reload
+sudo systemctl restart httpd
+
+# 2. Serve content from a custom directory
+sudo semanage fcontext -a -t httpd_sys_content_t "/srv/site(/.*)?"
+sudo restorecon -R -v /srv/site
+sudo systemctl restart httpd
+# Alternatively, tag the tree httpd_sys_rw_content_t if the app must write.
+
+# 3. Fix a mislabeled home directory (e.g. after a restore or rsync)
+sudo restorecon -R -v /home/jdoe
+sudo restorecon -R -v /home/jdoe/.ssh
+sudo semanage fcontext -a -e /home /export/home     # if homes are elsewhere
+
+# 4. Diagnose an SSH or nginx denial end to end
+sudo ausearch -m avc -ts recent
+sudo ausearch -m avc -c nginx -ts today | audit2why
+sudo restorecon -R -v /var/www /etc/nginx            # relabel the serving tree
+sudo setsebool -P httpd_can_network_connect on       # if nginx proxies upstream
+
+# 5. Allow a service to make outbound network connections
+sudo setsebool -P httpd_can_network_connect on
+sudo setsebool -P httpd_can_network_connect_db on
+
+# 6. Allow Samba to share a non-default path
+sudo semanage fcontext -a -t samba_share_t "/srv/samba/share(/.*)?"
+sudo restorecon -R -v /srv/samba/share
+
+# 7. Bind a service to a privileged custom port
+sudo semanage port -a -t http_port_t -p tcp 8443
+
+# 8. Revert an ad-hoc chcon after confirming the permanent mapping
+sudo restorecon -R -v /srv/site
+```
+
+## Disabling SELinux (last resort)
+
+Disabling SELinux removes confinement for every process on the host and is a last resort, not a tuning step. A targeted `setsebool`, a `semanage fcontext`, or a small policy module is almost always the correct fix; disabling trades away the entire security property the system was built with. On RHEL-family systems, note that the vendor support statement expects SELinux to be enabled, and some compliance regimes (PCI-DSS, STIG, CIS Level 2) require it.
+
+If it must be disabled, do it cleanly so that re-enabling later is not catastrophic:
+
+```bash
+# 1. Take the system permissive first (verify the app works without confinement)
+sudo setenforce 0
+
+# 2. Make the change persistent
+sudo sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+grep '^SELINUX' /etc/selinux/config
+
+# 3. Disable at the kernel level as well (takes effect after reboot)
+sudo grubby --update-kernel ALL --args selinux=0
+
+# 4. Reboot to apply
+sudo reboot
+```
+
+Re-enabling requires a full relabel, because files created while SELinux was disabled carry missing or stale labels:
+
+```bash
+sudo sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config
+sudo grubby --update-kernel ALL --remove-args selinux
+sudo touch /.autorelabel
+sudo reboot        # relabels on boot, then reboots once more
+```
+
+Caveats: disabling is not isolated to the machine if it is joined to a domain or managed by configuration management that asserts SELinux state; it will be re-enabled by the next provisioning run. Permissive mode should be used for diagnosis (it logs the denials that enforcing would block) and never left on permanently, because it gives the false impression that SELinux is providing protection while allowing every access. On Debian/Ubuntu, if SELinux was never enabled, the correct move is usually to remove the packages rather than half-configure a disabled stack.
+
+## See also
+
+- [Users, Groups & Permissions](./users-and-permissions.mdx)
+- [Package Managers](./package-managers.mdx)
+- [Logging & Log Management](./logging.mdx)
+- [Linux Networking](./networking.mdx)
+- [Common Configuration Locations](./common-configs.mdx)
