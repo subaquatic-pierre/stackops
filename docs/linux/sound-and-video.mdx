@@ -1,0 +1,424 @@
+---
+sidebar_position: 16
+title: 'Sound & Video Management'
+description: 'Reference for Linux sound and video device management: detecting audio/video hardware, ALSA, PipeWire, PulseAudio, device profiles, Bluetooth audio, monitors, microphones, and webcams.'
+tags: [linux, audio, video, pipewire, pulseaudio, alsa, bluetooth, display, monitors, webcam, hardware, troubleshooting, reference]
+last_updated: '2026-09-25'
+---
+
+# Sound & Video Management
+
+## Overview
+
+Sound and video on Linux are handled by two largely independent stacks. Audio flows from the kernel's ALSA layer up to a userspace sound server — typically **PipeWire** (modern) or **PulseAudio** (legacy) — while video output is handled by the kernel DRM/KMS layer and configured per display server (X11 or Wayland). Input devices such as microphones and webcams sit on top of ALSA and V4L2 respectively. This reference covers detecting the hardware, inspecting and switching device profiles, configuring the stacks, and debugging them.
+
+## Detecting audio and video hardware
+
+Start by identifying what the kernel sees. Audio controllers and GPUs appear on the PCI bus; USB microphones, webcams, and Bluetooth adapters appear on the USB bus.
+
+```bash
+# Audio and graphics controllers on PCI
+lspci | grep -i audio                  # sound cards / controllers
+lspci | grep -iE 'vga|3d|display'      # GPUs / display controllers
+lspci -k                               # show the kernel driver bound to each device
+
+# USB peripherals (mics, webcams, Bluetooth adapters)
+lsusb                                  # list USB devices
+lsusb -t                               # USB hierarchy tree
+
+# Audio devices known to ALSA
+aplay -l                               # playback devices (speakers)
+arecord -l                             # capture devices (microphones)
+
+# Video capture devices (webcams, capture cards)
+v4l2-ctl --list-devices                # V4L2 devices (install v4l-utils)
+```
+
+`/proc/asound/` exposes ALSA's view of the cards, and `/sys/class/drm/` lists display connectors.
+
+```bash
+cat /proc/asound/cards                 # ALSA sound cards
+cat /proc/asound/devices               # ALSA PCM devices
+ls /sys/class/drm/                     # DRM connectors (card0-HDMI-A-1, etc.)
+```
+
+## The audio stack
+
+| Layer | Component | Role |
+|---|---|---|
+| Kernel | ALSA | Drivers and hardware access |
+| Session | PipeWire + WirePlumber | Modern sound server and policy manager |
+| Legacy | PulseAudio | Older sound server, still common |
+| Legacy | JACK | Low-latency pro-audio (often bridged by PipeWire) |
+
+PipeWire exposes PulseAudio, JACK, and ALSA compatibility interfaces, so most applications and commands from other stacks still work against it.
+
+## ALSA
+
+ALSA is the kernel-level interface. Its CLI tools talk directly to hardware, bypassing the sound server — useful for testing whether a device works at all.
+
+```bash
+aplay -l                               # list playback devices
+arecord -l                             # list capture devices
+aplay -L                               # list all PCM definitions (incl. plugins)
+
+# Play / record
+aplay -D plughw:0,0 file.wav           # play through card 0, device 0
+aplay -D default file.wav              # play through the default device
+arecord -f cd -d 5 test.wav            # record 5s CD-quality audio
+speaker-test -c 2 -t wav               # test left/right channels
+
+# Mixer control
+amixer                                 # list controls for the default card
+amixer -c 0 sset Master 80%            # set Master volume to 80%
+amixer -c 0 sset Master mute           # mute
+alsamixer                              # interactive ncurses mixer (F6 selects card)
+```
+
+### ALSA configuration files
+
+ALSA settings are defined in `asound.conf` (system-wide) and `~/.asoundrc` (per-user).
+
+```bash
+/etc/asound.conf                       # system-wide ALSA config
+~/.asoundrc                            # per-user ALSA config
+
+# Example: make card 1, device 0 the default output
+# ~/.asoundrc
+# default.pcm.card 1
+# default.pcm.device 0
+# default.ctl.card 1
+```
+
+## PipeWire & WirePlumber
+
+PipeWire is the modern sound server; **WirePlumber** is its session/policy manager and decides which device becomes the default. Both run as user services.
+
+```bash
+# Service status and control
+systemctl --user status pipewire        # sound server
+systemctl --user status wireplumber     # session manager
+systemctl --user restart pipewire pipewire-pulse wireplumber
+```
+
+### wpctl (WirePlumber control)
+
+`wpctl` is the everyday tool for inspecting and changing devices, volumes, and defaults.
+
+```bash
+wpctl status                            # devices, sinks, sources, streams
+wpctl status -n                         # hide unavailable nodes
+
+wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.5        # set sink volume (0.0–1.0)
+wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 0.1 # limit max to 150%
+wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle       # toggle mute
+wpctl set-default <ID>                           # set default sink/source by ID
+
+wpctl inspect <ID>                      # full properties of a node
+wpctl status                            # IDs are listed in brackets
+```
+
+### pw-* inspection tools
+
+```bash
+pw-cli info all                         # dump all PipeWire objects
+pw-cli ls Node                          # list nodes
+pw-dump                                 # JSON dump of the graph (inspect/machine-readable)
+pw-top                                  # live CPU and xrun/quantum stats
+pw-link -l                              # list links between ports
+pw-metadata -n settings                 # inspect global settings
+```
+
+### PipeWire configuration
+
+Configuration lives system-wide under `/etc/pipewire/` and per-user under `~/.config/pipewire/`, with WirePlumber equivalents. User files override system files of the same name.
+
+```bash
+/etc/pipewire/                          # system config
+~/.config/pipewire/                     # user overrides
+/etc/wireplumber/                       # system WirePlumber policy
+~/.config/wireplumber/                  # user WirePlumber policy
+
+# Drop-in overrides (preferred, avoids replacing upstream files)
+~/.config/pipewire/pipewire.conf.d/     # main daemon settings
+~/.config/wireplumber/wireplumber.conf.d/   # routing/default policy
+```
+
+## PulseAudio (legacy)
+
+If PipeWire's PulseAudio compatibility layer is active, the `pactl`/`pacmd` commands below still work and target PipeWire. On a pure PulseAudio system they target the daemon directly.
+
+```bash
+pactl info                              # server info (name, version, defaults)
+pactl list short sinks                  # outputs
+pactl list short sources                # inputs
+pactl list short modules                # loaded modules
+pactl list cards                         # cards and their available profiles
+
+pactl set-default-sink <name>           # switch default output
+pactl set-default-source <name>         # switch default input
+pactl set-sink-volume <name> 50%        # set volume
+pactl set-sink-mute <name> toggle       # toggle mute
+pactl set-card-profile <card> <profile> # switch a card profile
+
+pactl load-module module-loopback latency_msec=1   # example module load
+pactl unload-module <index>             # unload a module
+
+pacmd list-sinks                        # verbose alternative
+```
+
+Configuration files:
+
+```bash
+/etc/pulse/default.pa                   # system defaults
+/etc/pulse/client.conf                  # client settings
+~/.config/pulse/                        # per-user config and runtime state
+~/.config/pulse/default.pa              # user overrides (copy from /etc/pulse)
+```
+
+## Device profiles
+
+A sound card (especially one with both analog and digital I/O, or a Bluetooth headset) exposes multiple **profiles** — combinations of inputs and outputs. Choosing the right profile is the usual fix for "no sound" or "microphone missing" problems.
+
+```bash
+# List a card's profiles
+pactl list cards | grep -A 30 -i 'Profiles'
+pactl list cards | grep -iE 'Active Profile|Name:'
+
+# Switch profile (example: A2DP vs. headset/HFP)
+pactl set-card-profile bluez_card.XX_XX_XX_XX_XX_XX a2dp-sink
+pactl set-card-profile bluez_card.XX_XX_XX_XX_XX_XX headset-head-unit
+
+# With PipeWire/WirePlumber, list profile-capable nodes and switch by ID
+wpctl status
+wpctl inspect <ID>
+```
+
+Common profile suffixes:
+
+| Suffix | Meaning |
+|---|---|
+| `analog-stereo` | Analog output + input |
+| `digital-stereo` / `iec958` | S/PDIF or HDMI digital passthrough |
+| `hdmi-stereo` | HDMI audio output |
+| `a2dp-sink` | Bluetooth high-quality audio (output only) |
+| `headset-head-unit` / `hfp` | Bluetooth duplex with microphone (lower quality) |
+| `off` | Card disabled |
+
+## Bluetooth audio
+
+Bluetooth audio is handled by **BlueZ** (the daemon) plus WirePlumber/PulseAudio for the audio profiles. The adapter must be powered on and the device paired and trusted.
+
+```bash
+systemctl status bluetooth              # BlueZ daemon
+rfkill list                             # check for a soft/hard block
+rfkill unblock bluetooth                # clear a soft block if blocked
+
+bluetoothctl                            # interactive shell
+
+# Inside bluetoothctl:
+# power on
+# agent on
+# default-agent
+# scan on
+# devices                 # list discovered devices
+# pair XX:XX:XX:XX:XX:XX
+# trust XX:XX:XX:XX:XX:XX # auto-reconnect on future sessions
+# connect XX:XX:XX:XX:XX:XX
+# info XX:XX:XX:XX:XX:XX  # show connection and profile state
+# scan off
+# quit
+```
+
+```bash
+# Non-interactive
+bluetoothctl power on
+bluetoothctl scan on
+bluetoothctl pair XX:XX:XX:XX:XX:XX
+bluetoothctl trust XX:XX:XX:XX:XX:XX
+bluetoothctl connect XX:XX:XX:XX:XX:XX
+bluetoothctl info XX:XX:XX:XX:XX:XX
+bluetoothctl disconnect XX:XX:XX:XX:XX:XX
+bluetoothctl remove XX:XX:XX:XX:XX:XX
+
+# Inspect the adapter and pairing state
+hciconfig -a                            # adapter details (legacy bluez-tools)
+bluetoothctl show                       # adapter status and settings
+```
+
+### Bluetooth codecs
+
+High-quality audio uses A2DP with a codec negotiated between the source and the headset. WirePlumber exposes codec selection via node properties.
+
+```bash
+# List the codec a connected device is using (WirePlumber)
+wpctl inspect <ID> | grep -i codec
+
+# PipeWire Bluetooth config override
+# /etc/pipewire/pipewire.conf.d/bluez.conf
+# wireplumber.settings = {
+#   bluetooth.autoswitch-to-headset-profile = false
+# }
+
+# WirePlumber codec/feature policy
+# ~/.config/wireplumber/wireplumber.conf.d/bluetooth.conf
+```
+
+Common A2DP codecs: `SBC` (always available), `AAC`, `aptX`/`aptX HD`, `LDAC`. Availability depends on the adapter, the headset, and installed codec plugins.
+
+## Video and displays
+
+Video output runs through kernel **DRM/KMS**; the userspace configuration tool depends on the display server.
+
+### X11 — xrandr
+
+```bash
+xrandr                                  # list outputs, modes, and current state
+xrandr --query                          # same as above
+
+# Enable and position displays
+xrandr --output HDMI-1 --auto --right-of eDP-1
+xrandr --output DP-1 --mode 2560x1440 --rate 144
+xrandr --output HDMI-1 --off            # disable a display
+
+# Mirror displays
+xrandr --output HDMI-1 --same-as eDP-1
+
+# Scaling (fractional)
+xrandr --output eDP-1 --scale 1.25x1.25
+
+# Rotate
+xrandr --output eDP-1 --rotate left
+
+# Set a display as primary
+xrandr --output eDP-1 --primary
+```
+
+`arandr` provides a graphical front-end that emits the equivalent `xrandr` command.
+
+### Wayland
+
+Wayland compositors have their own display tools — there is no universal `xrandr` equivalent.
+
+```bash
+# wlroots-based compositors (Sway, Hyprland, etc.)
+wlr-randr                               # list outputs
+wlr-randr --output HDMI-A-1 --mode 1920x1080 --scale 1.5
+
+# GNOME
+gnome-randr                             # community tool; GNOME 47+ has built-in display config
+# KDE Plasma
+kscreen-doctor -o                       # list outputs
+kscreen-doctor output.HDMI-A-1.mode.1920x1080@60
+```
+
+### DRM/KMS inspection
+
+```bash
+ls /sys/class/drm/                      # connectors and their status
+cat /sys/class/drm/card0-HDMI-A-1/status    # "connected" or "disconnected"
+cat /sys/class/drm/card0-HDMI-A-1/modes     # modes the display advertises
+
+drm_info                                # DRM device details (install drm-info)
+modetest -M <driver>                    # low-level KMS test tool (libdrm-tests)
+```
+
+### GPU configuration
+
+```bash
+nvidia-smi                              # NVIDIA GPU status and processes
+nvidia-settings                         # NVIDIA X config (when installed)
+glxinfo | grep -i "OpenGL renderer"     # active GL renderer
+vainfo                                  # hardware video acceleration support (VA-API)
+```
+
+## Microphones and webcams
+
+### Microphones
+
+```bash
+arecord -l                              # capture devices
+arecord -f cd -d 5 mic-test.wav         # record a test clip
+aplay mic-test.wav                      # play it back
+aplay -D hw:1,0 mic-test.wav            # bypass the sound server
+
+amixer -c 1 sset Capture 80%            # set capture gain
+amixer -c 1 sset Capture cap            # enable capture
+alsamixer                               # capture controls are under F4
+
+# Through the sound server
+wpctl status                            # find the source ID
+wpctl set-volume <ID> 0.8               # set source volume
+wpctl set-mute <ID> toggle              # mute/unmute a source
+pactl list short sources                # list sources (PulseAudio-compatible)
+```
+
+### Webcams and capture devices
+
+Video capture uses the kernel **V4L2** interface.
+
+```bash
+v4l2-ctl --list-devices                 # list capture devices and /dev/video* nodes
+v4l2-ctl -d /dev/video0 --list-formats-ext   # supported resolutions and formats
+v4l2-ctl -d /dev/video0 --list-ctrls         # controls (brightness, exposure, etc.)
+v4l2-ctl -d /dev/video0 --set-fmt-video=width=1920,height=1080
+
+# Quick capture test
+ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 snapshot.jpg
+ffplay /dev/video0                      # preview the camera
+
+# Camera control GUI
+guvcview                                 # or: cheese
+```
+
+## Troubleshooting
+
+### Kernel and service logs
+
+```bash
+dmesg | grep -iE 'snd|audio|pipewire'   # audio-related kernel messages
+dmesg | grep -iE 'drm|hdmi|nvidia'      # display-related kernel messages
+dmesg | grep -iE 'usb|bluetooth'        # USB/Bluetooth enumeration
+
+journalctl --user -u pipewire -b        # PipeWire logs this boot
+journalctl --user -u wireplumber -b     # WirePlumber logs this boot
+journalctl -u bluetooth -b              # BlueZ logs this boot
+```
+
+### Common fixes
+
+- **No sound:** check the active profile (`pactl list cards`), the default sink (`wpctl status` / `pactl info`), and mute state. Restart the user services:
+  ```bash
+  systemctl --user restart pipewire pipewire-pulse wireplumber
+  ```
+- **Bluetooth device won't reconnect:** `bluetoothctl trust` the device, then `connect`. Toggle the adapter with `bluetoothctl power off && bluetoothctl power on`.
+- **Bluetooth mic unusable:** the headset must switch from `a2dp-sink` to `headset-head-unit`; this lowers output quality but enables the mic.
+- **Monitor not detected:** confirm the connector shows `connected` in `/sys/class/drm/`, then re-scan displays (`xrandr` or `wlr-randr`) or check `dmesg` for link training errors.
+- **Webcam busy:** another process holds `/dev/video*`; find it with `fuser -v /dev/video0` or `lsof /dev/video0`.
+
+### Resetting user audio state
+
+```bash
+systemctl --user stop pipewire pipewire-pulse wireplumber
+rm -rf ~/.local/state/wireplumber/*     # reset WirePlumber policy state
+systemctl --user start pipewire pipewire-pulse wireplumber
+```
+
+## Configuration file locations
+
+| Purpose | Path |
+|---|---|
+| ALSA (system / user) | `/etc/asound.conf`, `~/.asoundrc` |
+| PipeWire (system / user) | `/etc/pipewire/`, `~/.config/pipewire/` |
+| WirePlumber (system / user) | `/etc/wireplumber/`, `~/.config/wireplumber/` |
+| PulseAudio (system / user) | `/etc/pulse/`, `~/.config/pulse/` |
+| Bluetooth (BlueZ) | `/etc/bluetooth/main.conf` |
+| X11 display config | `/etc/X11/xorg.conf.d/`, `~/.xprofile` |
+| DRM/KMS (kernel) | `/sys/class/drm/` |
+
+## See also
+
+- [Device Management](./devices.mdx)
+- [Linux Kernel](./kernel.mdx)
+- [Linux Logging](./logging.mdx)
+- [Common Configs](./common-configs.mdx)
