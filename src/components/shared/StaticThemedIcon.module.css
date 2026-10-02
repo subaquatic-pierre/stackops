@@ -1,0 +1,22 @@
+/* Same fix as StaticThemedImage.module.css, applied to theme-dependent
+   icons (e.g. the dark-mode toggle's sun/moon): renders both icons always
+   and lets the data-theme attribute selector — set synchronously before
+   first paint — pick which is visible, instead of picking via React's
+   colorMode state. That state lags behind the real attribute for one
+   render after mount, so an icon chosen from it can briefly show the
+   wrong one. */
+.themedIcon {
+  display: none;
+}
+
+[data-theme="light"] .light {
+  display: initial;
+}
+
+[data-theme="dark"] .dark {
+  display: initial;
+}
+
+html:not([data-theme]) .light {
+  display: initial;
+}

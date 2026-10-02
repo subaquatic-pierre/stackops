@@ -1,12 +1,13 @@
-/* ── Container width ── */
+/* ── Container width ──
+   Single source of truth: Infima's own .container rule reads these vars
+   (max-width: var(--ifm-container-width)), so we only need to set the
+   vars here. Previously a separate `.container { max-width: 2000px }`
+   rule also existed and always won the cascade (same specificity, later
+   in source order), silently making these vars dead/ignored. */
 :root {
-  --ifm-container-width: 1600px;
-  --ifm-container-width-xl: 1600px;
+  --ifm-container-width: 2000px;
+  --ifm-container-width-xl: 2000px;
   --doc-sidebar-hidden-width: 30px;
-}
-
-.container {
-  max-width: 2000px;
 }
 
 /* ── Body-scroll lock (used when mobile nav panels are open) ── */

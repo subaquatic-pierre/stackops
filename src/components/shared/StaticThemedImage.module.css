@@ -1,0 +1,25 @@
+/* Pure CSS light/dark toggle — mirrors Docusaurus's own ThemedComponent
+   pattern, but skips its post-mount switch to a single React-state-chosen
+   image. That switch races the color-mode correction effect: for one
+   render, it picks the image matching the *configured* defaultMode
+   instead of the real data-theme attribute, so whenever a visitor's
+   actual theme differs from defaultMode, the logo briefly renders the
+   wrong variant (or no variant, since its class won't match the real
+   attribute) and the element collapses then reappears. Rendering both
+   images always, toggled only by the data-theme attribute selector (same
+   as what Docusaurus does during SSR), is flash-free forever. */
+.themedImg {
+  display: none;
+}
+
+[data-theme="light"] .light {
+  display: initial;
+}
+
+[data-theme="dark"] .dark {
+  display: initial;
+}
+
+html:not([data-theme]) .light {
+  display: initial;
+}

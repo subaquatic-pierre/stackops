@@ -3,7 +3,8 @@ import { useLocation } from "@docusaurus/router";
 import { Menu, X, Sun, Moon } from "lucide-react";
 import { useColorMode } from "@docusaurus/theme-common";
 import Logo from "@theme/Logo";
-import ThemedImage from "@theme/ThemedImage";
+import StaticThemedImage from "@site/src/components/shared/StaticThemedImage";
+import StaticThemedIcon from "@site/src/components/shared/StaticThemedIcon";
 import { Button } from "@site/src/components/ui/button";
 import { useSharedBodyScrollLock } from "@site/src/hooks/bodyScrollLock";
 import DesktopNav from "./DesktopNav";
@@ -68,12 +69,10 @@ export default function Navbar() {
                 className="flex items-center gap-2.5 cursor-pointer hover:no-underline group bg-transparent border-0 p-0"
                 aria-label="Open document categories"
               >
-                <ThemedImage
+                <StaticThemedImage
                   alt="StackOps Logo"
-                  sources={{
-                    light: "/img/logo-light-theme.svg",
-                    dark: "/img/logo-dark-theme.svg",
-                  }}
+                  lightSrc="/img/logo-light-theme.svg"
+                  darkSrc="/img/logo-dark-theme.svg"
                   width="200"
                   height="32"
                 />
@@ -94,11 +93,10 @@ export default function Navbar() {
               onClick={() => setColorMode(isDarkTheme ? "light" : "dark")}
               aria-label="Toggle dark mode"
             >
-              {isDarkTheme ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
+              <StaticThemedIcon
+                dark={<Sun className="w-4 h-4" />}
+                light={<Moon className="w-4 h-4" />}
+              />
             </Button>
             <Button
               variant="ghost"

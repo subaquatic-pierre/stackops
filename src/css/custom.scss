@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Font loading ──
+   Declared explicitly (rather than left as a bare font-family name) so
+   font-display can control the swap behavior. Without this, the browser
+   resolves "Inter"/"JetBrains Mono" as local system fonts asynchronously;
+   if that resolution finishes after the first layout pass, text reflows
+   when the real font replaces the fallback — visible as the whole page
+   (nav included, since font-family is global) looking narrower for a
+   moment before "extending" to its final width. `font-display: optional`
+   makes the browser commit to one font for the paint and never swap. */
+@font-face {
+  font-family: "Inter";
+  src: local("Inter");
+  font-weight: 100 900;
+  font-display: optional;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: local("JetBrains Mono");
+  font-weight: 100 800;
+  font-display: optional;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

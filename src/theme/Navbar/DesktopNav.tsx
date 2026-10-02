@@ -8,6 +8,7 @@ import { SiGithub } from "@icons-pack/react-simple-icons";
 import { useColorMode } from "@docusaurus/theme-common";
 import NavbarSearch from "@theme/Navbar/Search";
 import { Button } from "@site/src/components/ui/button";
+import StaticThemedIcon from "@site/src/components/shared/StaticThemedIcon";
 import { desktopLinkClass } from "./linkStyles";
 
 interface DesktopNavProps {
@@ -47,11 +48,10 @@ export default function DesktopNav({ isDocsPage, isJournalPage }: DesktopNavProp
           onClick={() => setColorMode(isDarkTheme ? "light" : "dark")}
           aria-label="Toggle dark mode"
         >
-          {isDarkTheme ? (
-            <Sun className="w-4 h-4" />
-          ) : (
-            <Moon className="w-4 h-4" />
-          )}
+          <StaticThemedIcon
+            dark={<Sun className="w-4 h-4" />}
+            light={<Moon className="w-4 h-4" />}
+          />
         </Button>
       </div>
     </div>

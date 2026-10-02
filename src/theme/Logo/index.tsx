@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "@docusaurus/Link";
-import ThemedImage from "@theme/ThemedImage";
+import StaticThemedImage from "@site/src/components/shared/StaticThemedImage";
 
 export default function Logo() {
   return (
@@ -8,12 +8,10 @@ export default function Logo() {
       to="/"
       className="flex items-center gap-2.5 cursor-pointer hover:no-underline group"
     >
-      <ThemedImage
+      <StaticThemedImage
         alt="StackOps Logo"
-        sources={{
-          light: "/img/logo-light-theme.svg",
-          dark: "/img/logo-dark-theme.svg",
-        }}
+        lightSrc="/img/logo-light-theme.svg"
+        darkSrc="/img/logo-dark-theme.svg"
         width="200"
         height="32"
       />
