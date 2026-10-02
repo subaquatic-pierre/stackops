@@ -1,0 +1,267 @@
+---
+sidebar_position: 18
+title: 'Virtual Monitors & Remote Displays'
+description: 'Reference for creating virtual/extra monitors on Linux and driving them from another device over wifi or cable: KDE krfb-virtualmonitor, GNOME Remote Desktop, wayvnc headless outputs, the X11 dummy driver, Deskreen, DisplayLink/evdi, and client-side setup (e.g. using a tablet as a second screen).'
+tags: [linux, kde, vnc, rdp, virtual-monitor, remote-desktop, wayland, x11, tablet, display, reference]
+last_updated: '2026-10-02'
+---
+
+# Virtual Monitors & Remote Displays
+
+## Overview
+
+A virtual monitor is a logical display the OS treats as a real, extended desktop — with no physical panel attached — that gets its frames pushed to another device over the network or a cable. This is different from screen *mirroring*, which just duplicates an existing display, and different from KVM software (see [Related: input sharing, not a monitor](#related-input-sharing-not-a-monitor)), which shares a mouse/keyboard across already-separate real screens.
+
+There are three general approaches, in order of how "native" the extra monitor feels:
+
+| Approach | How it works | Extends or mirrors | Session type |
+|---|---|---|---|
+| Compositor-native virtual output | Compositor creates a new logical output with no hardware, then streams it (RFB/RDP) | Extends | Wayland (KWin, wlroots) |
+| Dummy driver + generic VNC/RDP server | A fake X11 "monitor" is defined in `xorg.conf`; a VNC server attaches to it | Extends | X11 only |
+| Browser/WebRTC screen share | App streams a window or the whole desktop to a browser tab on the client | Usually mirrors | Either |
+
+Wired options (USB-C/HDMI docks via DisplayLink, or a plain Ethernet/USB-tether cable carrying the same network protocols as wifi) are covered per-tool below rather than as a separate category — the cable just changes the transport, not the mechanism.
+
+## KDE Plasma: krfb-virtualmonitor
+
+`krfb-virtualmonitor` (part of the `krfb` package) asks KWin to create a new logical output with no physical hardware attached, then serves it over VNC (RFB protocol) using a PipeWire screen capture. It requires a **Plasma Wayland session** — there is no X11 equivalent for this tool specifically (use the [dummy driver](#x11-legacy-dummy-driver--x11vnc) on X11).
+
+```bash
+# Debian/Ubuntu
+sudo apt install krfb
+
+# Arch
+sudo pacman -S krfb
+```
+
+### Usage
+
+```bash
+krfb-virtualmonitor --help
+```
+
+| Flag | Meaning |
+|---|---|
+| `--resolution <WxH>` | Logical resolution of the new monitor |
+| `--name <name>` | Name shown for the monitor |
+| `--password <password>` | Password required for a client to connect |
+| `--scale <dpr>` | Device-pixel-ratio of the remote device (match its scaling factor) |
+| `--port <number>` | Port to listen on (defaults to the standard VNC range if omitted) |
+| `--desktopfile <file>` | Base desktop-entry file name for this invocation |
+
+```bash
+# Example: tablet-sized virtual monitor at native resolution
+krfb-virtualmonitor --resolution 2560x1600 --name "TabletScreen" \
+  --password "yourpassword" --port 5900
+
+# Lower logical resolution (some VNC clients struggle with very high pixel
+# counts over wifi — drop resolution before dropping frame rate)
+krfb-virtualmonitor --resolution 1920x1200 --name "TabletScreen" \
+  --password "yourpassword" --port 5900
+```
+
+Match `--resolution` to the client device's native resolution (or the same aspect ratio) and use `--scale` to match its device-pixel-ratio — mismatches are the usual cause of blurry or letterboxed output, not a VNC quality setting.
+
+### Connecting a client
+
+The client is any VNC viewer pointed at the host's LAN IP and the chosen port:
+
+```bash
+ip addr show                # or: hostname -I — find the host's LAN IP
+```
+
+- Android: AVNC (open source), bVNC, RealVNC Viewer
+- iPadOS: RealVNC Viewer, Jump Desktop
+- Desktop: `vncviewer`, Remmina, TigerVNC viewer
+
+Connect to `<host-ip>:<port>` (e.g. `192.168.1.50:5900`) and supply the `--password`.
+
+### Autostart
+
+To avoid retyping the command, wrap it in a `.desktop` file or a systemd user unit rather than storing the password in shell history:
+
+```ini
+# ~/.config/systemd/user/krfb-virtualmonitor.service
+[Unit]
+Description=KRFB Virtual Monitor
+
+[Service]
+ExecStart=/usr/bin/krfb-virtualmonitor --resolution 1920x1200 --name "TabletScreen" --password "yourpassword" --port 5900
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now krfb-virtualmonitor.service
+```
+
+### Troubleshooting
+
+- `kf.notifications: No event config could be found for event id "UserAcceptsConnection"` — benign; the notification theme has no entry for that event, connection handling is unaffected.
+- `kpipewire_dmabuf_logging: eglChooseConfig returned this many configs: 1` — informational PipeWire/EGL log line, not an error.
+- `new client request` with no picture on the client — check the logical `--resolution` isn't larger than what the client's VNC app will render, and that the port is reachable (see [Firewalls & ports](#firewalls--ports)).
+- The password is passed as a plain CLI argument, so it is visible to any local user via `ps aux` or `/proc/<pid>/cmdline`. Treat this as LAN-only/trusted-network tooling, not something to expose to the internet.
+
+## GNOME: Remote Desktop (`grdctl`)
+
+GNOME's built-in remote desktop is RDP-based (not VNC) and is primarily a screen-sharing/remote-login facility rather than a dedicated virtual-monitor creator — it does not have a documented `grdctl` subcommand that adds a monitor to an existing session the way `krfb-virtualmonitor` does. It's still a valid way to drive a GNOME machine from a tablet over wifi.
+
+```bash
+sudo apt install gnome-remote-desktop
+
+grdctl rdp enable
+grdctl rdp set-credentials <user> '<password>'
+grdctl status                          # confirm RDP is enabled and listening
+```
+
+Connect from the client with any RDP client — `xfreerdp`/FreeRDP on desktop, or an RD Client app (Microsoft Remote Desktop, Jump Desktop) on Android/iOS.
+
+## wayvnc: headless outputs on wlroots (Sway, Hyprland)
+
+`wayvnc` is a VNC server for wlroots-based compositors. It doesn't create a virtual output itself — the compositor defines a `HEADLESS-*` output, and `wayvnc` is pointed at it.
+
+```bash
+sudo apt install wayvnc    # Debian/Ubuntu
+sudo pacman -S wayvnc      # Arch
+```
+
+```ini
+# Sway config — add a headless output
+output HEADLESS-1 {
+    pos 1200,0
+    mode 2048x1536
+}
+```
+
+```bash
+wayvnc --output=HEADLESS-1
+```
+
+```ini
+# ~/.config/wayvnc/config
+address=0.0.0.0
+enable_auth=true
+username=luser
+password=p455w0rd
+```
+
+Hyprland needs a reasonably recent release (≥0.48.0) paired with `wayvnc` ≥0.9.1, and headless-output support there currently relies on community scripts rather than a first-party flag — treat it as less turnkey than the Sway/KWin paths.
+
+## X11 legacy: dummy driver + x11vnc
+
+The classic, pre-Wayland recipe: define a fake monitor with the X11 `dummy` driver, then attach a generic VNC server to that display. Still works, but is X11-only — a dead end on a pure Wayland session.
+
+```bash
+sudo apt install xserver-xorg-video-dummy x11vnc
+```
+
+```conf
+# /etc/X11/xorg.conf.d/10-dummy.conf
+Section "Device"
+    Identifier  "DummyDevice"
+    Driver      "dummy"
+    VideoRam    256000
+EndSection
+
+Section "Monitor"
+    Identifier  "DummyMonitor"
+    HorizSync   28.0-80.0
+    VertRefresh 48.0-75.0
+    Modeline "1920x1200" 193.25 1920 2048 2256 2592 1200 1203 1209 1245 -hsync +vsync
+EndSection
+
+Section "Screen"
+    Identifier "DummyScreen"
+    Device     "DummyDevice"
+    Monitor    "DummyMonitor"
+    DefaultDepth 24
+    SubSection "Display"
+        Depth   24
+        Modes   "1920x1200"
+    EndSubSection
+EndSection
+```
+
+```bash
+x11vnc -display :0 -rfbport 5900 -passwd yourpassword -forever
+```
+
+## Browser/WebRTC: Deskreen
+
+Deskreen (`github.com/pavlobu/deskreen`) turns any device with a browser into a display target over WebRTC — no app install needed on the client. By itself it **mirrors** (or shares a single window); to get a true *extended* desktop with Deskreen, pair it with a dummy monitor underneath (the [X11 dummy driver](#x11-legacy-dummy-driver--x11vnc) above, or a dummy HDMI/DP EDID-emulator plug) so the OS has a real second screen for Deskreen to stream.
+
+```bash
+# AppImage or distro package from the project's releases
+./Deskreen.AppImage
+```
+
+## Wired docks: DisplayLink / evdi
+
+For a physical USB-C/USB-A dock or adapter that adds a monitor output over a cable (as opposed to streaming over a network), DisplayLink hardware uses the `evdi` kernel driver plus DisplayLink's userspace component.
+
+```bash
+sudo apt install evdi-dkms      # or DisplayLink's official installer bundle
+sudo modprobe evdi
+```
+
+Support is noticeably better on KDE Plasma (Wayland) than on GNOME/Mutter, where hot-pluggable secondary-display support is still maturing. If a DisplayLink dock behaves unreliably on Wayland, fall back to an X11 session before assuming the hardware is faulty.
+
+## spacedesk
+
+spacedesk's server component (the piece that turns the host machine into a multi-monitor source) is Windows-only; there is no official Linux server. Only early-stage, unofficial reverse-engineered Linux clients exist. Not a viable host-side option on Linux — relevant only if the *host* is Windows and the *client* is Linux/Android/iOS.
+
+## Firewalls & ports
+
+All of the above except DisplayLink/evdi (a local cable, not a network protocol) need an open port on the host's firewall:
+
+| Protocol | Default port | Used by |
+|---|---|---|
+| RFB/VNC | `5900` (+ display number) | krfb-virtualmonitor, wayvnc, x11vnc |
+| RDP | `3389` | GNOME Remote Desktop |
+
+```bash
+# UFW
+sudo ufw allow 5900/tcp
+sudo ufw allow 3389/tcp
+
+# firewalld
+sudo firewall-cmd --add-port=5900/tcp --permanent
+sudo firewall-cmd --reload
+
+# Verify the service is actually listening before blaming the firewall
+ss -ltnp | grep -E '5900|3389'
+```
+
+## Cable instead of wifi
+
+None of the tools above care whether the network path is wifi, Ethernet, or USB tethering — they all just need an IP route between host and client. A cable only changes which interface and IP that is:
+
+```bash
+# Plain Ethernet: same VNC/RDP commands, just use the wired interface's IP
+ip addr show eth0
+
+# Android USB tethering: enabling it creates a new interface (often a
+# 192.168.42.0/24-style subnet) on the host — find its address, then
+# connect the VNC/RDP client to that IP instead of the wifi one
+ip addr show
+
+# Alternative for Android: tunnel a VNC port over the USB debugging
+# connection instead of tethering, so the client app connects to
+# 127.0.0.1:<port> on the device
+adb reverse tcp:5900 tcp:5900
+```
+
+Cable transport is mainly worth it for lower latency/jitter than wifi, not because any of these tools require it.
+
+## Related: input sharing, not a monitor
+
+Input Leap (`github.com/input-leap/input-leap`, the actively maintained fork of the now-unmaintained Barrier/Synergy lineage) shares a single mouse/keyboard across multiple **already-displayed** real screens on separate machines. It does not create or extend a display — reach for it when the goal is one keyboard across several computers, not an extra screen on one computer.
+
+## See also
+
+- [Sound & Video Management](./sound-and-video.mdx)
+- [Networking](./networking.mdx)
+- [Devices](./devices.mdx)
+- [SSH](./ssh.mdx)
